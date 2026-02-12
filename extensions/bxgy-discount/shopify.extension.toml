@@ -1,0 +1,22 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "bxgy-discount"
+handle = "bxgy-discount"
+
+uid = "8642cacb-8f5d-045a-92ed-9431e8ee199c8b4ec1d3"
+
+type = "function"
+
+  [extensions.build]
+  command = "cargo build --target=wasm32-unknown-unknown --release"
+  path = "target/wasm32-unknown-unknown/release/bxgy-discount.wasm"
+
+  [[extensions.targeting]]
+  target = "purchase.product-discount.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.ui.paths]
+  create = "/app/bundles/new"
+  details = "/app/bundles/{id}"
