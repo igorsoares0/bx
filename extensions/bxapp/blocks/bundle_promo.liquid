@@ -423,7 +423,7 @@
     /* Fallback reward variant ID from metafield */
     fallbackRewardVariantId: {{ reward_variant_id | json }},
     fallbackRewardPrice: {{ rw_price | json }},
-    shopMoneyFormat: {{ shop.money_format | json }}
+    shopCurrency: {{ shop.currency | json }}
   };
 
   /* ── Buy product variants lookup (prices in cents) ── */
@@ -449,13 +449,10 @@
 
   /* ── Helpers ── */
   function formatMoney(cents) {
-    var amount = (cents / 100).toFixed(2);
-    /* Use the shop's money_format or fallback to $X.XX */
-    var fmt = config.shopMoneyFormat || '${{amount}}';
-    return fmt.replace('{{amount}}', amount)
-              .replace('{{amount_no_decimals}}', Math.round(cents / 100).toString())
-              .replace('{{amount_with_comma_separator}}', amount.replace('.', ','))
-              .replace('{{amount_no_decimals_with_comma_separator}}', Math.round(cents / 100).toString());
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: config.shopCurrency || 'USD'
+    }).format(cents / 100);
   }
 
   function getDiscountedPrice(priceCents) {
