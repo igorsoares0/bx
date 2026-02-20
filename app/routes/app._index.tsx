@@ -14,6 +14,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   removeBundleMetafield,
+  setBundleMetafield,
   syncShopBundlesMetafield,
 } from "../lib/bundle-metafields.server";
 
@@ -90,6 +91,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             },
           },
         );
+      }
+
+      // Update product metafield: remove when deactivating, restore when activating
+      if (bundle.buyType === "product") {
+        if (newActive) {
+          await setBundleMetafield(admin, {
+            buyProductId: bundle.buyReference,
+            bundleName: bundle.name,
+            minQuantity: bundle.minQuantity,
+            rewardProductId: bundle.getProductId,
+            discountType: bundle.discountType,
+            discountValue: bundle.discountValue,
+            maxReward: bundle.maxReward,
+          });
+        } else {
+          await removeBundleMetafield(admin, bundle.buyReference);
+        }
       }
     }
   }
