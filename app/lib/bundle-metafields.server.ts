@@ -173,7 +173,10 @@ export async function syncShopBundlesMetafield(
   }
 
   // Get the shop GID
-  const shopRes = await admin.graphql(`#graphql query { shop { id } }`);
+  const shopRes = await admin.graphql(
+    `#graphql
+      query { shop { id } }`,
+  );
   const shopJson = await shopRes.json();
   const shopGid = shopJson.data?.shop?.id;
 
@@ -234,15 +237,21 @@ export async function removeBundleMetafield(
   if (metafieldId) {
     await admin.graphql(
       `#graphql
-        mutation deleteMetafield($input: MetafieldDeleteInput!) {
-          metafieldDelete(input: $input) {
-            deletedId
+        mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
             userErrors { field message }
           }
         }`,
       {
         variables: {
-          input: { id: metafieldId },
+          metafields: [
+            {
+              ownerId: buyProductId,
+              namespace: "bxgy_bundle",
+              key: "config",
+            },
+          ],
         },
       },
     );
