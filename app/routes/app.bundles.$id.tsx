@@ -15,6 +15,7 @@ import {
   Text,
   Banner,
   Thumbnail,
+  Badge,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -383,6 +384,30 @@ export default function BundleForm() {
   );
   const [errors, setErrors] = useState<string[]>([]);
 
+  /* ── Preview helpers ── */
+  const previewDiscountLabel =
+    discountType === "percentage"
+      ? `${discountValue || 0}% off`
+      : `$${discountValue || 0} off`;
+
+  const formatPreviewPrice = (cents: number) => {
+    return `$${(cents / 100).toFixed(2)}`;
+  };
+
+  // Simulate a reward price for preview (we don't have real price in admin)
+  const fakeRewardPriceCents = 2999;
+  const fakeBuyPriceCents = 2499;
+  const discountedRewardCents =
+    discountType === "percentage"
+      ? Math.round(fakeRewardPriceCents * (1 - Number(discountValue || 0) / 100))
+      : Math.max(0, fakeRewardPriceCents - Number(discountValue || 0) * 100);
+
+  const totalOriginalCents =
+    fakeBuyPriceCents * Number(minQuantity || 1) + fakeRewardPriceCents;
+  const totalFinalCents =
+    fakeBuyPriceCents * Number(minQuantity || 1) + discountedRewardCents;
+  const savingsCents = totalOriginalCents - totalFinalCents;
+
   const handleSelectBuyProduct = useCallback(async () => {
     const type = buyType === "collection" ? "collection" : "product";
     const selected = await shopify.resourcePicker({
@@ -613,6 +638,365 @@ export default function BundleForm() {
               </Button>
             </InlineStack>
           </BlockStack>
+        </Layout.Section>
+
+        {/* ── Theme Preview ── */}
+        <Layout.Section variant="oneThird">
+          <div style={{ position: "sticky", top: 20 }}>
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">
+                  Theme preview
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Approximate preview of the storefront widget
+                </Text>
+
+                {/* Preview widget */}
+                <div
+                  style={{
+                    border: "2px solid #e85d04",
+                    borderRadius: "12px",
+                    padding: "16px",
+                    background: "#fff8f0",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {/* Badge */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                    >
+                      <path
+                        d="M10 2L12.09 7.26L18 8.27L14 12.14L14.81 18.02L10 15.27L5.19 18.02L6 12.14L2 8.27L7.91 7.26L10 2Z"
+                        fill="#e85d04"
+                      />
+                    </svg>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "11px",
+                        color: "#e85d04",
+                        textTransform: "uppercase" as const,
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Bundle Deal
+                    </span>
+                  </div>
+
+                  {/* Product cards */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "stretch",
+                      gap: "0",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    {/* Buy product */}
+                    <div
+                      style={{
+                        flex: 1,
+                        background: "#fff",
+                        border: "1px solid #e5e5e5",
+                        borderRadius: "8px",
+                        padding: "10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "9px",
+                          fontWeight: 600,
+                          textTransform: "uppercase" as const,
+                          color: "#666",
+                          marginBottom: "6px",
+                          letterSpacing: "0.3px",
+                        }}
+                      >
+                        Buy
+                      </div>
+                      {buyImage ? (
+                        <img
+                          src={buyImage}
+                          alt={buyReferenceLabel}
+                          style={{
+                            width: "100%",
+                            maxWidth: "80px",
+                            aspectRatio: "1",
+                            objectFit: "cover",
+                            borderRadius: "6px",
+                            background: "#f5f5f5",
+                            marginBottom: "8px",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: "80px",
+                            height: "80px",
+                            borderRadius: "6px",
+                            background: "#f0f0f0",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: "8px",
+                            color: "#999",
+                            fontSize: "10px",
+                          }}
+                        >
+                          No image
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#1a1a1a",
+                          marginBottom: "3px",
+                          lineHeight: "1.3",
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                        }}
+                      >
+                        {buyReferenceLabel || "Buy Product"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#1a1a1a",
+                          marginBottom: "3px",
+                        }}
+                      >
+                        {formatPreviewPrice(fakeBuyPriceCents)}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: "#666",
+                          background: "#f5f5f5",
+                          padding: "2px 8px",
+                          borderRadius: "10px",
+                        }}
+                      >
+                        Qty: {minQuantity || 1}
+                      </div>
+                    </div>
+
+                    {/* Plus */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0 8px",
+                        fontSize: "20px",
+                        fontWeight: 700,
+                        color: "#e85d04",
+                      }}
+                    >
+                      +
+                    </div>
+
+                    {/* Reward product */}
+                    <div
+                      style={{
+                        flex: 1,
+                        background: "#fff",
+                        border: "1px solid #e5e5e5",
+                        borderRadius: "8px",
+                        padding: "10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "9px",
+                          fontWeight: 600,
+                          textTransform: "uppercase" as const,
+                          color: "#e85d04",
+                          marginBottom: "6px",
+                          letterSpacing: "0.3px",
+                        }}
+                      >
+                        Get {previewDiscountLabel}
+                      </div>
+                      {getImage ? (
+                        <img
+                          src={getImage}
+                          alt={getProductLabel}
+                          style={{
+                            width: "100%",
+                            maxWidth: "80px",
+                            aspectRatio: "1",
+                            objectFit: "cover",
+                            borderRadius: "6px",
+                            background: "#f5f5f5",
+                            marginBottom: "8px",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: "80px",
+                            height: "80px",
+                            borderRadius: "6px",
+                            background: "#f0f0f0",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: "8px",
+                            color: "#999",
+                            fontSize: "10px",
+                          }}
+                        >
+                          No image
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#1a1a1a",
+                          marginBottom: "3px",
+                          lineHeight: "1.3",
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                        }}
+                      >
+                        {getProductLabel || "Reward Product"}
+                      </div>
+                      <div style={{ fontSize: "12px", marginBottom: "3px" }}>
+                        {discountedRewardCents < fakeRewardPriceCents ? (
+                          <>
+                            <span
+                              style={{
+                                textDecoration: "line-through",
+                                color: "#999",
+                                fontWeight: 400,
+                                marginRight: "4px",
+                              }}
+                            >
+                              {formatPreviewPrice(fakeRewardPriceCents)}
+                            </span>
+                            <span
+                              style={{
+                                color: "#e53e3e",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {formatPreviewPrice(discountedRewardCents)}
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ fontWeight: 600, color: "#1a1a1a" }}>
+                            {formatPreviewPrice(fakeRewardPriceCents)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div
+                    style={{
+                      textAlign: "center",
+                      marginBottom: "10px",
+                      padding: "8px",
+                      background: "#f9f9f9",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    <div style={{ fontSize: "13px", marginBottom: "2px" }}>
+                      {savingsCents > 0 && (
+                        <span
+                          style={{
+                            textDecoration: "line-through",
+                            color: "#999",
+                            marginRight: "6px",
+                          }}
+                        >
+                          {formatPreviewPrice(totalOriginalCents)}
+                        </span>
+                      )}
+                      <span style={{ fontWeight: 700, color: "#1a1a1a" }}>
+                        {formatPreviewPrice(totalFinalCents)}
+                      </span>
+                    </div>
+                    {savingsCents > 0 && (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          color: "#16a34a",
+                        }}
+                      >
+                        You save {formatPreviewPrice(savingsCents)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Button */}
+                  <div
+                    style={{
+                      width: "100%",
+                      padding: "10px 16px",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      border: "none",
+                      borderRadius: "6px",
+                      background: "#e85d04",
+                      color: "#fff",
+                      textAlign: "center",
+                      cursor: "default",
+                    }}
+                  >
+                    Add Bundle to Cart
+                  </div>
+
+                  {/* Footer */}
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontSize: "10px",
+                      color: "#888",
+                      marginTop: "8px",
+                    }}
+                  >
+                    Discount applied automatically at checkout
+                  </div>
+                </div>
+
+                {/* Info note */}
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Prices shown are placeholders. Real prices from your products
+                  will appear on the storefront.
+                </Text>
+              </BlockStack>
+            </Card>
+          </div>
         </Layout.Section>
       </Layout>
     </Page>
