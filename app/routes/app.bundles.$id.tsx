@@ -57,8 +57,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       functionId,
       buyReferenceTitle: "",
       buyReferenceImage: "",
+      buyReferencePrice: 0,
       getProductTitle: "",
       getProductImage: "",
+      getProductPrice: 0,
     });
   }
 
@@ -70,11 +72,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     throw new Response("Bundle not found", { status: 404 });
   }
 
-  // Fetch product/collection titles and images for display in the form
+  // Fetch product/collection titles, images, and prices for display in the form
   let buyReferenceTitle = bundle.buyReference;
   let buyReferenceImage = "";
+  let buyReferencePrice = 0;
   let getProductTitle = bundle.getProductId;
   let getProductImage = "";
+  let getProductPrice = 0;
 
   try {
     const [buyRes, getRes] = await Promise.all([
@@ -95,6 +99,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
                 product(id: $id) {
                   title
                   featuredImage { url }
+                  variants(first: 1) {
+                    edges { node { price } }
+                  }
                 }
               }`,
             { variables: { id: bundle.buyReference } },
@@ -105,6 +112,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             product(id: $id) {
               title
               featuredImage { url }
+              variants(first: 1) {
+                edges { node { price } }
+              }
             }
           }`,
         { variables: { id: bundle.getProductId } },
@@ -122,10 +132,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       buyJson.data?.product?.featuredImage?.url ||
       buyJson.data?.collection?.image?.url ||
       "";
+    buyReferencePrice = buyJson.data?.product?.variants?.edges?.[0]?.node?.price
+      ? Math.round(parseFloat(buyJson.data.product.variants.edges[0].node.price) * 100)
+      : 0;
     getProductTitle =
       getJson.data?.product?.title || bundle.getProductId;
     getProductImage =
       getJson.data?.product?.featuredImage?.url || "";
+    getProductPrice = getJson.data?.product?.variants?.edges?.[0]?.node?.price
+      ? Math.round(parseFloat(getJson.data.product.variants.edges[0].node.price) * 100)
+      : 0;
   } catch {
     // Keep GID as fallback if GraphQL fails
   }
@@ -135,8 +151,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     functionId,
     buyReferenceTitle,
     buyReferenceImage,
+    buyReferencePrice,
     getProductTitle,
     getProductImage,
+    getProductPrice,
   });
 };
 
@@ -344,8 +362,10 @@ export default function BundleForm() {
     functionId,
     buyReferenceTitle,
     buyReferenceImage,
+    buyReferencePrice,
     getProductTitle,
     getProductImage,
+    getProductPrice,
   } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -373,6 +393,8 @@ export default function BundleForm() {
     getProductTitle || bundle?.getProductId || "",
   );
   const [getImage, setGetImage] = useState(getProductImage || "");
+  const [buyPriceCents, setBuyPriceCents] = useState(buyReferencePrice || 0);
+  const [getPriceCents, setGetPriceCents] = useState(getProductPrice || 0);
   const [discountType, setDiscountType] = useState(
     bundle?.discountType || "percentage",
   );
@@ -394,19 +416,19 @@ export default function BundleForm() {
     return `$${(cents / 100).toFixed(2)}`;
   };
 
-  // Simulate a reward price for preview (we don't have real price in admin)
-  const fakeRewardPriceCents = 2999;
-  const fakeBuyPriceCents = 2499;
   const discountedRewardCents =
-    discountType === "percentage"
-      ? Math.round(fakeRewardPriceCents * (1 - Number(discountValue || 0) / 100))
-      : Math.max(0, fakeRewardPriceCents - Number(discountValue || 0) * 100);
+    getPriceCents > 0
+      ? discountType === "percentage"
+        ? Math.round(getPriceCents * (1 - Number(discountValue || 0) / 100))
+        : Math.max(0, getPriceCents - Number(discountValue || 0) * 100)
+      : 0;
 
   const totalOriginalCents =
-    fakeBuyPriceCents * Number(minQuantity || 1) + fakeRewardPriceCents;
+    buyPriceCents * Number(minQuantity || 1) + getPriceCents;
   const totalFinalCents =
-    fakeBuyPriceCents * Number(minQuantity || 1) + discountedRewardCents;
+    buyPriceCents * Number(minQuantity || 1) + discountedRewardCents;
   const savingsCents = totalOriginalCents - totalFinalCents;
+  const hasPrices = buyPriceCents > 0 || getPriceCents > 0;
 
   const handleSelectBuyProduct = useCallback(async () => {
     const type = buyType === "collection" ? "collection" : "product";
@@ -426,6 +448,10 @@ export default function BundleForm() {
             items[0].image?.originalSrc ||
             "",
         );
+        const firstVariant = items[0].variants?.[0];
+        if (firstVariant?.price) {
+          setBuyPriceCents(Math.round(parseFloat(firstVariant.price) * 100));
+        }
       }
     }
   }, [shopify, buyType]);
@@ -443,6 +469,10 @@ export default function BundleForm() {
         setGetProductId(items[0].id);
         setGetProductLabel(items[0].title || items[0].id);
         setGetImage(items[0].images?.[0]?.originalSrc || "");
+        const firstVariant = items[0].variants?.[0];
+        if (firstVariant?.price) {
+          setGetPriceCents(Math.round(parseFloat(firstVariant.price) * 100));
+        }
       }
     }
   }, [shopify]);
@@ -785,7 +815,9 @@ export default function BundleForm() {
                           marginBottom: "3px",
                         }}
                       >
-                        {formatPreviewPrice(fakeBuyPriceCents)}
+                        {buyPriceCents > 0
+                          ? formatPreviewPrice(buyPriceCents)
+                          : "—"}
                       </div>
                       <div
                         style={{
@@ -889,31 +921,35 @@ export default function BundleForm() {
                         {getProductLabel || "Reward Product"}
                       </div>
                       <div style={{ fontSize: "12px", marginBottom: "3px" }}>
-                        {discountedRewardCents < fakeRewardPriceCents ? (
-                          <>
-                            <span
-                              style={{
-                                textDecoration: "line-through",
-                                color: "#999",
-                                fontWeight: 400,
-                                marginRight: "4px",
-                              }}
-                            >
-                              {formatPreviewPrice(fakeRewardPriceCents)}
+                        {getPriceCents > 0 ? (
+                          discountedRewardCents < getPriceCents ? (
+                            <>
+                              <span
+                                style={{
+                                  textDecoration: "line-through",
+                                  color: "#999",
+                                  fontWeight: 400,
+                                  marginRight: "4px",
+                                }}
+                              >
+                                {formatPreviewPrice(getPriceCents)}
+                              </span>
+                              <span
+                                style={{
+                                  color: "#e53e3e",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {formatPreviewPrice(discountedRewardCents)}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ fontWeight: 600, color: "#1a1a1a" }}>
+                              {formatPreviewPrice(getPriceCents)}
                             </span>
-                            <span
-                              style={{
-                                color: "#e53e3e",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {formatPreviewPrice(discountedRewardCents)}
-                            </span>
-                          </>
+                          )
                         ) : (
-                          <span style={{ fontWeight: 600, color: "#1a1a1a" }}>
-                            {formatPreviewPrice(fakeRewardPriceCents)}
-                          </span>
+                          <span style={{ color: "#999" }}>—</span>
                         )}
                       </div>
                     </div>
@@ -929,31 +965,44 @@ export default function BundleForm() {
                       borderRadius: "6px",
                     }}
                   >
-                    <div style={{ fontSize: "13px", marginBottom: "2px" }}>
-                      {savingsCents > 0 && (
-                        <span
-                          style={{
-                            textDecoration: "line-through",
-                            color: "#999",
-                            marginRight: "6px",
-                          }}
-                        >
-                          {formatPreviewPrice(totalOriginalCents)}
-                        </span>
-                      )}
-                      <span style={{ fontWeight: 700, color: "#1a1a1a" }}>
-                        {formatPreviewPrice(totalFinalCents)}
-                      </span>
-                    </div>
-                    {savingsCents > 0 && (
+                    {hasPrices ? (
+                      <>
+                        <div style={{ fontSize: "13px", marginBottom: "2px" }}>
+                          {savingsCents > 0 && (
+                            <span
+                              style={{
+                                textDecoration: "line-through",
+                                color: "#999",
+                                marginRight: "6px",
+                              }}
+                            >
+                              {formatPreviewPrice(totalOriginalCents)}
+                            </span>
+                          )}
+                          <span style={{ fontWeight: 700, color: "#1a1a1a" }}>
+                            {formatPreviewPrice(totalFinalCents)}
+                          </span>
+                        </div>
+                        {savingsCents > 0 && (
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              color: "#16a34a",
+                            }}
+                          >
+                            You save {formatPreviewPrice(savingsCents)}
+                          </div>
+                        )}
+                      </>
+                    ) : (
                       <div
                         style={{
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          color: "#16a34a",
+                          fontSize: "12px",
+                          color: "#999",
                         }}
                       >
-                        You save {formatPreviewPrice(savingsCents)}
+                        Select products to see prices
                       </div>
                     )}
                   </div>
@@ -991,8 +1040,8 @@ export default function BundleForm() {
 
                 {/* Info note */}
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Prices shown are placeholders. Real prices from your products
-                  will appear on the storefront.
+                  Prices are based on the first variant of each product. On the
+                  storefront, prices update when the customer changes variants.
                 </Text>
               </BlockStack>
             </Card>
