@@ -14,6 +14,7 @@ import {
   InlineStack,
   Text,
   Banner,
+  Thumbnail,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -50,7 +51,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const functionId = discountFunction?.id || "";
 
   if (params.id === "new") {
-    return json({ bundle: null, functionId });
+    return json({
+      bundle: null,
+      functionId,
+      buyReferenceTitle: "",
+      buyReferenceImage: "",
+      getProductTitle: "",
+      getProductImage: "",
+    });
   }
 
   const bundle = await db.bundle.findUnique({
@@ -61,7 +69,74 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     throw new Response("Bundle not found", { status: 404 });
   }
 
-  return json({ bundle, functionId });
+  // Fetch product/collection titles and images for display in the form
+  let buyReferenceTitle = bundle.buyReference;
+  let buyReferenceImage = "";
+  let getProductTitle = bundle.getProductId;
+  let getProductImage = "";
+
+  try {
+    const [buyRes, getRes] = await Promise.all([
+      bundle.buyType === "collection"
+        ? admin.graphql(
+            `#graphql
+              query getCollection($id: ID!) {
+                collection(id: $id) {
+                  title
+                  image { url }
+                }
+              }`,
+            { variables: { id: bundle.buyReference } },
+          )
+        : admin.graphql(
+            `#graphql
+              query getProduct($id: ID!) {
+                product(id: $id) {
+                  title
+                  featuredImage { url }
+                }
+              }`,
+            { variables: { id: bundle.buyReference } },
+          ),
+      admin.graphql(
+        `#graphql
+          query getProduct($id: ID!) {
+            product(id: $id) {
+              title
+              featuredImage { url }
+            }
+          }`,
+        { variables: { id: bundle.getProductId } },
+      ),
+    ]);
+
+    const buyJson = await buyRes.json();
+    const getJson = await getRes.json();
+
+    buyReferenceTitle =
+      buyJson.data?.product?.title ||
+      buyJson.data?.collection?.title ||
+      bundle.buyReference;
+    buyReferenceImage =
+      buyJson.data?.product?.featuredImage?.url ||
+      buyJson.data?.collection?.image?.url ||
+      "";
+    getProductTitle =
+      getJson.data?.product?.title || bundle.getProductId;
+    getProductImage =
+      getJson.data?.product?.featuredImage?.url || "";
+  } catch {
+    // Keep GID as fallback if GraphQL fails
+  }
+
+  return json({
+    bundle,
+    functionId,
+    buyReferenceTitle,
+    buyReferenceImage,
+    getProductTitle,
+    getProductImage,
+  });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -263,7 +338,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function BundleForm() {
-  const { bundle, functionId } = useLoaderData<typeof loader>();
+  const {
+    bundle,
+    functionId,
+    buyReferenceTitle,
+    buyReferenceImage,
+    getProductTitle,
+    getProductImage,
+  } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
   const shopify = useAppBridge();
@@ -277,8 +359,9 @@ export default function BundleForm() {
     bundle?.buyReference || "",
   );
   const [buyReferenceLabel, setBuyReferenceLabel] = useState(
-    bundle?.buyReference || "",
+    buyReferenceTitle || bundle?.buyReference || "",
   );
+  const [buyImage, setBuyImage] = useState(buyReferenceImage || "");
   const [minQuantity, setMinQuantity] = useState(
     String(bundle?.minQuantity || 2),
   );
@@ -286,8 +369,9 @@ export default function BundleForm() {
     bundle?.getProductId || "",
   );
   const [getProductLabel, setGetProductLabel] = useState(
-    bundle?.getProductId || "",
+    getProductTitle || bundle?.getProductId || "",
   );
+  const [getImage, setGetImage] = useState(getProductImage || "");
   const [discountType, setDiscountType] = useState(
     bundle?.discountType || "percentage",
   );
@@ -312,6 +396,11 @@ export default function BundleForm() {
       if (items.length > 0) {
         setBuyReference(items[0].id);
         setBuyReferenceLabel(items[0].title || items[0].id);
+        setBuyImage(
+          items[0].images?.[0]?.originalSrc ||
+            items[0].image?.originalSrc ||
+            "",
+        );
       }
     }
   }, [shopify, buyType]);
@@ -328,6 +417,7 @@ export default function BundleForm() {
       if (items.length > 0) {
         setGetProductId(items[0].id);
         setGetProductLabel(items[0].title || items[0].id);
+        setGetImage(items[0].images?.[0]?.originalSrc || "");
       }
     }
   }, [shopify]);
@@ -414,7 +504,14 @@ export default function BundleForm() {
                     value={buyType}
                     onChange={setBuyType}
                   />
-                  <InlineStack gap="300" blockAlign="end">
+                  <InlineStack gap="300" blockAlign="center">
+                    {buyImage && (
+                      <Thumbnail
+                        source={buyImage}
+                        alt={buyReferenceLabel}
+                        size="medium"
+                      />
+                    )}
                     <div style={{ flex: 1 }}>
                       <TextField
                         label={
@@ -450,7 +547,14 @@ export default function BundleForm() {
                   Reward (Get Y)
                 </Text>
                 <FormLayout>
-                  <InlineStack gap="300" blockAlign="end">
+                  <InlineStack gap="300" blockAlign="center">
+                    {getImage && (
+                      <Thumbnail
+                        source={getImage}
+                        alt={getProductLabel}
+                        size="medium"
+                      />
+                    )}
                     <div style={{ flex: 1 }}>
                       <TextField
                         label="Reward product"
