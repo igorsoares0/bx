@@ -451,7 +451,7 @@ export default function BundleForm() {
   // Design state
   const [design, setDesign] = useState(savedDesign);
   const updateDesign = (key: string, value: string | number) => {
-    setDesign((prev: typeof DEFAULT_DESIGN) => ({ ...prev, [key]: value }));
+    setDesign((prev: any) => ({ ...prev, [key]: value }));
   };
 
   /* ── Preview helpers ── */
@@ -834,6 +834,7 @@ export default function BundleForm() {
                       </InlineStack>
                     </div>
                   </FormLayout.Group>
+
                   <FormLayout.Group>
                     <TextField
                       label="Border radius"
@@ -898,7 +899,7 @@ export default function BundleForm() {
         </div>
 
         {/* ── Theme Preview ── */}
-        <div style={{ width: 320, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
+        <div style={{ width: 340, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
             <Card>
               <BlockStack gap="300">
                 <Text as="h2" variant="headingMd">
@@ -908,363 +909,96 @@ export default function BundleForm() {
                   Approximate preview of the storefront widget
                 </Text>
 
-                {/* Preview widget */}
                 <div
-                  style={{
-                    border: `2px solid ${design.borderColor}`,
-                    borderRadius: `${design.borderRadius}px`,
-                    padding: "16px",
-                    background: design.backgroundColor,
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {/* Badge */}
-                  <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      marginBottom: "12px",
+                      border: `2px solid ${design.borderColor}`,
+                      borderRadius: `${design.borderRadius}px`,
+                      padding: "16px",
+                      background: design.backgroundColor,
+                      fontFamily: "inherit",
                     }}
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                    >
-                      <path
-                        d="M10 2L12.09 7.26L18 8.27L14 12.14L14.81 18.02L10 15.27L5.19 18.02L6 12.14L2 8.27L7.91 7.26L10 2Z"
-                        fill={design.accentColor}
-                      />
-                    </svg>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "11px",
-                        color: design.accentColor,
-                        textTransform: "uppercase" as const,
-                        letterSpacing: "0.5px",
-                      }}
-                    >
-                      {design.badgeText}
-                    </span>
-                  </div>
-
-                  {/* Product cards */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "stretch",
-                      gap: "0",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    {/* Buy product */}
-                    <div
-                      style={{
-                        flex: 1,
-                        background: "#fff",
-                        border: "1px solid #e5e5e5",
-                        borderRadius: "8px",
-                        padding: "10px",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "9px",
-                          fontWeight: 600,
-                          textTransform: "uppercase" as const,
-                          color: "#666",
-                          marginBottom: "6px",
-                          letterSpacing: "0.3px",
-                        }}
-                      >
-                        Buy
-                      </div>
-                      {buyImage ? (
-                        <img
-                          src={buyImage}
-                          alt={buyReferenceLabel}
-                          style={{
-                            width: "100%",
-                            maxWidth: `${previewImageSize}px`,
-                            aspectRatio: "1",
-                            objectFit: "cover",
-                            borderRadius: "6px",
-                            background: "#f5f5f5",
-                            marginBottom: "8px",
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: `${previewImageSize}px`,
-                            height: `${previewImageSize}px`,
-                            borderRadius: "6px",
-                            background: "#f0f0f0",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            marginBottom: "8px",
-                            color: "#999",
-                            fontSize: "10px",
-                          }}
-                        >
-                          No image
-                        </div>
-                      )}
-                      <div
-                        style={{
-                          fontSize: `${Math.round(design.fontSizePx * 0.85)}px`,
-                          fontWeight: 600,
-                          color: design.textColor,
-                          marginBottom: "3px",
-                          lineHeight: "1.3",
-                          overflow: "hidden",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                        }}
-                      >
-                        {buyReferenceLabel || "Buy Product"}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: `${Math.round(design.fontSizePx * 0.85)}px`,
-                          fontWeight: 600,
-                          color: design.textColor,
-                          marginBottom: "3px",
-                        }}
-                      >
-                        {buyPriceCents > 0
-                          ? formatPreviewPrice(buyPriceCents)
-                          : "\u2014"}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#666",
-                          background: "#f5f5f5",
-                          padding: "2px 8px",
-                          borderRadius: "10px",
-                        }}
-                      >
-                        Qty: {minQuantity || 1}
-                      </div>
+                    {/* Badge */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                        <path d="M10 2L12.09 7.26L18 8.27L14 12.14L14.81 18.02L10 15.27L5.19 18.02L6 12.14L2 8.27L7.91 7.26L10 2Z" fill={design.accentColor} />
+                      </svg>
+                      <span style={{ fontWeight: 700, fontSize: "11px", color: design.accentColor, textTransform: "uppercase" as const, letterSpacing: "0.5px" }}>
+                        {design.badgeText}
+                      </span>
                     </div>
 
-                    {/* Plus */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "0 8px",
-                        fontSize: "20px",
-                        fontWeight: 700,
-                        color: design.accentColor,
-                      }}
-                    >
-                      +
-                    </div>
-
-                    {/* Reward product */}
-                    <div
-                      style={{
-                        flex: 1,
-                        background: "#fff",
-                        border: "1px solid #e5e5e5",
-                        borderRadius: "8px",
-                        padding: "10px",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "9px",
-                          fontWeight: 600,
-                          textTransform: "uppercase" as const,
-                          color: design.accentColor,
-                          marginBottom: "6px",
-                          letterSpacing: "0.3px",
-                        }}
-                      >
-                        Get {previewDiscountLabel}
-                      </div>
-                      {getImage ? (
-                        <img
-                          src={getImage}
-                          alt={getProductLabel}
-                          style={{
-                            width: "100%",
-                            maxWidth: `${previewImageSize}px`,
-                            aspectRatio: "1",
-                            objectFit: "cover",
-                            borderRadius: "6px",
-                            background: "#f5f5f5",
-                            marginBottom: "8px",
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: `${previewImageSize}px`,
-                            height: `${previewImageSize}px`,
-                            borderRadius: "6px",
-                            background: "#f0f0f0",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            marginBottom: "8px",
-                            color: "#999",
-                            fontSize: "10px",
-                          }}
-                        >
-                          No image
-                        </div>
-                      )}
-                      <div
-                        style={{
-                          fontSize: `${Math.round(design.fontSizePx * 0.85)}px`,
-                          fontWeight: 600,
-                          color: design.textColor,
-                          marginBottom: "3px",
-                          lineHeight: "1.3",
-                          overflow: "hidden",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                        }}
-                      >
-                        {getProductLabel || "Reward Product"}
-                      </div>
-                      <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, marginBottom: "3px" }}>
-                        {getPriceCents > 0 ? (
-                          discountedRewardCents < getPriceCents ? (
-                            <>
-                              <span
-                                style={{
-                                  textDecoration: "line-through",
-                                  color: "#999",
-                                  fontWeight: 400,
-                                  marginRight: "4px",
-                                }}
-                              >
-                                {formatPreviewPrice(getPriceCents)}
-                              </span>
-                              <span
-                                style={{
-                                  color: "#e53e3e",
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {formatPreviewPrice(discountedRewardCents)}
-                              </span>
-                            </>
-                          ) : (
-                            <span style={{ fontWeight: 600, color: design.textColor }}>
-                              {formatPreviewPrice(getPriceCents)}
-                            </span>
-                          )
+                    {/* Product cards */}
+                    <div style={{ display: "flex", alignItems: "stretch", gap: "0", marginBottom: "12px" }}>
+                      {/* Buy product */}
+                      <div style={{ flex: 1, background: "#fff", border: "1px solid #e5e5e5", borderRadius: "8px", padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                        <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: "#666", marginBottom: "6px", letterSpacing: "0.3px" }}>Buy</div>
+                        {buyImage ? (
+                          <img src={buyImage} alt={buyReferenceLabel} style={{ width: "100%", maxWidth: `${previewImageSize}px`, aspectRatio: "1", objectFit: "cover", borderRadius: "6px", background: "#f5f5f5", marginBottom: "8px" }} />
                         ) : (
-                          <span style={{ color: "#999" }}>{"\u2014"}</span>
+                          <div style={{ width: `${previewImageSize}px`, height: `${previewImageSize}px`, borderRadius: "6px", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "8px", color: "#999", fontSize: "10px" }}>No image</div>
                         )}
+                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px", lineHeight: "1.3", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                          {buyReferenceLabel || "Buy Product"}
+                        </div>
+                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px" }}>
+                          {buyPriceCents > 0 ? formatPreviewPrice(buyPriceCents) : "\u2014"}
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#666", background: "#f5f5f5", padding: "2px 8px", borderRadius: "10px" }}>Qty: {minQuantity || 1}</div>
+                      </div>
+
+                      {/* Plus */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", fontSize: "20px", fontWeight: 700, color: design.accentColor }}>+</div>
+
+                      {/* Reward product */}
+                      <div style={{ flex: 1, background: "#fff", border: "1px solid #e5e5e5", borderRadius: "8px", padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                        <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: design.accentColor, marginBottom: "6px", letterSpacing: "0.3px" }}>Get {previewDiscountLabel}</div>
+                        {getImage ? (
+                          <img src={getImage} alt={getProductLabel} style={{ width: "100%", maxWidth: `${previewImageSize}px`, aspectRatio: "1", objectFit: "cover", borderRadius: "6px", background: "#f5f5f5", marginBottom: "8px" }} />
+                        ) : (
+                          <div style={{ width: `${previewImageSize}px`, height: `${previewImageSize}px`, borderRadius: "6px", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "8px", color: "#999", fontSize: "10px" }}>No image</div>
+                        )}
+                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px", lineHeight: "1.3", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                          {getProductLabel || "Reward Product"}
+                        </div>
+                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, marginBottom: "3px" }}>
+                          {getPriceCents > 0 ? (
+                            discountedRewardCents < getPriceCents ? (
+                              <><span style={{ textDecoration: "line-through", color: "#999", fontWeight: 400, marginRight: "4px" }}>{formatPreviewPrice(getPriceCents)}</span><span style={{ color: "#e53e3e", fontWeight: 700 }}>{formatPreviewPrice(discountedRewardCents)}</span></>
+                            ) : (
+                              <span style={{ fontWeight: 600, color: design.textColor }}>{formatPreviewPrice(getPriceCents)}</span>
+                            )
+                          ) : (
+                            <span style={{ color: "#999" }}>{"\u2014"}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Summary */}
-                  <div
-                    style={{
-                      textAlign: "center",
-                      marginBottom: "10px",
-                      padding: "8px",
-                      background: "#f9f9f9",
-                      borderRadius: "6px",
-                    }}
-                  >
-                    {hasPrices ? (
-                      <>
-                        <div style={{ fontSize: "13px", marginBottom: "2px" }}>
-                          {savingsCents > 0 && (
-                            <span
-                              style={{
-                                textDecoration: "line-through",
-                                color: "#999",
-                                marginRight: "6px",
-                              }}
-                            >
-                              {formatPreviewPrice(totalOriginalCents)}
-                            </span>
-                          )}
-                          <span style={{ fontWeight: 700, color: design.textColor }}>
-                            {formatPreviewPrice(totalFinalCents)}
-                          </span>
-                        </div>
-                        {savingsCents > 0 && (
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              color: "#16a34a",
-                            }}
-                          >
-                            You save {formatPreviewPrice(savingsCents)}
+                    {/* Summary */}
+                    <div style={{ textAlign: "center", marginBottom: "10px", padding: "8px", background: "#f9f9f9", borderRadius: "6px" }}>
+                      {hasPrices ? (
+                        <>
+                          <div style={{ fontSize: "13px", marginBottom: "2px" }}>
+                            {savingsCents > 0 && <span style={{ textDecoration: "line-through", color: "#999", marginRight: "6px" }}>{formatPreviewPrice(totalOriginalCents)}</span>}
+                            <span style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(totalFinalCents)}</span>
                           </div>
-                        )}
-                      </>
-                    ) : (
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#999",
-                        }}
-                      >
-                        Select products to see prices
-                      </div>
-                    )}
-                  </div>
+                          {savingsCents > 0 && <div style={{ fontSize: "11px", fontWeight: 600, color: "#16a34a" }}>You save {formatPreviewPrice(savingsCents)}</div>}
+                        </>
+                      ) : (
+                        <div style={{ fontSize: "12px", color: "#999" }}>Select products to see prices</div>
+                      )}
+                    </div>
 
-                  {/* Button */}
-                  <div
-                    style={{
-                      width: "100%",
-                      padding: "10px 16px",
-                      fontSize: `${Math.round(design.buttonFontSizePx * 0.8)}px`,
-                      fontWeight: 700,
-                      border: "none",
-                      borderRadius: "6px",
-                      background: design.buttonColor,
-                      color: design.buttonTextColor,
-                      textAlign: "center",
-                      cursor: "default",
-                    }}
-                  >
-                    Add Bundle to Cart
-                  </div>
-
-                  {/* Footer */}
-                  <div
-                    style={{
-                      textAlign: "center",
-                      fontSize: "10px",
-                      color: "#888",
-                      marginTop: "8px",
-                    }}
-                  >
-                    Discount applied automatically at checkout
-                  </div>
+                    {/* Button */}
+                    <div style={{ width: "100%", padding: "10px 16px", fontSize: `${Math.round(design.buttonFontSizePx * 0.8)}px`, fontWeight: 700, border: "none", borderRadius: "6px", background: design.buttonColor, color: design.buttonTextColor, textAlign: "center", cursor: "default" }}>
+                      Add Bundle to Cart
+                    </div>
+                    <div style={{ textAlign: "center", fontSize: "10px", color: "#888", marginTop: "8px" }}>
+                      Discount applied automatically at checkout
+                    </div>
                 </div>
 
-                {/* Info note */}
                 <Text as="p" variant="bodySm" tone="subdued">
                   Prices are based on the first variant of each product. On the
                   storefront, prices update when the customer changes variants.

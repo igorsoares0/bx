@@ -220,6 +220,135 @@ export async function syncShopBundlesMetafield(
 }
 
 /**
+ * Writes tiered bundle config metafield to the product so the theme extension can display tiers.
+ */
+export async function setTieredBundleMetafield(
+  admin: any,
+  {
+    productId,
+    bundleName,
+    tier1BuyQty,
+    tier1FreeQty,
+    tier1DiscountPct,
+    tier2BuyQty,
+    tier2FreeQty,
+    tier2DiscountPct,
+    tier3BuyQty,
+    tier3FreeQty,
+    tier3DiscountPct,
+    designConfig,
+  }: {
+    productId: string;
+    bundleName: string;
+    tier1BuyQty: number;
+    tier1FreeQty: number;
+    tier1DiscountPct: number;
+    tier2BuyQty: number;
+    tier2FreeQty: number;
+    tier2DiscountPct: number;
+    tier3BuyQty: number;
+    tier3FreeQty: number;
+    tier3DiscountPct: number;
+    designConfig?: Record<string, unknown>;
+  },
+) {
+  const metafieldValue = JSON.stringify({
+    bundleName,
+    tier1BuyQty,
+    tier1FreeQty,
+    tier1DiscountPct,
+    tier2BuyQty,
+    tier2FreeQty,
+    tier2DiscountPct,
+    tier3BuyQty,
+    tier3FreeQty,
+    tier3DiscountPct,
+    designAccentColor: designConfig?.accentColor ?? null,
+    designBackgroundColor: designConfig?.backgroundColor ?? null,
+    designTextColor: designConfig?.textColor ?? null,
+    designButtonColor: designConfig?.buttonColor ?? null,
+    designButtonTextColor: designConfig?.buttonTextColor ?? null,
+    designBorderRadius: designConfig?.borderRadius ?? null,
+    designHeaderText: designConfig?.headerText ?? null,
+    designGiftText: designConfig?.giftText ?? null,
+  });
+
+  await admin.graphql(
+    `#graphql
+      mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id }
+          userErrors { field message }
+        }
+      }`,
+    {
+      variables: {
+        metafields: [
+          {
+            ownerId: productId,
+            namespace: "bxgy_bundle",
+            key: "tiered_config",
+            type: "json",
+            value: metafieldValue,
+          },
+        ],
+      },
+    },
+  );
+}
+
+/**
+ * Removes the tiered bundle metafield from the product.
+ */
+export async function removeTieredBundleMetafield(
+  admin: any,
+  productId: string,
+) {
+  const response = await admin.graphql(
+    `#graphql
+      query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
+        product(id: $ownerId) {
+          metafield(namespace: $namespace, key: $key) {
+            id
+          }
+        }
+      }`,
+    {
+      variables: {
+        ownerId: productId,
+        namespace: "bxgy_bundle",
+        key: "tiered_config",
+      },
+    },
+  );
+  const json = await response.json();
+  const metafieldId = json.data?.product?.metafield?.id;
+
+  if (metafieldId) {
+    await admin.graphql(
+      `#graphql
+        mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }`,
+      {
+        variables: {
+          metafields: [
+            {
+              ownerId: productId,
+              namespace: "bxgy_bundle",
+              key: "tiered_config",
+            },
+          ],
+        },
+      },
+    );
+  }
+}
+
+/**
  * Removes the bundle promo metafield from the "buy" product.
  */
 export async function removeBundleMetafield(

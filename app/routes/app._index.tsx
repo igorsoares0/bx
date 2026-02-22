@@ -8,12 +8,12 @@ import {
   Badge,
   EmptyState,
   useBreakpoints,
-  useIndexResourceState,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   removeBundleMetafield,
+  removeTieredBundleMetafield,
   setBundleMetafield,
   syncShopBundlesMetafield,
 } from "../lib/bundle-metafields.server";
@@ -21,12 +21,18 @@ import {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
-  const bundles = await db.bundle.findMany({
-    where: { shopId: session.shop },
-    orderBy: { createdAt: "desc" },
-  });
+  const [bundles, tieredBundles] = await Promise.all([
+    db.bundle.findMany({
+      where: { shopId: session.shop },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.tieredBundle.findMany({
+      where: { shopId: session.shop },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
-  return json({ bundles });
+  return json({ bundles, tieredBundles });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -34,7 +40,72 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
   const bundleId = Number(formData.get("bundleId"));
+  const bundleType = (formData.get("bundleType") as string) || "classic";
 
+  if (bundleType === "tiered") {
+    if (intent === "delete") {
+      const bundle = await db.tieredBundle.findFirst({
+        where: { id: bundleId, shopId: session.shop },
+      });
+      if (bundle) {
+        if (bundle.discountId) {
+          await admin.graphql(
+            `#graphql
+              mutation discountAutomaticDelete($id: ID!) {
+                discountAutomaticDelete(id: $id) {
+                  deletedAutomaticDiscountId
+                  userErrors { field message }
+                }
+              }`,
+            { variables: { id: bundle.discountId } },
+          );
+        }
+        await removeTieredBundleMetafield(admin, bundle.productId);
+        await db.tieredBundle.delete({ where: { id: bundleId } });
+      }
+    }
+
+    if (intent === "toggle") {
+      const bundle = await db.tieredBundle.findFirst({
+        where: { id: bundleId, shopId: session.shop },
+      });
+      if (bundle) {
+        const newActive = !bundle.active;
+        await db.tieredBundle.update({
+          where: { id: bundleId },
+          data: { active: newActive },
+        });
+
+        if (bundle.discountId) {
+          await admin.graphql(
+            `#graphql
+              mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+                discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+                  userErrors { field message }
+                }
+              }`,
+            {
+              variables: {
+                id: bundle.discountId,
+                automaticAppDiscount: {
+                  startsAt: newActive ? new Date().toISOString() : null,
+                  endsAt: newActive ? null : new Date().toISOString(),
+                },
+              },
+            },
+          );
+        }
+
+        if (!newActive) {
+          await removeTieredBundleMetafield(admin, bundle.productId);
+        }
+      }
+    }
+
+    return json({ ok: true });
+  }
+
+  // Classic BXGY bundle actions
   if (intent === "delete") {
     const bundle = await db.bundle.findFirst({
       where: { id: bundleId, shopId: session.shop },
@@ -53,7 +124,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    // Remove storefront metafield from buy product
     if (bundle && bundle.buyType === "product") {
       await removeBundleMetafield(admin, bundle.buyReference);
     }
@@ -93,7 +163,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
 
-      // Update product metafield: remove when deactivating, restore when activating
       if (bundle.buyType === "product") {
         if (newActive) {
           await setBundleMetafield(admin, {
@@ -112,37 +181,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  // Sync shop metafield with active bundles for storefront JS
   await syncShopBundlesMetafield(admin, session.shop, db);
 
   return json({ ok: true });
 };
 
 export default function BundleIndex() {
-  const { bundles } = useLoaderData<typeof loader>();
+  const { bundles, tieredBundles } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const submit = useSubmit();
   const { smUp } = useBreakpoints();
 
-  const resourceName = {
-    singular: "bundle",
-    plural: "bundles",
-  };
-
-  const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(bundles.map((b) => ({ ...b, id: String(b.id) })));
-
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: number, type: "classic" | "tiered" = "classic") => {
     const formData = new FormData();
     formData.set("intent", "delete");
     formData.set("bundleId", String(id));
+    formData.set("bundleType", type);
     submit(formData, { method: "post" });
   };
 
-  const handleToggle = (id: number) => {
+  const handleToggle = (id: number, type: "classic" | "tiered" = "classic") => {
     const formData = new FormData();
     formData.set("intent", "toggle");
     formData.set("bundleId", String(id));
+    formData.set("bundleType", type);
     submit(formData, { method: "post" });
   };
 
@@ -154,27 +216,33 @@ export default function BundleIndex() {
     return `Buy ${minQty} ${buyType === "collection" ? "from collection" : "product(s)"}`;
   };
 
+  const hasNoBundles = bundles.length === 0 && tieredBundles.length === 0;
+
   const emptyState = (
     <EmptyState
-      heading="Create your first BXGY bundle"
+      heading="Create your first bundle"
       action={{
-        content: "Create bundle",
+        content: "Create BXGY bundle",
         onAction: () => navigate("/app/bundles/new"),
+      }}
+      secondaryAction={{
+        content: "Create tiered combo",
+        onAction: () => navigate("/app/tiers/new"),
       }}
       image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
     >
       <p>
-        Set up Buy X Get Y bundles to offer automatic discounts when customers
-        add qualifying products to their cart.
+        Set up Buy X Get Y bundles or tiered combo deals to offer automatic
+        discounts when customers add qualifying products to their cart.
       </p>
     </EmptyState>
   );
 
-  const rowMarkup = bundles.map((bundle, index) => (
+  const classicRows = bundles.map((bundle, index) => (
     <IndexTable.Row
-      id={String(bundle.id)}
-      key={bundle.id}
-      selected={selectedResources.includes(String(bundle.id))}
+      id={`classic-${bundle.id}`}
+      key={`classic-${bundle.id}`}
+      selected={false}
       position={index}
       onClick={() => navigate(`/app/bundles/${bundle.id}`)}
     >
@@ -182,6 +250,9 @@ export default function BundleIndex() {
         <Text variant="bodyMd" fontWeight="bold" as="span">
           {bundle.name}
         </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge>BXGY</Badge>
       </IndexTable.Cell>
       <IndexTable.Cell>
         {formatBuyCondition(bundle.buyType, bundle.minQuantity)}
@@ -228,35 +299,104 @@ export default function BundleIndex() {
     </IndexTable.Row>
   ));
 
+  const tieredRows = tieredBundles.map((bundle, index) => (
+    <IndexTable.Row
+      id={`tiered-${bundle.id}`}
+      key={`tiered-${bundle.id}`}
+      selected={false}
+      position={bundles.length + index}
+      onClick={() => navigate(`/app/tiers/${bundle.id}`)}
+    >
+      <IndexTable.Cell>
+        <Text variant="bodyMd" fontWeight="bold" as="span">
+          {bundle.name}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone="info">Tiered</Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        3 tiers
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        Buy {bundle.tier1BuyQty}+{bundle.tier1FreeQty}, {bundle.tier2BuyQty}+{bundle.tier2FreeQty}, {bundle.tier3BuyQty}+{bundle.tier3FreeQty}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone={bundle.active ? "success" : undefined}>
+          {bundle.active ? "Active" : "Inactive"}
+        </Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <div
+          style={{ display: "flex", gap: "8px" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleToggle(bundle.id, "tiered")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--p-color-text-emphasis)",
+              textDecoration: "underline",
+            }}
+          >
+            {bundle.active ? "Deactivate" : "Activate"}
+          </button>
+          <button
+            onClick={() => handleDelete(bundle.id, "tiered")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--p-color-text-critical)",
+              textDecoration: "underline",
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </IndexTable.Cell>
+    </IndexTable.Row>
+  ));
+
+  const totalCount = bundles.length + tieredBundles.length;
+
   return (
     <Page
       title="Bundles"
       primaryAction={{
-        content: "Create bundle",
+        content: "Create BXGY bundle",
         onAction: () => navigate("/app/bundles/new"),
       }}
+      secondaryActions={[
+        {
+          content: "Create tiered combo",
+          onAction: () => navigate("/app/tiers/new"),
+        },
+      ]}
     >
-      {bundles.length === 0 ? (
+      {hasNoBundles ? (
         emptyState
       ) : (
         <IndexTable
           condensed={!smUp}
-          resourceName={resourceName}
-          itemCount={bundles.length}
-          selectedItemsCount={
-            allResourcesSelected ? "All" : selectedResources.length
-          }
-          onSelectionChange={handleSelectionChange}
+          resourceName={{ singular: "bundle", plural: "bundles" }}
+          itemCount={totalCount}
+          selectedItemsCount={0}
+          onSelectionChange={() => {}}
           headings={[
             { title: "Name" },
-            { title: "Buy Condition" },
-            { title: "Discount" },
+            { title: "Type" },
+            { title: "Condition" },
+            { title: "Details" },
             { title: "Status" },
             { title: "Actions" },
           ]}
           selectable={false}
         >
-          {rowMarkup}
+          {classicRows}
+          {tieredRows}
         </IndexTable>
       )}
     </Page>
