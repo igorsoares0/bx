@@ -11,6 +11,7 @@ export async function setBundleMetafield(
     discountType,
     discountValue,
     maxReward,
+    designConfig,
   }: {
     buyProductId: string;
     bundleName: string;
@@ -19,6 +20,7 @@ export async function setBundleMetafield(
     discountType: string;
     discountValue: number;
     maxReward: number;
+    designConfig?: Record<string, unknown>;
   },
 ) {
   // Fetch reward product title, handle, first variant (id + price), and image
@@ -69,6 +71,7 @@ export async function setBundleMetafield(
     rewardVariantId: rewardVariantNumericId,
     rewardProductPrice: rewardPriceCents,
     rewardProductImage: rewardImageUrl,
+    ...(designConfig ? { design: designConfig } : {}),
   });
 
   await admin.graphql(

@@ -26,6 +26,20 @@ import {
   syncShopBundlesMetafield,
 } from "../lib/bundle-metafields.server";
 
+const DEFAULT_DESIGN = {
+  accentColor: "#e85d04",
+  backgroundColor: "#fff8f0",
+  borderColor: "#e85d04",
+  textColor: "#1a1a1a",
+  buttonColor: "#e85d04",
+  buttonTextColor: "#ffffff",
+  borderRadius: 12,
+  imageSizePx: 120,
+  fontSizePx: 14,
+  buttonFontSizePx: 16,
+  badgeText: "Bundle Deal",
+};
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
@@ -170,6 +184,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const discountType = formData.get("discountType") as string;
   const discountValue = Number(formData.get("discountValue"));
   const maxReward = Number(formData.get("maxReward"));
+  const designConfigRaw = formData.get("designConfig") as string | null;
+  const designConfig = designConfigRaw ? JSON.parse(designConfigRaw) : null;
 
   // Build the function configuration JSON
   const functionConfig = {
@@ -198,6 +214,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         discountValue,
         maxReward,
         shopId: session.shop,
+        designConfig: designConfigRaw || null,
       },
     });
 
@@ -263,6 +280,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         discountType,
         discountValue,
         maxReward,
+        designConfig,
       });
     }
   } else {
@@ -287,6 +305,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         discountType,
         discountValue,
         maxReward,
+        designConfig: designConfigRaw || null,
       },
     });
 
@@ -344,6 +363,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         discountType,
         discountValue,
         maxReward,
+        designConfig,
       });
     } else if (existing.buyType === "product") {
       await removeBundleMetafield(admin, existing.buyReference);
@@ -373,6 +393,11 @@ export default function BundleForm() {
 
   const isSubmitting = navigation.state === "submitting";
   const isNew = !bundle;
+
+  // Parse saved designConfig or use defaults
+  const savedDesign = bundle?.designConfig
+    ? { ...DEFAULT_DESIGN, ...JSON.parse(bundle.designConfig) }
+    : DEFAULT_DESIGN;
 
   const [name, setName] = useState(bundle?.name || "");
   const [buyType, setBuyType] = useState(bundle?.buyType || "product");
@@ -405,6 +430,12 @@ export default function BundleForm() {
     String(bundle?.maxReward || 1),
   );
   const [errors, setErrors] = useState<string[]>([]);
+
+  // Design state
+  const [design, setDesign] = useState(savedDesign);
+  const updateDesign = (key: string, value: string | number) => {
+    setDesign((prev: typeof DEFAULT_DESIGN) => ({ ...prev, [key]: value }));
+  };
 
   /* ── Preview helpers ── */
   const previewDiscountLabel =
@@ -505,9 +536,13 @@ export default function BundleForm() {
     formData.set("discountValue", discountValue);
     formData.set("maxReward", maxReward);
     formData.set("functionId", functionId);
+    formData.set("designConfig", JSON.stringify(design));
 
     submit(formData, { method: "post" });
   };
+
+  /* ── Preview image size (scaled for the small preview) ── */
+  const previewImageSize = Math.min(Math.max(design.imageSizePx * 0.67, 40), 120);
 
   return (
     <Page
@@ -658,6 +693,181 @@ export default function BundleForm() {
               </BlockStack>
             </Card>
 
+            {/* ── Design Section ── */}
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
+                  Design
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Customize the widget appearance for this bundle
+                </Text>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <div>
+                      <Text as="p" variant="bodySm">Accent color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.accentColor}
+                          onChange={(e) => updateDesign("accentColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={design.accentColor}
+                          onChange={(v) => updateDesign("accentColor", v)}
+                          autoComplete="off"
+                        />
+                      </InlineStack>
+                    </div>
+                    <div>
+                      <Text as="p" variant="bodySm">Background color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.backgroundColor}
+                          onChange={(e) => updateDesign("backgroundColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={design.backgroundColor}
+                          onChange={(v) => updateDesign("backgroundColor", v)}
+                          autoComplete="off"
+                        />
+                      </InlineStack>
+                    </div>
+                  </FormLayout.Group>
+                  <FormLayout.Group>
+                    <div>
+                      <Text as="p" variant="bodySm">Border color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.borderColor}
+                          onChange={(e) => updateDesign("borderColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={design.borderColor}
+                          onChange={(v) => updateDesign("borderColor", v)}
+                          autoComplete="off"
+                        />
+                      </InlineStack>
+                    </div>
+                    <div>
+                      <Text as="p" variant="bodySm">Text color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.textColor}
+                          onChange={(e) => updateDesign("textColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={design.textColor}
+                          onChange={(v) => updateDesign("textColor", v)}
+                          autoComplete="off"
+                        />
+                      </InlineStack>
+                    </div>
+                  </FormLayout.Group>
+                  <FormLayout.Group>
+                    <div>
+                      <Text as="p" variant="bodySm">Button color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.buttonColor}
+                          onChange={(e) => updateDesign("buttonColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={design.buttonColor}
+                          onChange={(v) => updateDesign("buttonColor", v)}
+                          autoComplete="off"
+                        />
+                      </InlineStack>
+                    </div>
+                    <div>
+                      <Text as="p" variant="bodySm">Button text color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.buttonTextColor}
+                          onChange={(e) => updateDesign("buttonTextColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={design.buttonTextColor}
+                          onChange={(v) => updateDesign("buttonTextColor", v)}
+                          autoComplete="off"
+                        />
+                      </InlineStack>
+                    </div>
+                  </FormLayout.Group>
+                  <FormLayout.Group>
+                    <TextField
+                      label="Border radius"
+                      type="number"
+                      value={String(design.borderRadius)}
+                      onChange={(v) => updateDesign("borderRadius", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={0}
+                    />
+                    <TextField
+                      label="Image size"
+                      type="number"
+                      value={String(design.imageSizePx)}
+                      onChange={(v) => updateDesign("imageSizePx", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={40}
+                    />
+                  </FormLayout.Group>
+                  <FormLayout.Group>
+                    <TextField
+                      label="Font size"
+                      type="number"
+                      value={String(design.fontSizePx)}
+                      onChange={(v) => updateDesign("fontSizePx", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={10}
+                    />
+                    <TextField
+                      label="Button font size"
+                      type="number"
+                      value={String(design.buttonFontSizePx)}
+                      onChange={(v) => updateDesign("buttonFontSizePx", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={10}
+                    />
+                  </FormLayout.Group>
+                  <TextField
+                    label="Badge text"
+                    value={design.badgeText}
+                    onChange={(v) => updateDesign("badgeText", v)}
+                    autoComplete="off"
+                    placeholder="e.g. Bundle Deal"
+                  />
+                </FormLayout>
+              </BlockStack>
+            </Card>
+
             <InlineStack align="end">
               <Button
                 variant="primary"
@@ -685,10 +895,10 @@ export default function BundleForm() {
                 {/* Preview widget */}
                 <div
                   style={{
-                    border: "2px solid #e85d04",
-                    borderRadius: "12px",
+                    border: `2px solid ${design.borderColor}`,
+                    borderRadius: `${design.borderRadius}px`,
                     padding: "16px",
-                    background: "#fff8f0",
+                    background: design.backgroundColor,
                     fontFamily: "inherit",
                   }}
                 >
@@ -709,19 +919,19 @@ export default function BundleForm() {
                     >
                       <path
                         d="M10 2L12.09 7.26L18 8.27L14 12.14L14.81 18.02L10 15.27L5.19 18.02L6 12.14L2 8.27L7.91 7.26L10 2Z"
-                        fill="#e85d04"
+                        fill={design.accentColor}
                       />
                     </svg>
                     <span
                       style={{
                         fontWeight: 700,
                         fontSize: "11px",
-                        color: "#e85d04",
+                        color: design.accentColor,
                         textTransform: "uppercase" as const,
                         letterSpacing: "0.5px",
                       }}
                     >
-                      Bundle Deal
+                      {design.badgeText}
                     </span>
                   </div>
 
@@ -766,7 +976,7 @@ export default function BundleForm() {
                           alt={buyReferenceLabel}
                           style={{
                             width: "100%",
-                            maxWidth: "80px",
+                            maxWidth: `${previewImageSize}px`,
                             aspectRatio: "1",
                             objectFit: "cover",
                             borderRadius: "6px",
@@ -777,8 +987,8 @@ export default function BundleForm() {
                       ) : (
                         <div
                           style={{
-                            width: "80px",
-                            height: "80px",
+                            width: `${previewImageSize}px`,
+                            height: `${previewImageSize}px`,
                             borderRadius: "6px",
                             background: "#f0f0f0",
                             display: "flex",
@@ -794,9 +1004,9 @@ export default function BundleForm() {
                       )}
                       <div
                         style={{
-                          fontSize: "12px",
+                          fontSize: `${Math.round(design.fontSizePx * 0.85)}px`,
                           fontWeight: 600,
-                          color: "#1a1a1a",
+                          color: design.textColor,
                           marginBottom: "3px",
                           lineHeight: "1.3",
                           overflow: "hidden",
@@ -809,15 +1019,15 @@ export default function BundleForm() {
                       </div>
                       <div
                         style={{
-                          fontSize: "12px",
+                          fontSize: `${Math.round(design.fontSizePx * 0.85)}px`,
                           fontWeight: 600,
-                          color: "#1a1a1a",
+                          color: design.textColor,
                           marginBottom: "3px",
                         }}
                       >
                         {buyPriceCents > 0
                           ? formatPreviewPrice(buyPriceCents)
-                          : "—"}
+                          : "\u2014"}
                       </div>
                       <div
                         style={{
@@ -841,7 +1051,7 @@ export default function BundleForm() {
                         padding: "0 8px",
                         fontSize: "20px",
                         fontWeight: 700,
-                        color: "#e85d04",
+                        color: design.accentColor,
                       }}
                     >
                       +
@@ -866,7 +1076,7 @@ export default function BundleForm() {
                           fontSize: "9px",
                           fontWeight: 600,
                           textTransform: "uppercase" as const,
-                          color: "#e85d04",
+                          color: design.accentColor,
                           marginBottom: "6px",
                           letterSpacing: "0.3px",
                         }}
@@ -879,7 +1089,7 @@ export default function BundleForm() {
                           alt={getProductLabel}
                           style={{
                             width: "100%",
-                            maxWidth: "80px",
+                            maxWidth: `${previewImageSize}px`,
                             aspectRatio: "1",
                             objectFit: "cover",
                             borderRadius: "6px",
@@ -890,8 +1100,8 @@ export default function BundleForm() {
                       ) : (
                         <div
                           style={{
-                            width: "80px",
-                            height: "80px",
+                            width: `${previewImageSize}px`,
+                            height: `${previewImageSize}px`,
                             borderRadius: "6px",
                             background: "#f0f0f0",
                             display: "flex",
@@ -907,9 +1117,9 @@ export default function BundleForm() {
                       )}
                       <div
                         style={{
-                          fontSize: "12px",
+                          fontSize: `${Math.round(design.fontSizePx * 0.85)}px`,
                           fontWeight: 600,
-                          color: "#1a1a1a",
+                          color: design.textColor,
                           marginBottom: "3px",
                           lineHeight: "1.3",
                           overflow: "hidden",
@@ -920,7 +1130,7 @@ export default function BundleForm() {
                       >
                         {getProductLabel || "Reward Product"}
                       </div>
-                      <div style={{ fontSize: "12px", marginBottom: "3px" }}>
+                      <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, marginBottom: "3px" }}>
                         {getPriceCents > 0 ? (
                           discountedRewardCents < getPriceCents ? (
                             <>
@@ -944,12 +1154,12 @@ export default function BundleForm() {
                               </span>
                             </>
                           ) : (
-                            <span style={{ fontWeight: 600, color: "#1a1a1a" }}>
+                            <span style={{ fontWeight: 600, color: design.textColor }}>
                               {formatPreviewPrice(getPriceCents)}
                             </span>
                           )
                         ) : (
-                          <span style={{ color: "#999" }}>—</span>
+                          <span style={{ color: "#999" }}>{"\u2014"}</span>
                         )}
                       </div>
                     </div>
@@ -979,7 +1189,7 @@ export default function BundleForm() {
                               {formatPreviewPrice(totalOriginalCents)}
                             </span>
                           )}
-                          <span style={{ fontWeight: 700, color: "#1a1a1a" }}>
+                          <span style={{ fontWeight: 700, color: design.textColor }}>
                             {formatPreviewPrice(totalFinalCents)}
                           </span>
                         </div>
@@ -1012,12 +1222,12 @@ export default function BundleForm() {
                     style={{
                       width: "100%",
                       padding: "10px 16px",
-                      fontSize: "13px",
+                      fontSize: `${Math.round(design.buttonFontSizePx * 0.8)}px`,
                       fontWeight: 700,
                       border: "none",
                       borderRadius: "6px",
-                      background: "#e85d04",
-                      color: "#fff",
+                      background: design.buttonColor,
+                      color: design.buttonTextColor,
                       textAlign: "center",
                       cursor: "default",
                     }}

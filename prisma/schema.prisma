@@ -46,6 +46,7 @@ model Bundle {
   active        Boolean  @default(true)
   shopId        String
   discountId    String?  // GID do automatic discount criado no Shopify
+  designConfig  String?  // JSON com configurações de design
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

@@ -11,6 +11,34 @@
   {% assign reward_product_price = bundle_data.rewardProductPrice %}
   {% assign reward_product_image = bundle_data.rewardProductImage %}
 
+  {% comment %} Design config from metafield with fallback to block.settings {% endcomment %}
+  {% assign d = bundle_data.design %}
+  {% if d != blank %}
+    {% assign ds_accent_color = d.accentColor | default: block.settings.accent_color %}
+    {% assign ds_background_color = d.backgroundColor | default: block.settings.background_color %}
+    {% assign ds_border_color = d.borderColor | default: block.settings.border_color %}
+    {% assign ds_text_color = d.textColor | default: block.settings.text_color %}
+    {% assign ds_button_color = d.buttonColor | default: block.settings.button_color %}
+    {% assign ds_button_text_color = d.buttonTextColor | default: block.settings.button_text_color %}
+    {% assign ds_border_radius = d.borderRadius | default: 12 %}
+    {% assign ds_image_size = d.imageSizePx | default: 120 %}
+    {% assign ds_font_size = d.fontSizePx | default: 14 %}
+    {% assign ds_button_font_size = d.buttonFontSizePx | default: 16 %}
+    {% assign ds_badge_text = d.badgeText | default: block.settings.badge_text %}
+  {% else %}
+    {% assign ds_accent_color = block.settings.accent_color %}
+    {% assign ds_background_color = block.settings.background_color %}
+    {% assign ds_border_color = block.settings.border_color %}
+    {% assign ds_text_color = block.settings.text_color %}
+    {% assign ds_button_color = block.settings.button_color %}
+    {% assign ds_button_text_color = block.settings.button_text_color %}
+    {% assign ds_border_radius = 12 %}
+    {% assign ds_image_size = 120 %}
+    {% assign ds_font_size = 14 %}
+    {% assign ds_button_font_size = 16 %}
+    {% assign ds_badge_text = block.settings.badge_text %}
+  {% endif %}
+
   {% comment %} Try to get live reward product data via all_products {% endcomment %}
   {% assign reward_product = all_products[reward_product_handle] %}
 
@@ -63,11 +91,11 @@
 
 <style>
   .bxgy-widget {
-    border: 2px solid {{ block.settings.border_color }};
-    border-radius: 12px;
+    border: 2px solid {{ ds_border_color }};
+    border-radius: {{ ds_border_radius }}px;
     padding: 20px;
     margin: 16px 0;
-    background: {{ block.settings.background_color }};
+    background: {{ ds_background_color }};
     font-family: inherit;
   }
   .bxgy-widget__badge {
@@ -79,7 +107,7 @@
   .bxgy-widget__badge-text {
     font-weight: 700;
     font-size: 13px;
-    color: {{ block.settings.accent_color }};
+    color: {{ ds_accent_color }};
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -103,7 +131,7 @@
   }
   .bxgy-widget__product-image {
     width: 100%;
-    max-width: 120px;
+    max-width: {{ ds_image_size }}px;
     aspect-ratio: 1;
     object-fit: cover;
     border-radius: 8px;
@@ -112,7 +140,7 @@
   }
   .bxgy-widget__product-image-placeholder {
     width: 100%;
-    max-width: 120px;
+    max-width: {{ ds_image_size }}px;
     aspect-ratio: 1;
     border-radius: 8px;
     background: #f0f0f0;
@@ -124,9 +152,9 @@
     font-size: 12px;
   }
   .bxgy-widget__product-title {
-    font-size: 14px;
+    font-size: {{ ds_font_size }}px;
     font-weight: 600;
-    color: {{ block.settings.text_color }};
+    color: {{ ds_text_color }};
     margin-bottom: 4px;
     line-height: 1.3;
     display: -webkit-box;
@@ -135,9 +163,9 @@
     overflow: hidden;
   }
   .bxgy-widget__product-price {
-    font-size: 14px;
+    font-size: {{ ds_font_size }}px;
     font-weight: 600;
-    color: {{ block.settings.text_color }};
+    color: {{ ds_text_color }};
     margin-bottom: 4px;
   }
   .bxgy-widget__product-price--original {
@@ -167,7 +195,7 @@
     margin-bottom: 8px;
   }
   .bxgy-widget__product-label--reward {
-    color: {{ block.settings.accent_color }};
+    color: {{ ds_accent_color }};
   }
   .bxgy-widget__plus {
     display: flex;
@@ -176,7 +204,7 @@
     padding: 0 12px;
     font-size: 24px;
     font-weight: 700;
-    color: {{ block.settings.accent_color }};
+    color: {{ ds_accent_color }};
     flex-shrink: 0;
   }
   .bxgy-widget__variant-select {
@@ -187,7 +215,7 @@
     font-size: 13px;
     font-family: inherit;
     background: #fff;
-    color: {{ block.settings.text_color }};
+    color: {{ ds_text_color }};
     margin-top: 6px;
     cursor: pointer;
   }
@@ -209,7 +237,7 @@
   }
   .bxgy-widget__summary-final {
     font-weight: 700;
-    color: {{ block.settings.text_color }};
+    color: {{ ds_text_color }};
   }
   .bxgy-widget__summary-savings {
     font-size: 13px;
@@ -219,14 +247,14 @@
   .bxgy-widget__add-btn {
     width: 100%;
     padding: 14px 20px;
-    font-size: 16px;
+    font-size: {{ ds_button_font_size }}px;
     font-weight: 700;
     font-family: inherit;
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    background: {{ block.settings.button_color }};
-    color: {{ block.settings.button_text_color }};
+    background: {{ ds_button_color }};
+    color: {{ ds_button_text_color }};
     transition: opacity 0.2s;
     position: relative;
   }
@@ -248,7 +276,7 @@
     width: 20px;
     height: 20px;
     margin: -10px 0 0 -10px;
-    border: 3px solid {{ block.settings.button_text_color }};
+    border: 3px solid {{ ds_button_text_color }};
     border-top-color: transparent;
     border-radius: 50%;
     animation: bxgy-spin 0.7s linear infinite;
@@ -301,9 +329,9 @@
   {% comment %} Badge {% endcomment %}
   <div class="bxgy-widget__badge">
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10 2L12.09 7.26L18 8.27L14 12.14L14.81 18.02L10 15.27L5.19 18.02L6 12.14L2 8.27L7.91 7.26L10 2Z" fill="{{ block.settings.accent_color }}"/>
+      <path d="M10 2L12.09 7.26L18 8.27L14 12.14L14.81 18.02L10 15.27L5.19 18.02L6 12.14L2 8.27L7.91 7.26L10 2Z" fill="{{ ds_accent_color }}"/>
     </svg>
-    <span class="bxgy-widget__badge-text">{{ block.settings.badge_text }}</span>
+    <span class="bxgy-widget__badge-text">{{ ds_badge_text }}</span>
   </div>
 
   {% comment %} Product cards {% endcomment %}
