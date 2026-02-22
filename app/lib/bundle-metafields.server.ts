@@ -71,7 +71,17 @@ export async function setBundleMetafield(
     rewardVariantId: rewardVariantNumericId,
     rewardProductPrice: rewardPriceCents,
     rewardProductImage: rewardImageUrl,
-    ...(designConfig ? { design: designConfig } : {}),
+    designAccentColor: designConfig?.accentColor ?? null,
+    designBackgroundColor: designConfig?.backgroundColor ?? null,
+    designBorderColor: designConfig?.borderColor ?? null,
+    designTextColor: designConfig?.textColor ?? null,
+    designButtonColor: designConfig?.buttonColor ?? null,
+    designButtonTextColor: designConfig?.buttonTextColor ?? null,
+    designBorderRadius: designConfig?.borderRadius ?? null,
+    designImageSizePx: designConfig?.imageSizePx ?? null,
+    designFontSizePx: designConfig?.fontSizePx ?? null,
+    designButtonFontSizePx: designConfig?.buttonFontSizePx ?? null,
+    designBadgeText: designConfig?.badgeText ?? null,
   });
 
   await admin.graphql(

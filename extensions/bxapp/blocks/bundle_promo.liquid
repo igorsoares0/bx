@@ -12,32 +12,17 @@
   {% assign reward_product_image = bundle_data.rewardProductImage %}
 
   {% comment %} Design config from metafield with fallback to block.settings {% endcomment %}
-  {% assign d = bundle_data.design %}
-  {% if d != blank %}
-    {% assign ds_accent_color = d.accentColor | default: block.settings.accent_color %}
-    {% assign ds_background_color = d.backgroundColor | default: block.settings.background_color %}
-    {% assign ds_border_color = d.borderColor | default: block.settings.border_color %}
-    {% assign ds_text_color = d.textColor | default: block.settings.text_color %}
-    {% assign ds_button_color = d.buttonColor | default: block.settings.button_color %}
-    {% assign ds_button_text_color = d.buttonTextColor | default: block.settings.button_text_color %}
-    {% assign ds_border_radius = d.borderRadius | default: 12 %}
-    {% assign ds_image_size = d.imageSizePx | default: 120 %}
-    {% assign ds_font_size = d.fontSizePx | default: 14 %}
-    {% assign ds_button_font_size = d.buttonFontSizePx | default: 16 %}
-    {% assign ds_badge_text = d.badgeText | default: block.settings.badge_text %}
-  {% else %}
-    {% assign ds_accent_color = block.settings.accent_color %}
-    {% assign ds_background_color = block.settings.background_color %}
-    {% assign ds_border_color = block.settings.border_color %}
-    {% assign ds_text_color = block.settings.text_color %}
-    {% assign ds_button_color = block.settings.button_color %}
-    {% assign ds_button_text_color = block.settings.button_text_color %}
-    {% assign ds_border_radius = 12 %}
-    {% assign ds_image_size = 120 %}
-    {% assign ds_font_size = 14 %}
-    {% assign ds_button_font_size = 16 %}
-    {% assign ds_badge_text = block.settings.badge_text %}
-  {% endif %}
+  {% assign ds_accent_color = bundle_data.designAccentColor | default: block.settings.accent_color %}
+  {% assign ds_background_color = bundle_data.designBackgroundColor | default: block.settings.background_color %}
+  {% assign ds_border_color = bundle_data.designBorderColor | default: block.settings.border_color %}
+  {% assign ds_text_color = bundle_data.designTextColor | default: block.settings.text_color %}
+  {% assign ds_button_color = bundle_data.designButtonColor | default: block.settings.button_color %}
+  {% assign ds_button_text_color = bundle_data.designButtonTextColor | default: block.settings.button_text_color %}
+  {% assign ds_border_radius = bundle_data.designBorderRadius | default: 12 %}
+  {% assign ds_image_size = bundle_data.designImageSizePx | default: 120 %}
+  {% assign ds_font_size = bundle_data.designFontSizePx | default: 14 %}
+  {% assign ds_button_font_size = bundle_data.designButtonFontSizePx | default: 16 %}
+  {% assign ds_badge_text = bundle_data.designBadgeText | default: block.settings.badge_text %}
 
   {% comment %} Try to get live reward product data via all_products {% endcomment %}
   {% assign reward_product = all_products[reward_product_handle] %}

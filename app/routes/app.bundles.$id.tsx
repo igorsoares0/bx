@@ -308,48 +308,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       },
     });
 
-    // Update the Shopify discount
-    if (existing.discountId) {
-      const response = await admin.graphql(
-        `#graphql
-          mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
-            discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
-              userErrors {
-                field
-                message
-              }
-            }
-          }`,
-        {
-          variables: {
-            id: existing.discountId,
-            automaticAppDiscount: {
-              title: name,
-              metafields: [
-                {
-                  namespace: "$app:bxgy-discount",
-                  key: "function-configuration",
-                  type: "json",
-                  value: JSON.stringify(functionConfig),
-                },
-              ],
-            },
-          },
-        },
-      );
-
-      const responseJson = await response.json();
-      const result = responseJson.data?.discountAutomaticAppUpdate;
-
-      if (result?.userErrors?.length > 0) {
-        return json(
-          { errors: result.userErrors.map((e: any) => e.message) },
-          { status: 400 },
-        );
-      }
-    }
-
-    // Update metafield on buy product (remove old, set new if product type)
+    // Update metafield on buy product (do this BEFORE discount update
+    // so it always runs even if the discount mutation returns errors)
     if (existing.buyType === "product" && existing.buyReference !== buyReference) {
       await removeBundleMetafield(admin, existing.buyReference);
     }
@@ -366,6 +326,64 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
     } else if (existing.buyType === "product") {
       await removeBundleMetafield(admin, existing.buyReference);
+    }
+
+    // Update the Shopify discount (title only; function config metafield
+    // is updated via metafieldsSet to avoid duplicate-key errors)
+    if (existing.discountId) {
+      const discountResponse = await admin.graphql(
+        `#graphql
+          mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+            discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+        {
+          variables: {
+            id: existing.discountId,
+            automaticAppDiscount: {
+              title: name,
+            },
+          },
+        },
+      );
+
+      const discountJson = await discountResponse.json();
+      const discountResult = discountJson.data?.discountAutomaticAppUpdate;
+
+      if (discountResult?.userErrors?.length > 0) {
+        return json(
+          { errors: discountResult.userErrors.map((e: any) => e.message) },
+          { status: 400 },
+        );
+      }
+
+      // Update function configuration metafield on the discount via metafieldsSet
+      await admin.graphql(
+        `#graphql
+          mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { id }
+              userErrors { field message }
+            }
+          }`,
+        {
+          variables: {
+            metafields: [
+              {
+                ownerId: existing.discountId,
+                namespace: "$app:bxgy-discount",
+                key: "function-configuration",
+                type: "json",
+                value: JSON.stringify(functionConfig),
+              },
+            ],
+          },
+        },
+      );
     }
   }
 
