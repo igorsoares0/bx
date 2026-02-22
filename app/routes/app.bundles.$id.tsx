@@ -4,7 +4,6 @@ import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page,
-  Layout,
   Card,
   FormLayout,
   TextField,
@@ -549,8 +548,8 @@ export default function BundleForm() {
       title={isNew ? "Create bundle" : "Edit bundle"}
       backAction={{ url: "/app" }}
     >
-      <Layout>
-        <Layout.Section>
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <BlockStack gap="400">
             {errors.length > 0 && (
               <Banner tone="critical">
@@ -878,11 +877,10 @@ export default function BundleForm() {
               </Button>
             </InlineStack>
           </BlockStack>
-        </Layout.Section>
+        </div>
 
         {/* ── Theme Preview ── */}
-        <Layout.Section variant="oneThird">
-          <div style={{ position: "sticky", top: 20 }}>
+        <div style={{ width: 320, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
             <Card>
               <BlockStack gap="300">
                 <Text as="h2" variant="headingMd">
@@ -1255,9 +1253,8 @@ export default function BundleForm() {
                 </Text>
               </BlockStack>
             </Card>
-          </div>
-        </Layout.Section>
-      </Layout>
+        </div>
+      </div>
     </Page>
   );
 }
