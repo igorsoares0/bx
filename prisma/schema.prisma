@@ -55,15 +55,7 @@ model TieredBundle {
   id            Int      @id @default(autoincrement())
   name          String
   productId        String   // Shopify GID do produto (buy = get = mesmo produto)
-  tier1BuyQty      Int      @default(1)
-  tier1FreeQty     Int      @default(1)
-  tier1DiscountPct Int      @default(100) // % desconto nos itens free do tier 1
-  tier2BuyQty      Int      @default(2)
-  tier2FreeQty     Int      @default(3)
-  tier2DiscountPct Int      @default(100)
-  tier3BuyQty      Int      @default(3)
-  tier3FreeQty     Int      @default(6)
-  tier3DiscountPct Int      @default(100)
+  tiersConfig      String   @default("[{\"buyQty\":1,\"freeQty\":1,\"discountPct\":100},{\"buyQty\":2,\"freeQty\":3,\"discountPct\":100},{\"buyQty\":3,\"freeQty\":6,\"discountPct\":100}]") // JSON array: [{ buyQty, freeQty, discountPct }, ...]
   active        Boolean  @default(true)
   shopId        String
   discountId    String?  // GID do automatic discount criado no Shopify

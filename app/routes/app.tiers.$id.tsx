@@ -22,6 +22,12 @@ import {
   removeTieredBundleMetafield,
 } from "../lib/bundle-metafields.server";
 
+const DEFAULT_TIERS = [
+  { buyQty: 1, freeQty: 1, discountPct: 100 },
+  { buyQty: 2, freeQty: 3, discountPct: 100 },
+  { buyQty: 3, freeQty: 6, discountPct: 100 },
+];
+
 const DEFAULT_DESIGN = {
   accentColor: "#8cb600",
   backgroundColor: "#fafff0",
@@ -32,6 +38,17 @@ const DEFAULT_DESIGN = {
   headerText: "BUILD YOUR COMBO & SAVE",
   giftText: "+ FREE special gift!",
 };
+
+type TierConfig = { buyQty: number; freeQty: number; discountPct: number };
+
+function parseTiersConfig(raw: string | null | undefined): TierConfig[] {
+  if (!raw) return DEFAULT_TIERS;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  } catch {}
+  return DEFAULT_TIERS;
+}
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
@@ -61,6 +78,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (params.id === "new") {
     return json({
       bundle: null,
+      tiers: DEFAULT_TIERS,
       functionId,
       productTitle: "",
       productImage: "",
@@ -75,6 +93,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!bundle) {
     throw new Response("Tiered bundle not found", { status: 404 });
   }
+
+  const tiers = parseTiersConfig(bundle.tiersConfig);
 
   let productTitle = bundle.productId;
   let productImage = "";
@@ -104,7 +124,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     // Keep GID as fallback
   }
 
-  return json({ bundle, functionId, productTitle, productImage, productPrice });
+  return json({ bundle, tiers, functionId, productTitle, productImage, productPrice });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -113,33 +133,27 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const name = formData.get("name") as string;
   const productId = formData.get("productId") as string;
-  const tier1BuyQty = Number(formData.get("tier1BuyQty"));
-  const tier1FreeQty = Number(formData.get("tier1FreeQty"));
-  const tier1DiscountPct = Number(formData.get("tier1DiscountPct"));
-  const tier2BuyQty = Number(formData.get("tier2BuyQty"));
-  const tier2FreeQty = Number(formData.get("tier2FreeQty"));
-  const tier2DiscountPct = Number(formData.get("tier2DiscountPct"));
-  const tier3BuyQty = Number(formData.get("tier3BuyQty"));
-  const tier3FreeQty = Number(formData.get("tier3FreeQty"));
-  const tier3DiscountPct = Number(formData.get("tier3DiscountPct"));
+  const tiersConfigRaw = formData.get("tiersConfig") as string;
   const designConfigRaw = formData.get("designConfig") as string | null;
   const designConfig = designConfigRaw ? JSON.parse(designConfigRaw) : null;
+
+  const tiers: TierConfig[] = JSON.parse(tiersConfigRaw);
 
   // Function configuration with per-tier discount support
   const functionConfig = {
     buyType: "product",
     buyProductId: productId,
     buyCollectionIds: null,
-    minQuantity: tier1BuyQty,
+    minQuantity: tiers[0]?.buyQty || 1,
     getProductId: productId, // same product
     discountType: "percentage",
-    discountValue: tier1DiscountPct, // fallback for non-tiered logic
-    maxReward: Math.max(tier1FreeQty, tier2FreeQty, tier3FreeQty),
-    tiers: [
-      { minQuantity: tier1BuyQty, maxReward: tier1FreeQty, discountValue: tier1DiscountPct },
-      { minQuantity: tier2BuyQty, maxReward: tier2FreeQty, discountValue: tier2DiscountPct },
-      { minQuantity: tier3BuyQty, maxReward: tier3FreeQty, discountValue: tier3DiscountPct },
-    ],
+    discountValue: tiers[0]?.discountPct || 100, // fallback for non-tiered logic
+    maxReward: Math.max(...tiers.map((t) => t.freeQty)),
+    tiers: tiers.map((t) => ({
+      minQuantity: t.buyQty,
+      maxReward: t.freeQty,
+      discountValue: t.discountPct,
+    })),
   };
 
   const isNew = params.id === "new";
@@ -149,15 +163,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       data: {
         name,
         productId,
-        tier1BuyQty,
-        tier1FreeQty,
-        tier1DiscountPct,
-        tier2BuyQty,
-        tier2FreeQty,
-        tier2DiscountPct,
-        tier3BuyQty,
-        tier3FreeQty,
-        tier3DiscountPct,
+        tiersConfig: tiersConfigRaw,
         shopId: session.shop,
         designConfig: designConfigRaw || null,
       },
@@ -218,15 +224,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     await setTieredBundleMetafield(admin, {
       productId,
       bundleName: name,
-      tier1BuyQty,
-      tier1FreeQty,
-      tier1DiscountPct,
-      tier2BuyQty,
-      tier2FreeQty,
-      tier2DiscountPct,
-      tier3BuyQty,
-      tier3FreeQty,
-      tier3DiscountPct,
+      tiers,
       designConfig,
     });
   } else {
@@ -244,15 +242,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       data: {
         name,
         productId,
-        tier1BuyQty,
-        tier1FreeQty,
-        tier1DiscountPct,
-        tier2BuyQty,
-        tier2FreeQty,
-        tier2DiscountPct,
-        tier3BuyQty,
-        tier3FreeQty,
-        tier3DiscountPct,
+        tiersConfig: tiersConfigRaw,
         designConfig: designConfigRaw || null,
       },
     });
@@ -265,15 +255,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     await setTieredBundleMetafield(admin, {
       productId,
       bundleName: name,
-      tier1BuyQty,
-      tier1FreeQty,
-      tier1DiscountPct,
-      tier2BuyQty,
-      tier2FreeQty,
-      tier2DiscountPct,
-      tier3BuyQty,
-      tier3FreeQty,
-      tier3DiscountPct,
+      tiers,
       designConfig,
     });
 
@@ -330,7 +312,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function TieredBundleForm() {
-  const { bundle, functionId, productTitle, productImage, productPrice } =
+  const { bundle, tiers: loadedTiers, functionId, productTitle, productImage, productPrice } =
     useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -351,15 +333,29 @@ export default function TieredBundleForm() {
   const [prodImage, setProdImage] = useState(productImage || "");
   const [prodPriceCents, setProdPriceCents] = useState(productPrice || 0);
 
-  const [tier1BuyQty, setTier1BuyQty] = useState(String(bundle?.tier1BuyQty || 1));
-  const [tier1FreeQty, setTier1FreeQty] = useState(String(bundle?.tier1FreeQty || 1));
-  const [tier1DiscountPct, setTier1DiscountPct] = useState(String(bundle?.tier1DiscountPct ?? 100));
-  const [tier2BuyQty, setTier2BuyQty] = useState(String(bundle?.tier2BuyQty || 2));
-  const [tier2FreeQty, setTier2FreeQty] = useState(String(bundle?.tier2FreeQty || 3));
-  const [tier2DiscountPct, setTier2DiscountPct] = useState(String(bundle?.tier2DiscountPct ?? 100));
-  const [tier3BuyQty, setTier3BuyQty] = useState(String(bundle?.tier3BuyQty || 3));
-  const [tier3FreeQty, setTier3FreeQty] = useState(String(bundle?.tier3FreeQty || 6));
-  const [tier3DiscountPct, setTier3DiscountPct] = useState(String(bundle?.tier3DiscountPct ?? 100));
+  const [tiers, setTiers] = useState<TierConfig[]>(loadedTiers);
+
+  const updateTier = (index: number, field: keyof TierConfig, value: string) => {
+    setTiers((prev) =>
+      prev.map((t, i) => (i === index ? { ...t, [field]: Number(value) || 0 } : t)),
+    );
+  };
+
+  const addTier = () => {
+    const last = tiers[tiers.length - 1];
+    setTiers((prev) => [
+      ...prev,
+      {
+        buyQty: (last?.buyQty || 0) + 1,
+        freeQty: (last?.freeQty || 0) + 1,
+        discountPct: 100,
+      },
+    ]);
+  };
+
+  const removeTier = (index: number) => {
+    setTiers((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const [design, setDesign] = useState(savedDesign);
   const updateDesign = (key: string, value: string | number) => {
@@ -367,7 +363,9 @@ export default function TieredBundleForm() {
   };
 
   const [errors, setErrors] = useState<string[]>([]);
-  const [selectedPreviewTier, setSelectedPreviewTier] = useState(1);
+  const [selectedPreviewTier, setSelectedPreviewTier] = useState(
+    Math.min(1, tiers.length - 1),
+  );
 
   const formatPreviewPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
@@ -396,6 +394,7 @@ export default function TieredBundleForm() {
     const validationErrors: string[] = [];
     if (!name.trim()) validationErrors.push("Name is required");
     if (!productId) validationErrors.push("Product is required");
+    if (tiers.length === 0) validationErrors.push("At least one tier is required");
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
@@ -407,27 +406,14 @@ export default function TieredBundleForm() {
     formData.set("name", name);
     formData.set("productId", productId);
     formData.set("functionId", functionId);
-    formData.set("tier1BuyQty", tier1BuyQty);
-    formData.set("tier1FreeQty", tier1FreeQty);
-    formData.set("tier1DiscountPct", tier1DiscountPct);
-    formData.set("tier2BuyQty", tier2BuyQty);
-    formData.set("tier2FreeQty", tier2FreeQty);
-    formData.set("tier2DiscountPct", tier2DiscountPct);
-    formData.set("tier3BuyQty", tier3BuyQty);
-    formData.set("tier3FreeQty", tier3FreeQty);
-    formData.set("tier3DiscountPct", tier3DiscountPct);
+    formData.set("tiersConfig", JSON.stringify(tiers));
     formData.set("designConfig", JSON.stringify(design));
 
     submit(formData, { method: "post" });
   };
 
-  /* ── Preview data ── */
+  /* -- Preview data -- */
   const unitPrice = prodPriceCents || 19900;
-  const tiers = [
-    { buyQty: Number(tier1BuyQty), freeQty: Number(tier1FreeQty), discPct: Number(tier1DiscountPct) || 100 },
-    { buyQty: Number(tier2BuyQty), freeQty: Number(tier2FreeQty), discPct: Number(tier2DiscountPct) || 100 },
-    { buyQty: Number(tier3BuyQty), freeQty: Number(tier3FreeQty), discPct: Number(tier3DiscountPct) || 100 },
-  ];
 
   return (
     <Page
@@ -489,32 +475,61 @@ export default function TieredBundleForm() {
                   Tiers
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Configure up to 3 tiers. Customers buy X and get Y free of the same product.
+                  Add as many tiers as you need. Customers buy X and get Y free of the same product.
                 </Text>
                 <FormLayout>
-                  <Text as="h3" variant="headingSm">Tier 1</Text>
-                  <FormLayout.Group>
-                    <TextField label="Buy quantity" type="number" value={tier1BuyQty} onChange={setTier1BuyQty} autoComplete="off" min={1} />
-                    <TextField label="Free quantity" type="number" value={tier1FreeQty} onChange={setTier1FreeQty} autoComplete="off" min={1} />
-                    <TextField label="Discount %" type="number" value={tier1DiscountPct} onChange={setTier1DiscountPct} autoComplete="off" suffix="%" min={1} max={100} />
-                  </FormLayout.Group>
-                  <Text as="h3" variant="headingSm">Tier 2</Text>
-                  <FormLayout.Group>
-                    <TextField label="Buy quantity" type="number" value={tier2BuyQty} onChange={setTier2BuyQty} autoComplete="off" min={1} />
-                    <TextField label="Free quantity" type="number" value={tier2FreeQty} onChange={setTier2FreeQty} autoComplete="off" min={1} />
-                    <TextField label="Discount %" type="number" value={tier2DiscountPct} onChange={setTier2DiscountPct} autoComplete="off" suffix="%" min={1} max={100} />
-                  </FormLayout.Group>
-                  <Text as="h3" variant="headingSm">Tier 3</Text>
-                  <FormLayout.Group>
-                    <TextField label="Buy quantity" type="number" value={tier3BuyQty} onChange={setTier3BuyQty} autoComplete="off" min={1} />
-                    <TextField label="Free quantity" type="number" value={tier3FreeQty} onChange={setTier3FreeQty} autoComplete="off" min={1} />
-                    <TextField label="Discount %" type="number" value={tier3DiscountPct} onChange={setTier3DiscountPct} autoComplete="off" suffix="%" min={1} max={100} />
-                  </FormLayout.Group>
+                  {tiers.map((tier, i) => (
+                    <div key={i}>
+                      <InlineStack align="space-between" blockAlign="center">
+                        <Text as="h3" variant="headingSm">Tier {i + 1}</Text>
+                        {tiers.length > 1 && (
+                          <Button
+                            variant="plain"
+                            tone="critical"
+                            onClick={() => removeTier(i)}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </InlineStack>
+                      <FormLayout.Group>
+                        <TextField
+                          label="Buy quantity"
+                          type="number"
+                          value={String(tier.buyQty)}
+                          onChange={(v) => updateTier(i, "buyQty", v)}
+                          autoComplete="off"
+                          min={1}
+                        />
+                        <TextField
+                          label="Free quantity"
+                          type="number"
+                          value={String(tier.freeQty)}
+                          onChange={(v) => updateTier(i, "freeQty", v)}
+                          autoComplete="off"
+                          min={1}
+                        />
+                        <TextField
+                          label="Discount %"
+                          type="number"
+                          value={String(tier.discountPct)}
+                          onChange={(v) => updateTier(i, "discountPct", v)}
+                          autoComplete="off"
+                          suffix="%"
+                          min={1}
+                          max={100}
+                        />
+                      </FormLayout.Group>
+                    </div>
+                  ))}
                 </FormLayout>
+                <InlineStack align="start">
+                  <Button onClick={addTier}>Add tier</Button>
+                </InlineStack>
               </BlockStack>
             </Card>
 
-            {/* ── Design Section ── */}
+            {/* -- Design Section -- */}
             <Card>
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">
@@ -627,7 +642,7 @@ export default function TieredBundleForm() {
           </BlockStack>
         </div>
 
-        {/* ── Tiers Preview ── */}
+        {/* -- Tiers Preview -- */}
         <div style={{ width: 340, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
           <Card>
             <BlockStack gap="300">
@@ -649,7 +664,7 @@ export default function TieredBundleForm() {
                     const isSelected = selectedPreviewTier === i;
                     const totalQty = tier.buyQty + tier.freeQty;
                     const originalCents = totalQty * unitPrice;
-                    const freeDiscountCents = Math.round(tier.freeQty * unitPrice * tier.discPct / 100);
+                    const freeDiscountCents = Math.round(tier.freeQty * unitPrice * tier.discountPct / 100);
                     const finalCents = originalCents - freeDiscountCents;
                     const savePct = totalQty > 0 ? Math.round((freeDiscountCents / originalCents) * 100) : 0;
                     return (
@@ -673,7 +688,7 @@ export default function TieredBundleForm() {
                         </div>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontWeight: 600, fontSize: "13px", color: design.textColor }}>
-                            Buy {tier.buyQty}, get {tier.freeQty} {tier.discPct >= 100 ? "free" : `${tier.discPct}% off`}
+                            Buy {tier.buyQty}, get {tier.freeQty} {tier.discountPct >= 100 ? "free" : `${tier.discountPct}% off`}
                           </span>
                           <span style={{ marginLeft: "8px", fontSize: "10px", fontWeight: 700, color: design.accentColor, background: `${design.accentColor}18`, padding: "2px 8px", borderRadius: "4px", textTransform: "uppercase" as const }}>
                             SAVE {savePct}%

@@ -227,42 +227,18 @@ export async function setTieredBundleMetafield(
   {
     productId,
     bundleName,
-    tier1BuyQty,
-    tier1FreeQty,
-    tier1DiscountPct,
-    tier2BuyQty,
-    tier2FreeQty,
-    tier2DiscountPct,
-    tier3BuyQty,
-    tier3FreeQty,
-    tier3DiscountPct,
+    tiers,
     designConfig,
   }: {
     productId: string;
     bundleName: string;
-    tier1BuyQty: number;
-    tier1FreeQty: number;
-    tier1DiscountPct: number;
-    tier2BuyQty: number;
-    tier2FreeQty: number;
-    tier2DiscountPct: number;
-    tier3BuyQty: number;
-    tier3FreeQty: number;
-    tier3DiscountPct: number;
+    tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }>;
     designConfig?: Record<string, unknown>;
   },
 ) {
   const metafieldValue = JSON.stringify({
     bundleName,
-    tier1BuyQty,
-    tier1FreeQty,
-    tier1DiscountPct,
-    tier2BuyQty,
-    tier2FreeQty,
-    tier2DiscountPct,
-    tier3BuyQty,
-    tier3FreeQty,
-    tier3DiscountPct,
+    tiers,
     designAccentColor: designConfig?.accentColor ?? null,
     designBackgroundColor: designConfig?.backgroundColor ?? null,
     designTextColor: designConfig?.textColor ?? null,

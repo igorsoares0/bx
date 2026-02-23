@@ -316,10 +316,20 @@ export default function BundleIndex() {
         <Badge tone="info">Tiered</Badge>
       </IndexTable.Cell>
       <IndexTable.Cell>
-        3 tiers
+        {(() => {
+          try {
+            const t = JSON.parse(bundle.tiersConfig || "[]");
+            return `${t.length} tier${t.length !== 1 ? "s" : ""}`;
+          } catch { return "—"; }
+        })()}
       </IndexTable.Cell>
       <IndexTable.Cell>
-        Buy {bundle.tier1BuyQty}+{bundle.tier1FreeQty}, {bundle.tier2BuyQty}+{bundle.tier2FreeQty}, {bundle.tier3BuyQty}+{bundle.tier3FreeQty}
+        {(() => {
+          try {
+            const t = JSON.parse(bundle.tiersConfig || "[]") as Array<{ buyQty: number; freeQty: number }>;
+            return t.map((tier: { buyQty: number; freeQty: number }) => `${tier.buyQty}+${tier.freeQty}`).join(", ");
+          } catch { return "—"; }
+        })()}
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Badge tone={bundle.active ? "success" : undefined}>

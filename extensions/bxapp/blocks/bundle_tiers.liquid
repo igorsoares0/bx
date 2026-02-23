@@ -12,41 +12,10 @@
   {% assign header_text = bundle_data.designHeaderText | default: block.settings.header_text %}
   {% assign gift_text = bundle_data.designGiftText | default: block.settings.gift_text %}
 
-  {% comment %} Tiers from metafield {% endcomment %}
-  {% assign t1_buy = bundle_data.tier1BuyQty | default: 1 %}
-  {% assign t1_free = bundle_data.tier1FreeQty | default: 1 %}
-  {% assign t1_disc = bundle_data.tier1DiscountPct | default: 100 %}
-  {% assign t2_buy = bundle_data.tier2BuyQty | default: 2 %}
-  {% assign t2_free = bundle_data.tier2FreeQty | default: 3 %}
-  {% assign t2_disc = bundle_data.tier2DiscountPct | default: 100 %}
-  {% assign t3_buy = bundle_data.tier3BuyQty | default: 3 %}
-  {% assign t3_free = bundle_data.tier3FreeQty | default: 6 %}
-  {% assign t3_disc = bundle_data.tier3DiscountPct | default: 100 %}
-
+  {% comment %} Dynamic tiers from metafield array {% endcomment %}
+  {% assign tiers = bundle_data.tiers %}
   {% assign buy_price = product.price %}
   {% assign buy_title = product.title %}
-
-  {% comment %} Calculate tier prices (all in cents) {% endcomment %}
-  {% assign t1_total_qty = t1_buy | plus: t1_free %}
-  {% assign t1_original = t1_total_qty | times: buy_price %}
-  {% assign t1_free_cost = t1_free | times: buy_price %}
-  {% assign t1_save_amount = t1_free_cost | times: t1_disc | divided_by: 100 %}
-  {% assign t1_final = t1_original | minus: t1_save_amount %}
-  {% assign t1_save_pct = t1_save_amount | times: 100 | divided_by: t1_original %}
-
-  {% assign t2_total_qty = t2_buy | plus: t2_free %}
-  {% assign t2_original = t2_total_qty | times: buy_price %}
-  {% assign t2_free_cost = t2_free | times: buy_price %}
-  {% assign t2_save_amount = t2_free_cost | times: t2_disc | divided_by: 100 %}
-  {% assign t2_final = t2_original | minus: t2_save_amount %}
-  {% assign t2_save_pct = t2_save_amount | times: 100 | divided_by: t2_original %}
-
-  {% assign t3_total_qty = t3_buy | plus: t3_free %}
-  {% assign t3_original = t3_total_qty | times: buy_price %}
-  {% assign t3_free_cost = t3_free | times: buy_price %}
-  {% assign t3_save_amount = t3_free_cost | times: t3_disc | divided_by: 100 %}
-  {% assign t3_final = t3_original | minus: t3_save_amount %}
-  {% assign t3_save_pct = t3_save_amount | times: 100 | divided_by: t3_original %}
 
 <style>
   .bxgy-tiers {
@@ -245,47 +214,41 @@
     <span class="bxgy-tiers__header-text">{{ header_text }}</span>
   </div>
 
-  {% if t1_disc >= 100 %}{% assign t1_deal = "free" %}{% else %}{% assign t1_deal = t1_disc | append: "% off" %}{% endif %}
-  {% if t2_disc >= 100 %}{% assign t2_deal = "free" %}{% else %}{% assign t2_deal = t2_disc | append: "% off" %}{% endif %}
-  {% if t3_disc >= 100 %}{% assign t3_deal = "free" %}{% else %}{% assign t3_deal = t3_disc | append: "% off" %}{% endif %}
-
-  {% comment %} Tier rows {% endcomment %}
+  {% comment %} Tier rows - dynamic loop {% endcomment %}
   <div class="bxgy-tiers__list">
-    <div class="bxgy-tiers__row" data-bxgy-tier="0" data-buy-qty="{{ t1_buy }}" data-free-qty="{{ t1_free }}" data-disc-pct="{{ t1_disc }}">
-      <div class="bxgy-tiers__radio"><div class="bxgy-tiers__radio-dot"></div></div>
-      <div class="bxgy-tiers__label">
-        <span class="bxgy-tiers__label-text">Buy {{ t1_buy }}, get {{ t1_free }} {{ t1_deal }}</span>
-        <span class="bxgy-tiers__badge">SAVE {{ t1_save_pct }}%</span>
-      </div>
-      <div class="bxgy-tiers__prices">
-        <div class="bxgy-tiers__price-final" data-bxgy-tier-final="0">{{ t1_final | money }}</div>
-        <div class="bxgy-tiers__price-original" data-bxgy-tier-original="0">{{ t1_original | money }}</div>
-      </div>
-    </div>
+    {% for tier in tiers %}
+      {% assign t_buy = tier.buyQty | default: 1 %}
+      {% assign t_free = tier.freeQty | default: 1 %}
+      {% assign t_disc = tier.discountPct | default: 100 %}
 
-    <div class="bxgy-tiers__row bxgy-tiers__row--selected" data-bxgy-tier="1" data-buy-qty="{{ t2_buy }}" data-free-qty="{{ t2_free }}" data-disc-pct="{{ t2_disc }}">
-      <div class="bxgy-tiers__radio"><div class="bxgy-tiers__radio-dot"></div></div>
-      <div class="bxgy-tiers__label">
-        <span class="bxgy-tiers__label-text">Buy {{ t2_buy }}, get {{ t2_free }} {{ t2_deal }}</span>
-        <span class="bxgy-tiers__badge">SAVE {{ t2_save_pct }}%</span>
-      </div>
-      <div class="bxgy-tiers__prices">
-        <div class="bxgy-tiers__price-final" data-bxgy-tier-final="1">{{ t2_final | money }}</div>
-        <div class="bxgy-tiers__price-original" data-bxgy-tier-original="1">{{ t2_original | money }}</div>
-      </div>
-    </div>
+      {% if t_disc >= 100 %}{% assign t_deal = "free" %}{% else %}{% assign t_deal = t_disc | append: "% off" %}{% endif %}
 
-    <div class="bxgy-tiers__row" data-bxgy-tier="2" data-buy-qty="{{ t3_buy }}" data-free-qty="{{ t3_free }}" data-disc-pct="{{ t3_disc }}">
-      <div class="bxgy-tiers__radio"><div class="bxgy-tiers__radio-dot"></div></div>
-      <div class="bxgy-tiers__label">
-        <span class="bxgy-tiers__label-text">Buy {{ t3_buy }}, get {{ t3_free }} {{ t3_deal }}</span>
-        <span class="bxgy-tiers__badge">SAVE {{ t3_save_pct }}%</span>
+      {% assign t_total_qty = t_buy | plus: t_free %}
+      {% assign t_original = t_total_qty | times: buy_price %}
+      {% assign t_free_cost = t_free | times: buy_price %}
+      {% assign t_save_amount = t_free_cost | times: t_disc | divided_by: 100 %}
+      {% assign t_final = t_original | minus: t_save_amount %}
+      {% assign t_save_pct = t_save_amount | times: 100 | divided_by: t_original %}
+
+      {% assign tier_index = forloop.index0 %}
+      {% if forloop.index0 == 1 %}
+        {% assign row_class = "bxgy-tiers__row bxgy-tiers__row--selected" %}
+      {% else %}
+        {% assign row_class = "bxgy-tiers__row" %}
+      {% endif %}
+
+      <div class="{{ row_class }}" data-bxgy-tier="{{ tier_index }}" data-buy-qty="{{ t_buy }}" data-free-qty="{{ t_free }}" data-disc-pct="{{ t_disc }}">
+        <div class="bxgy-tiers__radio"><div class="bxgy-tiers__radio-dot"></div></div>
+        <div class="bxgy-tiers__label">
+          <span class="bxgy-tiers__label-text">Buy {{ t_buy }}, get {{ t_free }} {{ t_deal }}</span>
+          <span class="bxgy-tiers__badge">SAVE {{ t_save_pct }}%</span>
+        </div>
+        <div class="bxgy-tiers__prices">
+          <div class="bxgy-tiers__price-final" data-bxgy-tier-final="{{ tier_index }}">{{ t_final | money }}</div>
+          <div class="bxgy-tiers__price-original" data-bxgy-tier-original="{{ tier_index }}">{{ t_original | money }}</div>
+        </div>
       </div>
-      <div class="bxgy-tiers__prices">
-        <div class="bxgy-tiers__price-final" data-bxgy-tier-final="2">{{ t3_final | money }}</div>
-        <div class="bxgy-tiers__price-original" data-bxgy-tier-original="2">{{ t3_original | money }}</div>
-      </div>
-    </div>
+    {% endfor %}
   </div>
 
   {% comment %} Gift footer {% endcomment %}
@@ -332,7 +295,7 @@
   var rows = widget.querySelectorAll('[data-bxgy-tier]');
   var addBtn = widget.querySelector('[data-bxgy-tiers-add-btn]');
   var feedbackEl = widget.querySelector('[data-bxgy-tiers-feedback]');
-  var selectedTier = 1; /* default to middle tier */
+  var selectedTier = rows.length > 1 ? 1 : 0; /* default to second tier if exists, else first */
 
   /* ── Helpers ── */
   function formatMoney(cents) {
