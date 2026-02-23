@@ -1,0 +1,554 @@
+{% assign bundle_data = product.metafields.bxgy_bundle.volume_config.value %}
+
+{% if bundle_data != blank %}
+  {% assign ds_accent = bundle_data.designAccentColor | default: block.settings.accent_color %}
+  {% assign ds_bg = bundle_data.designBackgroundColor | default: block.settings.background_color %}
+  {% assign ds_text = bundle_data.designTextColor | default: block.settings.text_color %}
+  {% assign ds_border_radius = bundle_data.designBorderRadius | default: 12 %}
+  {% assign ds_button_color = bundle_data.designButtonColor | default: block.settings.accent_color %}
+  {% assign ds_button_text = bundle_data.designButtonTextColor | default: "#ffffff" %}
+
+  {% assign header_text = bundle_data.designHeaderText | default: block.settings.header_text %}
+  {% assign badge_text = bundle_data.designBadgeText | default: block.settings.badge_text %}
+
+  {% assign volume_tiers = bundle_data.volumeTiers %}
+  {% assign buy_price = product.price %}
+
+<style>
+  .bxgy-volume {
+    background: {{ ds_bg }};
+    border-radius: {{ ds_border_radius }}px;
+    padding: 20px;
+    margin: 16px 0;
+    font-family: inherit;
+    border: 1px solid #e5e5e5;
+  }
+  .bxgy-volume__header {
+    border-bottom: 2px solid {{ ds_text }};
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .bxgy-volume__header-text {
+    font-weight: 800;
+    font-size: 15px;
+    color: {{ ds_text }};
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .bxgy-volume__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .bxgy-volume__row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 2px solid #e5e5e5;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .bxgy-volume__row:hover {
+    border-color: {{ ds_accent }};
+  }
+  .bxgy-volume__row--selected {
+    border-color: {{ ds_accent }};
+    background: {{ ds_bg }};
+  }
+  .bxgy-volume__badge {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: {{ ds_accent }};
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .bxgy-volume__radio {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 0.15s;
+  }
+  .bxgy-volume__row--selected .bxgy-volume__radio {
+    border-color: {{ ds_accent }};
+  }
+  .bxgy-volume__radio-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  .bxgy-volume__row--selected .bxgy-volume__radio-dot {
+    background: {{ ds_accent }};
+  }
+  .bxgy-volume__info {
+    flex: 1;
+  }
+  .bxgy-volume__label-text {
+    font-weight: 600;
+    font-size: 14px;
+    color: {{ ds_text }};
+  }
+  .bxgy-volume__subtitle {
+    font-size: 12px;
+    color: #777;
+    margin-top: 2px;
+  }
+  .bxgy-volume__prices {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .bxgy-volume__price-final {
+    font-weight: 700;
+    font-size: 16px;
+    color: {{ ds_text }};
+    line-height: 1.2;
+  }
+  .bxgy-volume__row--selected .bxgy-volume__price-final {
+    color: {{ ds_accent }};
+  }
+  .bxgy-volume__price-original {
+    font-size: 12px;
+    color: #999;
+    text-decoration: line-through;
+    line-height: 1.2;
+  }
+  .bxgy-volume__save-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: {{ ds_accent }};
+    background: {{ ds_accent }}18;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .bxgy-volume__add-btn {
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: {{ ds_button_color }};
+    color: {{ ds_button_text }};
+    transition: opacity 0.2s;
+    position: relative;
+  }
+  .bxgy-volume__add-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+  .bxgy-volume__add-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .bxgy-volume__add-btn--loading {
+    color: transparent !important;
+  }
+  .bxgy-volume__add-btn--loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 3px solid {{ ds_button_text }};
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: bxgy-volume-spin 0.7s linear infinite;
+  }
+  @keyframes bxgy-volume-spin {
+    to { transform: rotate(360deg); }
+  }
+  .bxgy-volume__feedback {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px;
+    border-radius: 6px;
+    margin-top: 10px;
+    display: none;
+  }
+  .bxgy-volume__feedback--success {
+    display: block;
+    color: #166534;
+    background: #dcfce7;
+  }
+  .bxgy-volume__feedback--error {
+    display: block;
+    color: #991b1b;
+    background: #fee2e2;
+  }
+  .bxgy-volume__footer {
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    margin-top: 10px;
+  }
+</style>
+
+<div class="bxgy-volume" id="bxgy-volume-{{ block.id }}">
+  <div class="bxgy-volume__header">
+    <span class="bxgy-volume__header-text">{{ header_text }}</span>
+  </div>
+
+  <div class="bxgy-volume__list">
+    {% for tier in volume_tiers %}
+      {% assign t_qty = tier.qty | default: 1 %}
+      {% assign t_disc = tier.discountPct | default: 0 %}
+      {% assign t_label = tier.label %}
+      {% assign t_popular = tier.popular %}
+
+      {% assign t_original = t_qty | times: buy_price %}
+      {% assign t_save_amount = t_original | times: t_disc | divided_by: 100 %}
+      {% assign t_final = t_original | minus: t_save_amount %}
+
+      {% assign tier_index = forloop.index0 %}
+
+      {% comment %} Default select the popular tier, or second tier {% endcomment %}
+      {% if t_popular == true %}
+        {% assign row_class = "bxgy-volume__row bxgy-volume__row--selected" %}
+      {% elsif forloop.index0 == 1 and volume_tiers[0].popular != true %}
+        {% comment %} Fallback: select second if no popular set {% endcomment %}
+        {% assign row_class = "bxgy-volume__row" %}
+      {% else %}
+        {% assign row_class = "bxgy-volume__row" %}
+      {% endif %}
+
+      <div class="{{ row_class }}" data-bxgy-vol-tier="{{ tier_index }}" data-vol-qty="{{ t_qty }}" data-vol-disc="{{ t_disc }}">
+        {% if t_popular == true and badge_text != blank %}
+          <div class="bxgy-volume__badge">{{ badge_text }}</div>
+        {% endif %}
+        <div class="bxgy-volume__radio"><div class="bxgy-volume__radio-dot"></div></div>
+        <div class="bxgy-volume__info">
+          <div class="bxgy-volume__label-text">{{ t_label | default: t_qty | append: "x" }}</div>
+          <div class="bxgy-volume__subtitle">
+            {% if t_disc > 0 %}
+              You save {{ t_disc }}%
+            {% else %}
+              Standard price
+            {% endif %}
+          </div>
+        </div>
+        <div class="bxgy-volume__prices">
+          <div class="bxgy-volume__price-final" data-bxgy-vol-final="{{ tier_index }}">{{ t_final | money }}</div>
+          {% if t_disc > 0 %}
+            <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}">{{ t_original | money }}</div>
+            <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}">SAVE {{ t_save_amount | money }}</div>
+          {% else %}
+            <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}" style="display:none">{{ t_original | money }}</div>
+            <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}" style="display:none"></div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <button
+    class="bxgy-volume__add-btn"
+    data-bxgy-vol-add-btn
+    {% unless product.available %}disabled{% endunless %}
+    type="button"
+  >
+    Add to Cart
+  </button>
+
+  <div class="bxgy-volume__feedback" data-bxgy-vol-feedback></div>
+  <div class="bxgy-volume__footer">Discount applied automatically at checkout</div>
+</div>
+
+<script>
+(function() {
+  var WIDGET_ID = 'bxgy-volume-{{ block.id }}';
+  var widget = document.getElementById(WIDGET_ID);
+  if (!widget) return;
+
+  var shopCurrency = {{ shop.currency | json }};
+
+  var buyVariants = {};
+  {% for variant in product.variants %}
+    buyVariants['{{ variant.id }}'] = {
+      price: {{ variant.price }},
+      available: {{ variant.available | json }}
+    };
+  {% endfor %}
+
+  var rows = widget.querySelectorAll('[data-bxgy-vol-tier]');
+  var addBtn = widget.querySelector('[data-bxgy-vol-add-btn]');
+  var feedbackEl = widget.querySelector('[data-bxgy-vol-feedback]');
+
+  /* Find which tier is initially selected (popular or first) */
+  var selectedTier = 0;
+  for (var ri = 0; ri < rows.length; ri++) {
+    if (rows[ri].classList.contains('bxgy-volume__row--selected')) {
+      selectedTier = parseInt(rows[ri].getAttribute('data-bxgy-vol-tier'), 10);
+      break;
+    }
+  }
+
+  function formatMoney(cents) {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: shopCurrency || 'USD'
+    }).format(cents / 100);
+  }
+
+  function getSelectedVariantId() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var v = urlParams.get('variant');
+    if (v && buyVariants[v]) return v;
+
+    var input = document.querySelector('form[action*="/cart/add"] input[name="id"]');
+    if (input && input.value && buyVariants[input.value]) return input.value;
+
+    var sel = document.querySelector('form[action*="/cart/add"] select[name="id"]');
+    if (sel && sel.value && buyVariants[sel.value]) return sel.value;
+
+    var radio = document.querySelector('form[action*="/cart/add"] input[name="id"]:checked');
+    if (radio && radio.value && buyVariants[radio.value]) return radio.value;
+
+    var keys = Object.keys(buyVariants);
+    for (var i = 0; i < keys.length; i++) {
+      if (buyVariants[keys[i]].available) return keys[i];
+    }
+    return keys[0] || null;
+  }
+
+  function getVariantPrice() {
+    var vid = getSelectedVariantId();
+    return vid && buyVariants[vid] ? buyVariants[vid].price : 0;
+  }
+
+  function updateVolumePrices() {
+    var price = getVariantPrice();
+    rows.forEach(function(row) {
+      var qty = parseInt(row.getAttribute('data-vol-qty'), 10);
+      var disc = parseInt(row.getAttribute('data-vol-disc'), 10) || 0;
+      var original = qty * price;
+      var saveAmount = Math.round(original * disc / 100);
+      var finalVal = original - saveAmount;
+      var idx = row.getAttribute('data-bxgy-vol-tier');
+
+      var finalEl = widget.querySelector('[data-bxgy-vol-final="' + idx + '"]');
+      var origEl = widget.querySelector('[data-bxgy-vol-original="' + idx + '"]');
+      var saveEl = widget.querySelector('[data-bxgy-vol-save="' + idx + '"]');
+
+      if (finalEl) finalEl.textContent = formatMoney(finalVal);
+      if (origEl) {
+        origEl.textContent = formatMoney(original);
+        origEl.style.display = disc > 0 ? '' : 'none';
+      }
+      if (saveEl) {
+        saveEl.textContent = 'SAVE ' + formatMoney(saveAmount);
+        saveEl.style.display = disc > 0 ? '' : 'none';
+      }
+    });
+  }
+
+  function selectTier(index) {
+    selectedTier = index;
+    rows.forEach(function(row) {
+      var idx = parseInt(row.getAttribute('data-bxgy-vol-tier'), 10);
+      row.classList.toggle('bxgy-volume__row--selected', idx === index);
+    });
+  }
+
+  rows.forEach(function(row) {
+    row.addEventListener('click', function() {
+      selectTier(parseInt(row.getAttribute('data-bxgy-vol-tier'), 10));
+    });
+  });
+
+  /* Variant change listeners */
+  var lastUrl = window.location.href;
+  setInterval(function() {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      updateVolumePrices();
+    }
+  }, 500);
+
+  var formSelector = 'form[action*="/cart/add"]';
+  var variantInput = document.querySelector(formSelector + ' input[name="id"]');
+  if (variantInput) {
+    new MutationObserver(function() { updateVolumePrices(); })
+      .observe(variantInput, { attributes: true, attributeFilter: ['value'] });
+  }
+  var variantSelect = document.querySelector(formSelector + ' select[name="id"]');
+  if (variantSelect) {
+    variantSelect.addEventListener('change', function() { updateVolumePrices(); });
+  }
+  document.addEventListener('variant:changed', function(e) {
+    if (e.detail && e.detail.variant) updateVolumePrices();
+  });
+
+  /* Feedback */
+  function showFeedback(type, message) {
+    feedbackEl.textContent = message;
+    feedbackEl.className = 'bxgy-volume__feedback bxgy-volume__feedback--' + type;
+    if (type === 'success') {
+      setTimeout(function() { feedbackEl.className = 'bxgy-volume__feedback'; }, 4000);
+    }
+  }
+
+  /* Refresh cart */
+  function refreshCart() {
+    document.documentElement.dispatchEvent(
+      new CustomEvent('cart:refresh', { bubbles: true })
+    );
+    fetch('/cart.js', { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(cart) {
+        var badges = document.querySelectorAll(
+          '.cart-count-bubble span, .cart-count, [data-cart-count], .js-cart-count, #cart-icon-bubble span'
+        );
+        badges.forEach(function(el) { el.textContent = cart.item_count; });
+      })
+      .catch(function() {});
+  }
+
+  /* Add to cart – adds qty items (NOT buyQty + freeQty like tiered) */
+  addBtn.addEventListener('click', function() {
+    if (addBtn.disabled) return;
+
+    var selectedRow = widget.querySelector('[data-bxgy-vol-tier="' + selectedTier + '"]');
+    if (!selectedRow) return;
+
+    var qty = parseInt(selectedRow.getAttribute('data-vol-qty'), 10);
+    var variantId = getSelectedVariantId();
+
+    if (!variantId) {
+      showFeedback('error', 'Please select a product variant.');
+      return;
+    }
+
+    addBtn.disabled = true;
+    addBtn.classList.add('bxgy-volume__add-btn--loading');
+    feedbackEl.className = 'bxgy-volume__feedback';
+
+    fetch('/cart/add.js', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        items: [{ id: parseInt(variantId, 10), quantity: qty }]
+      })
+    })
+    .then(function(response) {
+      if (!response.ok) {
+        return response.json().then(function(data) {
+          throw new Error(data.description || data.message || 'Failed to add to cart');
+        });
+      }
+      return response.json();
+    })
+    .then(function() {
+      addBtn.disabled = false;
+      addBtn.classList.remove('bxgy-volume__add-btn--loading');
+      showFeedback('success', 'Added to cart!');
+      refreshCart();
+    })
+    .catch(function(err) {
+      addBtn.disabled = false;
+      addBtn.classList.remove('bxgy-volume__add-btn--loading');
+      showFeedback('error', err.message || 'Something went wrong. Please try again.');
+    });
+  });
+
+  /* Init */
+  updateVolumePrices();
+})();
+</script>
+
+{% elsif bundle_data == blank %}
+  <div style="
+    background: {{ block.settings.background_color }};
+    border-radius: 12px;
+    padding: 20px;
+    margin: 16px 0;
+    border: 1px solid #e5e5e5;
+    font-family: inherit;
+  ">
+    <div style="border-bottom: 2px solid {{ block.settings.text_color }}; padding-bottom: 10px; margin-bottom: 14px; text-align: center;">
+      <span style="font-weight: 800; font-size: 15px; color: {{ block.settings.text_color }}; text-transform: uppercase; letter-spacing: 0.5px;">
+        {{ block.settings.header_text }}
+      </span>
+    </div>
+    <div style="padding: 14px 16px; border-radius: 12px; border: 2px solid {{ block.settings.accent_color }}; background: {{ block.settings.background_color }}; display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+      <div style="width: 22px; height: 22px; border-radius: 50%; border: 2px solid {{ block.settings.accent_color }}; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background: {{ block.settings.accent_color }};"></div>
+      </div>
+      <div style="flex: 1;">
+        <span style="font-weight: 600; font-size: 14px; color: {{ block.settings.text_color }};">Duo</span>
+        <div style="font-size: 12px; color: #777;">You save 15%</div>
+      </div>
+      <span style="font-weight: 700; font-size: 16px; color: {{ block.settings.accent_color }};">SAVE 15%</span>
+    </div>
+    <p style="font-size: 12px; margin: 12px 0 0 0; color: {{ block.settings.text_color }}; opacity: 0.7; text-align: center;">
+      Configure this bundle via the app to see live volume tiers
+    </p>
+  </div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "BXGY Volume Discount",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "header_text",
+      "label": "Header text",
+      "default": "BUY MORE & SAVE"
+    },
+    {
+      "type": "text",
+      "id": "badge_text",
+      "label": "Popular badge text",
+      "default": "Most Popular"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#8cb600"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#fafff0"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#1a1a1a"
+    }
+  ]
+}
+{% endschema %}

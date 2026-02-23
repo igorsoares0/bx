@@ -325,6 +325,111 @@ export async function removeTieredBundleMetafield(
 }
 
 /**
+ * Writes volume bundle config metafield to the product so the theme extension can display volume tiers.
+ */
+export async function setVolumeBundleMetafield(
+  admin: any,
+  {
+    productId,
+    bundleName,
+    volumeTiers,
+    designConfig,
+  }: {
+    productId: string;
+    bundleName: string;
+    volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }>;
+    designConfig?: Record<string, unknown>;
+  },
+) {
+  const metafieldValue = JSON.stringify({
+    bundleName,
+    volumeTiers,
+    designAccentColor: designConfig?.accentColor ?? null,
+    designBackgroundColor: designConfig?.backgroundColor ?? null,
+    designTextColor: designConfig?.textColor ?? null,
+    designButtonColor: designConfig?.buttonColor ?? null,
+    designButtonTextColor: designConfig?.buttonTextColor ?? null,
+    designBorderRadius: designConfig?.borderRadius ?? null,
+    designHeaderText: designConfig?.headerText ?? null,
+    designBadgeText: designConfig?.badgeText ?? null,
+  });
+
+  await admin.graphql(
+    `#graphql
+      mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id }
+          userErrors { field message }
+        }
+      }`,
+    {
+      variables: {
+        metafields: [
+          {
+            ownerId: productId,
+            namespace: "bxgy_bundle",
+            key: "volume_config",
+            type: "json",
+            value: metafieldValue,
+          },
+        ],
+      },
+    },
+  );
+}
+
+/**
+ * Removes the volume bundle metafield from the product.
+ */
+export async function removeVolumeBundleMetafield(
+  admin: any,
+  productId: string,
+) {
+  const response = await admin.graphql(
+    `#graphql
+      query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
+        product(id: $ownerId) {
+          metafield(namespace: $namespace, key: $key) {
+            id
+          }
+        }
+      }`,
+    {
+      variables: {
+        ownerId: productId,
+        namespace: "bxgy_bundle",
+        key: "volume_config",
+      },
+    },
+  );
+  const json = await response.json();
+  const metafieldId = json.data?.product?.metafield?.id;
+
+  if (metafieldId) {
+    await admin.graphql(
+      `#graphql
+        mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }`,
+      {
+        variables: {
+          metafields: [
+            {
+              ownerId: productId,
+              namespace: "bxgy_bundle",
+              key: "volume_config",
+            },
+          ],
+        },
+      },
+    );
+  }
+}
+
+/**
  * Removes the bundle promo metafield from the "buy" product.
  */
 export async function removeBundleMetafield(

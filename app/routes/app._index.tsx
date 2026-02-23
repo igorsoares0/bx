@@ -14,6 +14,7 @@ import db from "../db.server";
 import {
   removeBundleMetafield,
   removeTieredBundleMetafield,
+  removeVolumeBundleMetafield,
   setBundleMetafield,
   syncShopBundlesMetafield,
 } from "../lib/bundle-metafields.server";
@@ -21,7 +22,7 @@ import {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
-  const [bundles, tieredBundles] = await Promise.all([
+  const [bundles, tieredBundles, volumeBundles] = await Promise.all([
     db.bundle.findMany({
       where: { shopId: session.shop },
       orderBy: { createdAt: "desc" },
@@ -30,9 +31,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       where: { shopId: session.shop },
       orderBy: { createdAt: "desc" },
     }),
+    db.volumeBundle.findMany({
+      where: { shopId: session.shop },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
-  return json({ bundles, tieredBundles });
+  return json({ bundles, tieredBundles, volumeBundles });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -98,6 +103,69 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         if (!newActive) {
           await removeTieredBundleMetafield(admin, bundle.productId);
+        }
+      }
+    }
+
+    return json({ ok: true });
+  }
+
+  if (bundleType === "volume") {
+    if (intent === "delete") {
+      const bundle = await db.volumeBundle.findFirst({
+        where: { id: bundleId, shopId: session.shop },
+      });
+      if (bundle) {
+        if (bundle.discountId) {
+          await admin.graphql(
+            `#graphql
+              mutation discountAutomaticDelete($id: ID!) {
+                discountAutomaticDelete(id: $id) {
+                  deletedAutomaticDiscountId
+                  userErrors { field message }
+                }
+              }`,
+            { variables: { id: bundle.discountId } },
+          );
+        }
+        await removeVolumeBundleMetafield(admin, bundle.productId);
+        await db.volumeBundle.delete({ where: { id: bundleId } });
+      }
+    }
+
+    if (intent === "toggle") {
+      const bundle = await db.volumeBundle.findFirst({
+        where: { id: bundleId, shopId: session.shop },
+      });
+      if (bundle) {
+        const newActive = !bundle.active;
+        await db.volumeBundle.update({
+          where: { id: bundleId },
+          data: { active: newActive },
+        });
+
+        if (bundle.discountId) {
+          await admin.graphql(
+            `#graphql
+              mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+                discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+                  userErrors { field message }
+                }
+              }`,
+            {
+              variables: {
+                id: bundle.discountId,
+                automaticAppDiscount: {
+                  startsAt: newActive ? new Date().toISOString() : null,
+                  endsAt: newActive ? null : new Date().toISOString(),
+                },
+              },
+            },
+          );
+        }
+
+        if (!newActive) {
+          await removeVolumeBundleMetafield(admin, bundle.productId);
         }
       }
     }
@@ -187,12 +255,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BundleIndex() {
-  const { bundles, tieredBundles } = useLoaderData<typeof loader>();
+  const { bundles, tieredBundles, volumeBundles } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const submit = useSubmit();
   const { smUp } = useBreakpoints();
 
-  const handleDelete = (id: number, type: "classic" | "tiered" = "classic") => {
+  const handleDelete = (id: number, type: "classic" | "tiered" | "volume" = "classic") => {
     const formData = new FormData();
     formData.set("intent", "delete");
     formData.set("bundleId", String(id));
@@ -200,7 +268,7 @@ export default function BundleIndex() {
     submit(formData, { method: "post" });
   };
 
-  const handleToggle = (id: number, type: "classic" | "tiered" = "classic") => {
+  const handleToggle = (id: number, type: "classic" | "tiered" | "volume" = "classic") => {
     const formData = new FormData();
     formData.set("intent", "toggle");
     formData.set("bundleId", String(id));
@@ -216,7 +284,7 @@ export default function BundleIndex() {
     return `Buy ${minQty} ${buyType === "collection" ? "from collection" : "product(s)"}`;
   };
 
-  const hasNoBundles = bundles.length === 0 && tieredBundles.length === 0;
+  const hasNoBundles = bundles.length === 0 && tieredBundles.length === 0 && volumeBundles.length === 0;
 
   const emptyState = (
     <EmptyState
@@ -232,8 +300,8 @@ export default function BundleIndex() {
       image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
     >
       <p>
-        Set up Buy X Get Y bundles or tiered combo deals to offer automatic
-        discounts when customers add qualifying products to their cart.
+        Set up Buy X Get Y bundles, tiered combo deals, or volume discounts
+        to offer automatic discounts when customers add qualifying products to their cart.
       </p>
     </EmptyState>
   );
@@ -370,7 +438,78 @@ export default function BundleIndex() {
     </IndexTable.Row>
   ));
 
-  const totalCount = bundles.length + tieredBundles.length;
+  const volumeRows = volumeBundles.map((bundle, index) => (
+    <IndexTable.Row
+      id={`volume-${bundle.id}`}
+      key={`volume-${bundle.id}`}
+      selected={false}
+      position={bundles.length + tieredBundles.length + index}
+      onClick={() => navigate(`/app/volume/${bundle.id}`)}
+    >
+      <IndexTable.Cell>
+        <Text variant="bodyMd" fontWeight="bold" as="span">
+          {bundle.name}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone="warning">Volume</Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        {(() => {
+          try {
+            const t = JSON.parse(bundle.volumeTiers || "[]");
+            return `${t.length} tier${t.length !== 1 ? "s" : ""}`;
+          } catch { return "—"; }
+        })()}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        {(() => {
+          try {
+            const t = JSON.parse(bundle.volumeTiers || "[]") as Array<{ label: string; qty: number }>;
+            return t.map((tier) => tier.label || `${tier.qty}x`).join(", ");
+          } catch { return "—"; }
+        })()}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone={bundle.active ? "success" : undefined}>
+          {bundle.active ? "Active" : "Inactive"}
+        </Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <div
+          style={{ display: "flex", gap: "8px" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleToggle(bundle.id, "volume")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--p-color-text-emphasis)",
+              textDecoration: "underline",
+            }}
+          >
+            {bundle.active ? "Deactivate" : "Activate"}
+          </button>
+          <button
+            onClick={() => handleDelete(bundle.id, "volume")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--p-color-text-critical)",
+              textDecoration: "underline",
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </IndexTable.Cell>
+    </IndexTable.Row>
+  ));
+
+  const totalCount = bundles.length + tieredBundles.length + volumeBundles.length;
 
   return (
     <Page
@@ -383,6 +522,10 @@ export default function BundleIndex() {
         {
           content: "Create tiered combo",
           onAction: () => navigate("/app/tiers/new"),
+        },
+        {
+          content: "Create volume discount",
+          onAction: () => navigate("/app/volume/new"),
         },
       ]}
     >
@@ -407,6 +550,7 @@ export default function BundleIndex() {
         >
           {classicRows}
           {tieredRows}
+          {volumeRows}
         </IndexTable>
       )}
     </Page>

@@ -63,3 +63,16 @@ model TieredBundle {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+model VolumeBundle {
+  id            Int      @id @default(autoincrement())
+  name          String
+  productId     String
+  volumeTiers   String   @default("[{\"label\":\"Single\",\"qty\":1,\"discountPct\":0,\"popular\":false},{\"label\":\"Duo\",\"qty\":2,\"discountPct\":15,\"popular\":true},{\"label\":\"Trio\",\"qty\":3,\"discountPct\":25,\"popular\":false}]")
+  active        Boolean  @default(true)
+  shopId        String
+  discountId    String?
+  designConfig  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

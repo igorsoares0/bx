@@ -23,6 +23,13 @@ struct TierConfig {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct VolumeTierConfig {
+    qty: i32,
+    discount_pct: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FunctionConfig {
     buy_type: String,
     buy_product_id: Option<String>,
@@ -33,6 +40,7 @@ struct FunctionConfig {
     discount_value: f64,
     max_reward: i32,
     tiers: Option<Vec<TierConfig>>,
+    volume_tiers: Option<Vec<VolumeTierConfig>>,
 }
 
 #[shopify_function]
@@ -52,6 +60,83 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         Ok(c) => c,
         Err(_) => return Ok(empty),
     };
+
+    // ── Volume Discount path ──
+    // If volume_tiers is present, apply percentage discount to ALL units of the product.
+    if let Some(ref volume_tiers) = config.volume_tiers {
+        // Find matching product lines
+        let mut product_lines: Vec<(String, i32)> = Vec::new(); // (variant_id, qty)
+        let mut total_qty: i32 = 0;
+        for line in input.cart().lines() {
+            if let Merchandise::ProductVariant(variant) = line.merchandise() {
+                let product_id = variant.product().id();
+                let matches = if let Some(ref buy_pid) = config.buy_product_id {
+                    product_id == buy_pid.as_str()
+                } else {
+                    product_id == config.get_product_id.as_str()
+                };
+                if matches {
+                    total_qty += *line.quantity();
+                    product_lines.push((variant.id().to_string(), *line.quantity()));
+                }
+            }
+        }
+
+        // Find best qualifying volume tier
+        let mut best_tier: Option<&VolumeTierConfig> = None;
+        for tier in volume_tiers.iter() {
+            if total_qty >= tier.qty {
+                match best_tier {
+                    Some(current) => {
+                        if tier.qty > current.qty {
+                            best_tier = Some(tier);
+                        }
+                    }
+                    None => {
+                        best_tier = Some(tier);
+                    }
+                }
+            }
+        }
+
+        let tier = match best_tier {
+            Some(t) => t,
+            None => return Ok(empty),
+        };
+
+        // If discount is 0 (e.g. "Single" tier), no discount to apply
+        if tier.discount_pct <= 0.0 {
+            return Ok(empty);
+        }
+
+        if product_lines.is_empty() {
+            return Ok(empty);
+        }
+
+        // Build targets: discount ALL units (no quantity cap)
+        let mut targets: Vec<schema::Target> = Vec::new();
+        for (variant_id, line_qty) in &product_lines {
+            targets.push(schema::Target::ProductVariant(schema::ProductVariantTarget {
+                id: variant_id.clone(),
+                quantity: Some(*line_qty),
+            }));
+        }
+
+        let discount = schema::Discount {
+            message: Some("Volume Discount".to_string()),
+            targets,
+            value: schema::Value::Percentage(schema::Percentage {
+                value: shopify_function::scalars::Decimal(tier.discount_pct),
+            }),
+        };
+
+        return Ok(schema::FunctionRunResult {
+            discounts: vec![discount],
+            discount_application_strategy: schema::DiscountApplicationStrategy::First,
+        });
+    }
+
+    // ── Classic BXGY / Tiered Combo path ──
 
     // Count "buy" items in the cart and find "get" targets
     let mut buy_quantity: i32 = 0;
