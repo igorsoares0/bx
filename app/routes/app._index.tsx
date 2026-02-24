@@ -15,14 +15,16 @@ import {
   removeBundleMetafield,
   removeTieredBundleMetafield,
   removeVolumeBundleMetafield,
+  removeComplementBundleMetafield,
   setBundleMetafield,
   syncShopBundlesMetafield,
+  setShopComplementBundleMetafield,
 } from "../lib/bundle-metafields.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
-  const [bundles, tieredBundles, volumeBundles] = await Promise.all([
+  const [bundles, tieredBundles, volumeBundles, complementBundles] = await Promise.all([
     db.bundle.findMany({
       where: { shopId: session.shop },
       orderBy: { createdAt: "desc" },
@@ -35,9 +37,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       where: { shopId: session.shop },
       orderBy: { createdAt: "desc" },
     }),
+    db.complementBundle.findMany({
+      where: { shopId: session.shop },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
-  return json({ bundles, tieredBundles, volumeBundles });
+  return json({ bundles, tieredBundles, volumeBundles, complementBundles });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -173,6 +179,73 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: true });
   }
 
+  if (bundleType === "complement") {
+    if (intent === "delete") {
+      const bundle = await db.complementBundle.findFirst({
+        where: { id: bundleId, shopId: session.shop },
+      });
+      if (bundle) {
+        if (bundle.discountId) {
+          await admin.graphql(
+            `#graphql
+              mutation discountAutomaticDelete($id: ID!) {
+                discountAutomaticDelete(id: $id) {
+                  deletedAutomaticDiscountId
+                  userErrors { field message }
+                }
+              }`,
+            { variables: { id: bundle.discountId } },
+          );
+        }
+        if (bundle.triggerType === "product" && bundle.triggerReference) {
+          await removeComplementBundleMetafield(admin, bundle.triggerReference);
+        }
+        await db.complementBundle.delete({ where: { id: bundleId } });
+        await setShopComplementBundleMetafield(admin, session.shop, db);
+      }
+    }
+
+    if (intent === "toggle") {
+      const bundle = await db.complementBundle.findFirst({
+        where: { id: bundleId, shopId: session.shop },
+      });
+      if (bundle) {
+        const newActive = !bundle.active;
+        await db.complementBundle.update({
+          where: { id: bundleId },
+          data: { active: newActive },
+        });
+
+        if (bundle.discountId) {
+          await admin.graphql(
+            `#graphql
+              mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+                discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+                  userErrors { field message }
+                }
+              }`,
+            {
+              variables: {
+                id: bundle.discountId,
+                automaticAppDiscount: {
+                  startsAt: newActive ? new Date().toISOString() : null,
+                  endsAt: newActive ? null : new Date().toISOString(),
+                },
+              },
+            },
+          );
+        }
+
+        if (!newActive && bundle.triggerType === "product" && bundle.triggerReference) {
+          await removeComplementBundleMetafield(admin, bundle.triggerReference);
+        }
+        await setShopComplementBundleMetafield(admin, session.shop, db);
+      }
+    }
+
+    return json({ ok: true });
+  }
+
   // Classic BXGY bundle actions
   if (intent === "delete") {
     const bundle = await db.bundle.findFirst({
@@ -255,12 +328,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BundleIndex() {
-  const { bundles, tieredBundles, volumeBundles } = useLoaderData<typeof loader>();
+  const { bundles, tieredBundles, volumeBundles, complementBundles } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const submit = useSubmit();
   const { smUp } = useBreakpoints();
 
-  const handleDelete = (id: number, type: "classic" | "tiered" | "volume" = "classic") => {
+  const handleDelete = (id: number, type: "classic" | "tiered" | "volume" | "complement" = "classic") => {
     const formData = new FormData();
     formData.set("intent", "delete");
     formData.set("bundleId", String(id));
@@ -268,7 +341,7 @@ export default function BundleIndex() {
     submit(formData, { method: "post" });
   };
 
-  const handleToggle = (id: number, type: "classic" | "tiered" | "volume" = "classic") => {
+  const handleToggle = (id: number, type: "classic" | "tiered" | "volume" | "complement" = "classic") => {
     const formData = new FormData();
     formData.set("intent", "toggle");
     formData.set("bundleId", String(id));
@@ -284,7 +357,7 @@ export default function BundleIndex() {
     return `Buy ${minQty} ${buyType === "collection" ? "from collection" : "product(s)"}`;
   };
 
-  const hasNoBundles = bundles.length === 0 && tieredBundles.length === 0 && volumeBundles.length === 0;
+  const hasNoBundles = bundles.length === 0 && tieredBundles.length === 0 && volumeBundles.length === 0 && complementBundles.length === 0;
 
   const emptyState = (
     <EmptyState
@@ -509,7 +582,77 @@ export default function BundleIndex() {
     </IndexTable.Row>
   ));
 
-  const totalCount = bundles.length + tieredBundles.length + volumeBundles.length;
+  const complementRows = complementBundles.map((bundle, index) => (
+    <IndexTable.Row
+      id={`complement-${bundle.id}`}
+      key={`complement-${bundle.id}`}
+      selected={false}
+      position={bundles.length + tieredBundles.length + volumeBundles.length + index}
+      onClick={() => navigate(`/app/complement/${bundle.id}`)}
+    >
+      <IndexTable.Cell>
+        <Text variant="bodyMd" fontWeight="bold" as="span">
+          {bundle.name}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone="magic">FBT</Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        {bundle.triggerType === "product"
+          ? "Specific product"
+          : bundle.triggerType === "collection"
+            ? "Collection"
+            : "All products"}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        {(() => {
+          try {
+            const c = JSON.parse(bundle.complements || "[]");
+            return `${c.length} complement${c.length !== 1 ? "s" : ""}`;
+          } catch { return "—"; }
+        })()}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone={bundle.active ? "success" : undefined}>
+          {bundle.active ? "Active" : "Inactive"}
+        </Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <div
+          style={{ display: "flex", gap: "8px" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleToggle(bundle.id, "complement")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--p-color-text-emphasis)",
+              textDecoration: "underline",
+            }}
+          >
+            {bundle.active ? "Deactivate" : "Activate"}
+          </button>
+          <button
+            onClick={() => handleDelete(bundle.id, "complement")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--p-color-text-critical)",
+              textDecoration: "underline",
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </IndexTable.Cell>
+    </IndexTable.Row>
+  ));
+
+  const totalCount = bundles.length + tieredBundles.length + volumeBundles.length + complementBundles.length;
 
   return (
     <Page
@@ -526,6 +669,10 @@ export default function BundleIndex() {
         {
           content: "Create volume discount",
           onAction: () => navigate("/app/volume/new"),
+        },
+        {
+          content: "Create FBT bundle",
+          onAction: () => navigate("/app/complement/new"),
         },
       ]}
     >
@@ -551,6 +698,7 @@ export default function BundleIndex() {
           {classicRows}
           {tieredRows}
           {volumeRows}
+          {complementRows}
         </IndexTable>
       )}
     </Page>

@@ -1,0 +1,619 @@
+{% assign fbt_data = product.metafields.bxgy_bundle.complement_config.value %}
+
+{% if fbt_data != blank %}
+  {% assign complements = fbt_data.complements %}
+  {% assign complement_count = complements.size %}
+
+  {% comment %} Design config from metafield with fallback {% endcomment %}
+  {% assign ds_accent_color = fbt_data.designAccentColor | default: block.settings.accent_color %}
+  {% assign ds_background_color = fbt_data.designBackgroundColor | default: block.settings.background_color %}
+  {% assign ds_text_color = fbt_data.designTextColor | default: block.settings.text_color %}
+  {% assign ds_button_color = fbt_data.designButtonColor | default: block.settings.button_color %}
+  {% assign ds_button_text_color = fbt_data.designButtonTextColor | default: block.settings.button_text_color %}
+  {% assign ds_border_radius = fbt_data.designBorderRadius | default: 12 %}
+  {% assign ds_header_text = fbt_data.designHeaderText | default: block.settings.header_text %}
+
+  {% comment %} Current (trigger) product data {% endcomment %}
+  {% assign main_image = product.featured_image | image_url: width: 300 %}
+  {% assign main_price = product.price %}
+  {% assign main_title = product.title %}
+
+<style>
+  .bxgy-fbt {
+    border: 1px solid #e5e5e5;
+    border-radius: {{ ds_border_radius }}px;
+    padding: 20px;
+    margin: 16px 0;
+    background: {{ ds_background_color }};
+    font-family: inherit;
+  }
+  .bxgy-fbt__header {
+    font-weight: 800;
+    font-size: 13px;
+    color: {{ ds_text_color }};
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .bxgy-fbt__cards {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 16px;
+  }
+  .bxgy-fbt__card {
+    flex: 1;
+    min-width: 120px;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .bxgy-fbt__card-image {
+    width: 100%;
+    max-width: 100px;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f5f5f5;
+    margin-bottom: 8px;
+  }
+  .bxgy-fbt__card-image-placeholder {
+    width: 100%;
+    max-width: 100px;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    color: #999;
+    font-size: 12px;
+  }
+  .bxgy-fbt__card-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .bxgy-fbt__card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: {{ ds_text_color }};
+    margin-bottom: 4px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .bxgy-fbt__card-price {
+    font-size: 13px;
+    font-weight: 600;
+    color: {{ ds_text_color }};
+    margin-bottom: 2px;
+  }
+  .bxgy-fbt__card-price--original {
+    text-decoration: line-through;
+    color: #999;
+    font-weight: 400;
+    margin-right: 4px;
+  }
+  .bxgy-fbt__card-price--discounted {
+    color: #e53e3e;
+    font-weight: 700;
+  }
+  .bxgy-fbt__card-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: {{ ds_accent_color }};
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-top: 4px;
+  }
+  .bxgy-fbt__plus {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    font-size: 22px;
+    font-weight: 700;
+    color: {{ ds_accent_color }};
+    flex-shrink: 0;
+  }
+  .bxgy-fbt__summary {
+    text-align: center;
+    margin-bottom: 14px;
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 8px;
+  }
+  .bxgy-fbt__summary-prices {
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+  .bxgy-fbt__summary-original {
+    text-decoration: line-through;
+    color: #999;
+    margin-right: 6px;
+  }
+  .bxgy-fbt__summary-final {
+    font-weight: 700;
+    color: {{ ds_text_color }};
+  }
+  .bxgy-fbt__summary-savings {
+    font-size: 13px;
+    font-weight: 600;
+    color: #16a34a;
+  }
+  .bxgy-fbt__add-btn {
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: {{ ds_button_color }};
+    color: {{ ds_button_text_color }};
+    transition: opacity 0.2s;
+    position: relative;
+  }
+  .bxgy-fbt__add-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+  .bxgy-fbt__add-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .bxgy-fbt__add-btn--loading {
+    color: transparent !important;
+  }
+  .bxgy-fbt__add-btn--loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 3px solid {{ ds_button_text_color }};
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: bxgy-fbt-spin 0.7s linear infinite;
+  }
+  @keyframes bxgy-fbt-spin {
+    to { transform: rotate(360deg); }
+  }
+  .bxgy-fbt__feedback {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px;
+    border-radius: 6px;
+    margin-top: 10px;
+    display: none;
+  }
+  .bxgy-fbt__feedback--success {
+    display: block;
+    color: #166534;
+    background: #dcfce7;
+  }
+  .bxgy-fbt__feedback--error {
+    display: block;
+    color: #991b1b;
+    background: #fee2e2;
+  }
+  .bxgy-fbt__footer {
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    margin-top: 10px;
+  }
+  @media (max-width: 749px) {
+    .bxgy-fbt__cards {
+      flex-direction: column;
+      align-items: center;
+    }
+    .bxgy-fbt__plus {
+      padding: 6px 0;
+      transform: rotate(90deg);
+    }
+    .bxgy-fbt__card {
+      width: 100%;
+      max-width: 260px;
+    }
+  }
+</style>
+
+<div class="bxgy-fbt" id="bxgy-fbt-{{ block.id }}">
+  <div class="bxgy-fbt__header">{{ ds_header_text }}</div>
+
+  <div class="bxgy-fbt__cards">
+    {% comment %} === Complement Product Cards === {% endcomment %}
+    {% for comp in complements %}
+      {% if forloop.index > 1 %}
+        <div class="bxgy-fbt__plus">+</div>
+      {% endif %}
+
+      {% assign comp_handle = comp.handle %}
+      {% assign comp_product = all_products[comp_handle] %}
+      {% assign comp_discount_pct = comp.discountPct %}
+
+      {% comment %} Resolve image {% endcomment %}
+      {% if comp_product != blank and comp_product.featured_image != blank %}
+        {% assign comp_image = comp_product.featured_image | image_url: width: 300 %}
+      {% elsif comp.image != blank %}
+        {% assign comp_image = comp.image %}
+      {% else %}
+        {% assign comp_image = '' %}
+      {% endif %}
+
+      {% comment %} Resolve price (cents) {% endcomment %}
+      {% if comp_product != blank %}
+        {% assign comp_price = comp_product.price %}
+      {% elsif comp.price != blank %}
+        {% assign comp_price = comp.price %}
+      {% else %}
+        {% assign comp_price = 0 %}
+      {% endif %}
+
+      {% comment %} Calculate discounted price {% endcomment %}
+      {% assign discount_fraction = comp_discount_pct | times: 100 | divided_by: 10000.0 %}
+      {% assign discount_amount = comp_price | times: 1.0 | times: discount_fraction %}
+      {% assign comp_discounted = comp_price | minus: discount_amount | round %}
+
+      <div class="bxgy-fbt__card"
+        data-fbt-comp-card
+        data-fbt-comp-product-id="{{ comp.productId }}"
+        data-fbt-comp-variant-id="{{ comp.variantId }}"
+        data-fbt-comp-discount-pct="{{ comp_discount_pct }}"
+        data-fbt-comp-price="{{ comp_price }}"
+      >
+        {% if comp_discount_pct > 0 %}
+          <div class="bxgy-fbt__card-badge">SAVE {{ comp_discount_pct }}%</div>
+        {% else %}
+          <div class="bxgy-fbt__card-label">Add-on</div>
+        {% endif %}
+
+        {% if comp_image != blank %}
+          <img class="bxgy-fbt__card-image" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy">
+        {% else %}
+          <div class="bxgy-fbt__card-image-placeholder">No image</div>
+        {% endif %}
+
+        <div class="bxgy-fbt__card-title">{{ comp.title }}</div>
+
+        <div class="bxgy-fbt__card-price">
+          {% if comp_discount_pct > 0 and comp_discounted < comp_price %}
+            <span class="bxgy-fbt__card-price--original">{{ comp_price | money }}</span>
+            <span class="bxgy-fbt__card-price--discounted">{{ comp_discounted | money }}</span>
+          {% else %}
+            {{ comp_price | money }}
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% comment %} Summary {% endcomment %}
+  <div class="bxgy-fbt__summary">
+    <div class="bxgy-fbt__summary-prices">
+      <span class="bxgy-fbt__summary-original" data-fbt-total-original></span>
+      <span class="bxgy-fbt__summary-final" data-fbt-total-final></span>
+    </div>
+    <div class="bxgy-fbt__summary-savings" data-fbt-savings></div>
+  </div>
+
+  {% comment %} Add All to Cart button {% endcomment %}
+  <button class="bxgy-fbt__add-btn" data-fbt-add-btn type="button">
+    Add All to Cart
+  </button>
+
+  <div class="bxgy-fbt__feedback" data-fbt-feedback></div>
+  <div class="bxgy-fbt__footer">Discount applied automatically at checkout</div>
+</div>
+
+<script>
+(function() {
+  var WIDGET_ID = 'bxgy-fbt-{{ block.id }}';
+  var widget = document.getElementById(WIDGET_ID);
+  if (!widget) return;
+
+  var shopCurrency = {{ shop.currency | json }};
+
+  /* ── Helpers ── */
+  function formatMoney(cents) {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: shopCurrency || 'USD'
+    }).format(cents / 100);
+  }
+
+  /* ── Buy product variants lookup ── */
+  var buyVariants = {};
+  {% for variant in product.variants %}
+    buyVariants['{{ variant.id }}'] = {
+      price: {{ variant.price }},
+      available: {{ variant.available | json }}
+    };
+  {% endfor %}
+
+  /* ── Detect current buy variant ── */
+  function detectBuyVariant() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var urlVariant = urlParams.get('variant');
+    if (urlVariant && buyVariants[urlVariant]) return urlVariant;
+    var input = document.querySelector('form[action*="/cart/add"] input[name="id"]');
+    if (input && input.value && buyVariants[input.value]) return input.value;
+    var select = document.querySelector('form[action*="/cart/add"] select[name="id"]');
+    if (select && select.value && buyVariants[select.value]) return select.value;
+    var keys = Object.keys(buyVariants);
+    for (var i = 0; i < keys.length; i++) {
+      if (buyVariants[keys[i]].available) return keys[i];
+    }
+    return keys[0] || null;
+  }
+
+  var currentBuyVariantId = detectBuyVariant();
+  var currentBuyPrice = currentBuyVariantId && buyVariants[currentBuyVariantId]
+    ? buyVariants[currentBuyVariantId].price
+    : {{ main_price | json }};
+
+  /* ── Complement cards data ── */
+  var compCards = widget.querySelectorAll('[data-fbt-comp-card]');
+  var complements = [];
+  for (var i = 0; i < compCards.length; i++) {
+    var card = compCards[i];
+    complements.push({
+      variantId: card.getAttribute('data-fbt-comp-variant-id'),
+      discountPct: parseFloat(card.getAttribute('data-fbt-comp-discount-pct')) || 0,
+      price: parseInt(card.getAttribute('data-fbt-comp-price'), 10) || 0
+    });
+  }
+
+  /* ── DOM refs ── */
+  var totalOriginalEl = widget.querySelector('[data-fbt-total-original]');
+  var totalFinalEl = widget.querySelector('[data-fbt-total-final]');
+  var savingsEl = widget.querySelector('[data-fbt-savings]');
+  var addBtn = widget.querySelector('[data-fbt-add-btn]');
+  var feedbackEl = widget.querySelector('[data-fbt-feedback]');
+
+  /* ── Update prices ── */
+  function updatePrices() {
+    if (currentBuyVariantId && buyVariants[currentBuyVariantId]) {
+      currentBuyPrice = buyVariants[currentBuyVariantId].price;
+    }
+
+    /* Include trigger product (full price) + discounted complements */
+    var totalOriginal = currentBuyPrice;
+    var totalFinal = currentBuyPrice;
+
+    for (var i = 0; i < complements.length; i++) {
+      var c = complements[i];
+      totalOriginal += c.price;
+      var discounted = Math.round(c.price * (1 - c.discountPct / 100));
+      totalFinal += discounted;
+    }
+
+    var savings = totalOriginal - totalFinal;
+
+    if (totalOriginalEl) {
+      totalOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
+    }
+    if (totalFinalEl) {
+      totalFinalEl.textContent = formatMoney(totalFinal);
+    }
+    if (savingsEl) {
+      savingsEl.textContent = savings > 0 ? 'You save ' + formatMoney(savings) : '';
+    }
+  }
+
+  /* ── Buy variant change listeners ── */
+  function onBuyVariantChange(variantId) {
+    if (variantId && buyVariants[variantId]) {
+      currentBuyVariantId = variantId;
+      updatePrices();
+    }
+  }
+
+  function checkUrlVariant() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var v = urlParams.get('variant');
+    if (v && v !== currentBuyVariantId) onBuyVariantChange(v);
+  }
+  window.addEventListener('popstate', checkUrlVariant);
+
+  document.addEventListener('variant:changed', function(e) {
+    if (e.detail && e.detail.variant && e.detail.variant.id) {
+      onBuyVariantChange(String(e.detail.variant.id));
+    }
+  });
+
+  var variantInput = document.querySelector('form[action*="/cart/add"] input[name="id"]');
+  if (variantInput) {
+    var observer = new MutationObserver(function() { onBuyVariantChange(variantInput.value); });
+    observer.observe(variantInput, { attributes: true, attributeFilter: ['value'] });
+    var variantSelect = document.querySelector('form[action*="/cart/add"] select[name="id"]');
+    if (variantSelect) {
+      variantSelect.addEventListener('change', function() { onBuyVariantChange(variantSelect.value); });
+    }
+  }
+
+  var lastUrl = window.location.href;
+  setInterval(function() {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      checkUrlVariant();
+    }
+  }, 500);
+
+  /* ── Feedback ── */
+  function showFeedback(type, message) {
+    feedbackEl.textContent = message;
+    feedbackEl.className = 'bxgy-fbt__feedback bxgy-fbt__feedback--' + type;
+    if (type === 'success') {
+      setTimeout(function() { feedbackEl.className = 'bxgy-fbt__feedback'; }, 4000);
+    }
+  }
+
+  /* ── Cart count update ── */
+  function updateCartCount(itemCount) {
+    var selectors = [
+      '.cart-count-bubble span[aria-hidden="true"]',
+      '.cart-count-bubble',
+      '.cart-count',
+      '[data-cart-count]',
+      '.site-header__cart-count',
+      '#cart-icon-bubble span',
+      '.header__cart-count'
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el) {
+        var current = parseInt(el.textContent, 10) || 0;
+        el.textContent = current + itemCount;
+        break;
+      }
+    }
+  }
+
+  /* ── Add All to Cart (trigger + complements) ── */
+  addBtn.addEventListener('click', function() {
+    if (addBtn.disabled) return;
+
+    addBtn.disabled = true;
+    addBtn.classList.add('bxgy-fbt__add-btn--loading');
+    feedbackEl.className = 'bxgy-fbt__feedback';
+
+    var items = [];
+
+    /* Always include the trigger (current PDP) product so the discount
+       function sees it in the cart and activates the FBT discounts. */
+    var buyVid = detectBuyVariant();
+    if (buyVid) {
+      items.push({ id: Number(buyVid), quantity: 1 });
+    }
+
+    for (var i = 0; i < complements.length; i++) {
+      if (complements[i].variantId) {
+        items.push({ id: Number(complements[i].variantId), quantity: 1 });
+      }
+    }
+
+    if (items.length === 0) {
+      addBtn.disabled = false;
+      addBtn.classList.remove('bxgy-fbt__add-btn--loading');
+      showFeedback('error', 'No products to add.');
+      return;
+    }
+
+    fetch('/cart/add.js', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ items: items })
+    })
+    .then(function(response) {
+      if (!response.ok) {
+        return response.json().then(function(data) {
+          throw new Error(data.description || data.message || 'Failed to add to cart');
+        });
+      }
+      return response.json();
+    })
+    .then(function() {
+      addBtn.disabled = false;
+      addBtn.classList.remove('bxgy-fbt__add-btn--loading');
+      showFeedback('success', 'Bundle added to cart!');
+      updateCartCount(items.length);
+    })
+    .catch(function(err) {
+      addBtn.disabled = false;
+      addBtn.classList.remove('bxgy-fbt__add-btn--loading');
+      showFeedback('error', err.message || 'Something went wrong. Please try again.');
+    });
+  });
+
+  /* ── Initialize ── */
+  updatePrices();
+})();
+</script>
+
+{% else %}
+  {% comment %} No complement bundle configured for this product - show fallback/preview {% endcomment %}
+  {% if request.design_mode %}
+    <div style="
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      background: {{ block.settings.background_color }};
+      font-family: inherit;
+    ">
+      <div style="font-weight: 800; font-size: 13px; color: {{ block.settings.accent_color }}; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; margin-bottom: 8px;">
+        {{ block.settings.header_text }}
+      </div>
+      <p style="font-size: 14px; margin: 0; color: {{ block.settings.text_color }}; text-align: center;">
+        Configure a Frequently Bought Together bundle for this product in the BXApp admin.
+      </p>
+    </div>
+  {% endif %}
+{% endif %}
+
+{% schema %}
+{
+  "name": "FBT Complement Bundle",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "header_text",
+      "label": "Header text",
+      "default": "FREQUENTLY BOUGHT TOGETHER"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#2563eb"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#f0f6ff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#1a1a1a"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button color",
+      "default": "#2563eb"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button text color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}

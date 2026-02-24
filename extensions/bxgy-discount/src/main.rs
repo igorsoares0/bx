@@ -30,6 +30,13 @@ struct VolumeTierConfig {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ComplementProductConfig {
+    product_id: String,
+    discount_pct: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FunctionConfig {
     buy_type: String,
     buy_product_id: Option<String>,
@@ -41,6 +48,8 @@ struct FunctionConfig {
     max_reward: i32,
     tiers: Option<Vec<TierConfig>>,
     volume_tiers: Option<Vec<VolumeTierConfig>>,
+    complement_products: Option<Vec<ComplementProductConfig>>,
+    trigger_product_id: Option<String>,
 }
 
 #[shopify_function]
@@ -60,6 +69,84 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         Ok(c) => c,
         Err(_) => return Ok(empty),
     };
+
+    // ── Complement / FBT path ──
+    if let Some(ref complement_products) = config.complement_products {
+        // Skip if no complements configured
+        if complement_products.is_empty() {
+            return Ok(empty);
+        }
+
+        // Build a map of complement product_id → discount_pct
+        let mut complement_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+        for cp in complement_products.iter() {
+            complement_map.insert(cp.product_id.clone(), cp.discount_pct);
+        }
+
+        // If a specific trigger product is required, check it's in the cart
+        if let Some(ref trigger_pid) = config.trigger_product_id {
+            if !trigger_pid.is_empty() {
+                let trigger_in_cart = input.cart().lines().iter().any(|line| {
+                    if let Merchandise::ProductVariant(variant) = line.merchandise() {
+                        variant.product().id() == trigger_pid.as_str()
+                    } else {
+                        false
+                    }
+                });
+                if !trigger_in_cart {
+                    return Ok(empty);
+                }
+            }
+        }
+
+        // Collect complement lines in the cart and group by discount_pct
+        let mut groups: std::collections::HashMap<i64, Vec<(String, i32)>> = std::collections::HashMap::new();
+        for line in input.cart().lines() {
+            if let Merchandise::ProductVariant(variant) = line.merchandise() {
+                let product_id = variant.product().id().to_string();
+                if let Some(&pct) = complement_map.get(&product_id) {
+                    if pct <= 0.0 {
+                        continue; // No discount for this complement
+                    }
+                    // Use i64 key (pct * 100) to group by discount percentage
+                    let key = (pct * 100.0) as i64;
+                    groups
+                        .entry(key)
+                        .or_insert_with(Vec::new)
+                        .push((variant.id().to_string(), *line.quantity()));
+                }
+            }
+        }
+
+        if groups.is_empty() {
+            return Ok(empty);
+        }
+
+        // Build one Discount per unique discount_pct group
+        let mut discounts: Vec<schema::Discount> = Vec::new();
+        for (pct_key, lines) in groups.iter() {
+            let pct = *pct_key as f64 / 100.0;
+            let mut targets: Vec<schema::Target> = Vec::new();
+            for (variant_id, qty) in lines {
+                targets.push(schema::Target::ProductVariant(schema::ProductVariantTarget {
+                    id: variant_id.clone(),
+                    quantity: Some(*qty),
+                }));
+            }
+            discounts.push(schema::Discount {
+                message: Some(format!("FBT {}% off", pct)),
+                targets,
+                value: schema::Value::Percentage(schema::Percentage {
+                    value: shopify_function::scalars::Decimal(pct),
+                }),
+            });
+        }
+
+        return Ok(schema::FunctionRunResult {
+            discounts,
+            discount_application_strategy: schema::DiscountApplicationStrategy::All,
+        });
+    }
 
     // ── Volume Discount path ──
     // If volume_tiers is present, apply percentage discount to ALL units of the product.
