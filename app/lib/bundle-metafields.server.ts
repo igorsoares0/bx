@@ -451,6 +451,7 @@ export async function setComplementBundleMetafield(
       price: number;
       variantId: string;
       discountPct: number;
+      quantity?: number;
     }>;
     designConfig?: Record<string, unknown>;
   },
@@ -489,6 +490,7 @@ export async function setComplementBundleMetafield(
         price: priceCents,
         variantId: numericVariantId,
         discountPct: comp.discountPct,
+        quantity: comp.quantity || 1,
       });
     } catch {
       // Fallback to original data
@@ -554,6 +556,7 @@ export async function setShopComplementBundleMetafield(
       price: number;
       variantId: string;
       discountPct: number;
+      quantity?: number;
     }> = [];
     try {
       complements = JSON.parse(bundle.complements || "[]");

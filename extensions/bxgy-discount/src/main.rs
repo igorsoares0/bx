@@ -33,7 +33,11 @@ struct VolumeTierConfig {
 struct ComplementProductConfig {
     product_id: String,
     discount_pct: f64,
+    #[serde(default = "default_quantity")]
+    quantity: i32,
 }
+
+fn default_quantity() -> i32 { 1 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,10 +81,10 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
             return Ok(empty);
         }
 
-        // Build a map of complement product_id → discount_pct
-        let mut complement_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+        // Build a map of complement product_id → (discount_pct, quantity)
+        let mut complement_map: std::collections::HashMap<String, (f64, i32)> = std::collections::HashMap::new();
         for cp in complement_products.iter() {
-            complement_map.insert(cp.product_id.clone(), cp.discount_pct);
+            complement_map.insert(cp.product_id.clone(), (cp.discount_pct, cp.quantity.max(1)));
         }
 
         // If a specific trigger product is required, check it's in the cart
@@ -100,20 +104,23 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         }
 
         // Collect complement lines in the cart and group by discount_pct
+        // Use the configured quantity as the max units to discount per complement
         let mut groups: std::collections::HashMap<i64, Vec<(String, i32)>> = std::collections::HashMap::new();
         for line in input.cart().lines() {
             if let Merchandise::ProductVariant(variant) = line.merchandise() {
                 let product_id = variant.product().id().to_string();
-                if let Some(&pct) = complement_map.get(&product_id) {
+                if let Some(&(pct, expected_qty)) = complement_map.get(&product_id) {
                     if pct <= 0.0 {
                         continue; // No discount for this complement
                     }
+                    // Cap discount to the configured quantity
+                    let discount_qty = std::cmp::min(*line.quantity(), expected_qty);
                     // Use i64 key (pct * 100) to group by discount percentage
                     let key = (pct * 100.0) as i64;
                     groups
                         .entry(key)
                         .or_insert_with(Vec::new)
-                        .push((variant.id().to_string(), *line.quantity()));
+                        .push((variant.id().to_string(), discount_qty));
                 }
             }
         }

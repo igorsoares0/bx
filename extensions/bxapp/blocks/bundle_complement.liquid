@@ -275,17 +275,25 @@
       {% assign discount_amount = comp_price | times: 1.0 | times: discount_fraction %}
       {% assign comp_discounted = comp_price | minus: discount_amount | round %}
 
+      {% assign comp_quantity = comp.quantity | default: 1 %}
+
       <div class="bxgy-fbt__card"
         data-fbt-comp-card
         data-fbt-comp-product-id="{{ comp.productId }}"
         data-fbt-comp-variant-id="{{ comp.variantId }}"
         data-fbt-comp-discount-pct="{{ comp_discount_pct }}"
         data-fbt-comp-price="{{ comp_price }}"
+        data-fbt-comp-quantity="{{ comp_quantity }}"
       >
+        {% if comp_quantity > 1 %}
+          <div class="bxgy-fbt__card-badge">{{ comp_quantity }}×</div>
+        {% endif %}
         {% if comp_discount_pct > 0 %}
           <div class="bxgy-fbt__card-badge">SAVE {{ comp_discount_pct }}%</div>
         {% else %}
-          <div class="bxgy-fbt__card-label">Add-on</div>
+          {% unless comp_quantity > 1 %}
+            <div class="bxgy-fbt__card-label">Add-on</div>
+          {% endunless %}
         {% endif %}
 
         {% if comp_image != blank %}
@@ -296,12 +304,14 @@
 
         <div class="bxgy-fbt__card-title">{{ comp.title }}</div>
 
+        {% assign comp_total_price = comp_price | times: comp_quantity %}
+        {% assign comp_total_discounted = comp_discounted | times: comp_quantity %}
         <div class="bxgy-fbt__card-price">
           {% if comp_discount_pct > 0 and comp_discounted < comp_price %}
-            <span class="bxgy-fbt__card-price--original">{{ comp_price | money }}</span>
-            <span class="bxgy-fbt__card-price--discounted">{{ comp_discounted | money }}</span>
+            <span class="bxgy-fbt__card-price--original">{{ comp_total_price | money }}</span>
+            <span class="bxgy-fbt__card-price--discounted">{{ comp_total_discounted | money }}</span>
           {% else %}
-            {{ comp_price | money }}
+            {{ comp_total_price | money }}
           {% endif %}
         </div>
       </div>
@@ -380,7 +390,8 @@
     complements.push({
       variantId: card.getAttribute('data-fbt-comp-variant-id'),
       discountPct: parseFloat(card.getAttribute('data-fbt-comp-discount-pct')) || 0,
-      price: parseInt(card.getAttribute('data-fbt-comp-price'), 10) || 0
+      price: parseInt(card.getAttribute('data-fbt-comp-price'), 10) || 0,
+      quantity: parseInt(card.getAttribute('data-fbt-comp-quantity'), 10) || 1
     });
   }
 
@@ -403,8 +414,9 @@
 
     for (var i = 0; i < complements.length; i++) {
       var c = complements[i];
-      totalOriginal += c.price;
-      var discounted = Math.round(c.price * (1 - c.discountPct / 100));
+      var qty = c.quantity || 1;
+      totalOriginal += c.price * qty;
+      var discounted = Math.round(c.price * (1 - c.discountPct / 100)) * qty;
       totalFinal += discounted;
     }
 
@@ -509,7 +521,7 @@
 
     for (var i = 0; i < complements.length; i++) {
       if (complements[i].variantId) {
-        items.push({ id: Number(complements[i].variantId), quantity: 1 });
+        items.push({ id: Number(complements[i].variantId), quantity: complements[i].quantity || 1 });
       }
     }
 
@@ -538,7 +550,8 @@
       addBtn.disabled = false;
       addBtn.classList.remove('bxgy-fbt__add-btn--loading');
       showFeedback('success', 'Bundle added to cart!');
-      updateCartCount(items.length);
+      var totalItemCount = items.reduce(function(sum, item) { return sum + item.quantity; }, 0);
+      updateCartCount(totalItemCount);
     })
     .catch(function(err) {
       addBtn.disabled = false;

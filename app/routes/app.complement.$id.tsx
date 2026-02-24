@@ -32,6 +32,7 @@ type ComplementItem = {
   price: number; // cents
   variantId: string;
   discountPct: number;
+  quantity: number;
 };
 
 const DEFAULT_DESIGN = {
@@ -159,6 +160,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     complementProducts: complements.map((c) => ({
       productId: c.productId,
       discountPct: c.discountPct,
+      quantity: c.quantity || 1,
     })),
     triggerProductId: triggerType === "product" && triggerReference
       ? triggerReference
@@ -414,6 +416,7 @@ export default function ComplementBundleForm() {
             price: firstVariant?.price ? Math.round(parseFloat(firstVariant.price) * 100) : 0,
             variantId: numericVariantId,
             discountPct: 10,
+            quantity: 1,
           };
         });
       setComplements((prev) => [...prev, ...newItems]);
@@ -423,6 +426,12 @@ export default function ComplementBundleForm() {
   const updateComplementDiscount = (index: number, value: string) => {
     setComplements((prev) =>
       prev.map((c, i) => (i === index ? { ...c, discountPct: Number(value) || 0 } : c)),
+    );
+  };
+
+  const updateComplementQuantity = (index: number, value: string) => {
+    setComplements((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, quantity: Math.max(1, Number(value) || 1) } : c)),
     );
   };
 
@@ -460,10 +469,11 @@ export default function ComplementBundleForm() {
   const formatPreviewPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
   // Preview calculations (complements only, trigger product is already on PDP)
-  const totalOriginal = complements.reduce((sum, c) => sum + (c.price || 1990), 0);
+  const totalOriginal = complements.reduce((sum, c) => sum + (c.price || 1990) * (c.quantity || 1), 0);
   const totalFinal = complements.reduce((sum, c) => {
     const p = c.price || 1990;
-    return sum + Math.round(p * (1 - c.discountPct / 100));
+    const qty = c.quantity || 1;
+    return sum + Math.round(p * (1 - c.discountPct / 100)) * qty;
   }, 0);
   const totalSave = totalOriginal - totalFinal;
 
@@ -598,6 +608,19 @@ export default function ComplementBundleForm() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {formatPreviewPrice(comp.price)}
                       </Text>
+                    </div>
+                    <div style={{ width: 60 }}>
+                      <TextField
+                        label="Qty"
+                        labelHidden
+                        type="number"
+                        value={String(comp.quantity || 1)}
+                        onChange={(v) => updateComplementQuantity(i, v)}
+                        autoComplete="off"
+                        prefix="×"
+                        min={1}
+                        max={99}
+                      />
                     </div>
                     <div style={{ width: 100 }}>
                       <TextField
@@ -762,8 +785,9 @@ export default function ComplementBundleForm() {
 
                 {/* Complement cards */}
                 {complements.map((comp, i) => {
-                  const originalPrice = comp.price || 1990;
-                  const discountedPrice = Math.round(originalPrice * (1 - comp.discountPct / 100));
+                  const qty = comp.quantity || 1;
+                  const originalPrice = (comp.price || 1990) * qty;
+                  const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
                   return (
                     <div key={comp.productId}>
                       {/* Plus separator between complement cards */}
@@ -822,6 +846,11 @@ export default function ComplementBundleForm() {
                               textOverflow: "ellipsis",
                             }}
                           >
+                            {qty > 1 && (
+                              <span style={{ color: design.accentColor, marginRight: 4 }}>
+                                {qty}×
+                              </span>
+                            )}
                             {comp.title || "Product"}
                           </div>
                           {comp.discountPct > 0 && (
