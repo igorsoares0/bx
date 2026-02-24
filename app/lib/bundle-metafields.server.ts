@@ -352,6 +352,7 @@ export async function setVolumeBundleMetafield(
     designBorderRadius: designConfig?.borderRadius ?? null,
     designHeaderText: designConfig?.headerText ?? null,
     designBadgeText: designConfig?.badgeText ?? null,
+    designCardLayout: designConfig?.cardLayout ?? "vertical",
   });
 
   await admin.graphql(

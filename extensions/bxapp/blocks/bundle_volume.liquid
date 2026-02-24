@@ -10,6 +10,7 @@
 
   {% assign header_text = bundle_data.designHeaderText | default: block.settings.header_text %}
   {% assign badge_text = bundle_data.designBadgeText | default: block.settings.badge_text %}
+  {% assign ds_card_layout = bundle_data.designCardLayout | default: "vertical" %}
 
   {% assign volume_tiers = bundle_data.volumeTiers %}
   {% assign buy_price = product.price %}
@@ -41,6 +42,49 @@
     flex-direction: column;
     gap: 10px;
     margin-bottom: 14px;
+  }
+  .bxgy-volume__list--horizontal {
+    flex-direction: row;
+  }
+  .bxgy-volume__list--horizontal .bxgy-volume__row {
+    flex: 1;
+    flex-direction: column;
+    text-align: center;
+    padding: 14px 10px;
+    min-width: 0;
+  }
+  .bxgy-volume__list--horizontal .bxgy-volume__info {
+    text-align: center;
+  }
+  .bxgy-volume__list--horizontal .bxgy-volume__prices {
+    text-align: center;
+  }
+  .bxgy-volume__list--horizontal .bxgy-volume__radio {
+    order: 10;
+    width: 18px;
+    height: 18px;
+  }
+  .bxgy-volume__list--horizontal .bxgy-volume__radio-dot {
+    width: 10px;
+    height: 10px;
+  }
+  @media (max-width: 749px) {
+    .bxgy-volume__list--horizontal {
+      flex-direction: column;
+    }
+    .bxgy-volume__list--horizontal .bxgy-volume__row {
+      flex-direction: row;
+      text-align: left;
+    }
+    .bxgy-volume__list--horizontal .bxgy-volume__info {
+      text-align: left;
+    }
+    .bxgy-volume__list--horizontal .bxgy-volume__prices {
+      text-align: right;
+    }
+    .bxgy-volume__list--horizontal .bxgy-volume__radio {
+      order: 0;
+    }
   }
   .bxgy-volume__row {
     position: relative;
@@ -216,7 +260,7 @@
     <span class="bxgy-volume__header-text">{{ header_text }}</span>
   </div>
 
-  <div class="bxgy-volume__list">
+  <div class="bxgy-volume__list bxgy-volume__list--{{ ds_card_layout }}">
     {% for tier in volume_tiers %}
       {% assign t_qty = tier.qty | default: 1 %}
       {% assign t_disc = tier.discountPct | default: 0 %}

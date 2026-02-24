@@ -14,6 +14,7 @@ import {
   Banner,
   Thumbnail,
   Checkbox,
+  Select,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -38,6 +39,7 @@ const DEFAULT_DESIGN = {
   borderRadius: 12,
   headerText: "BUY MORE & SAVE",
   badgeText: "Most Popular",
+  cardLayout: "vertical",
 };
 
 type VolumeTier = { label: string; qty: number; discountPct: number; popular: boolean };
@@ -634,6 +636,15 @@ export default function VolumeBundleForm() {
                     autoComplete="off"
                     placeholder="e.g. Most Popular"
                   />
+                  <Select
+                    label="Card layout"
+                    options={[
+                      { label: "Vertical (stacked)", value: "vertical" },
+                      { label: "Horizontal (side by side)", value: "horizontal" },
+                    ]}
+                    value={design.cardLayout || "vertical"}
+                    onChange={(v) => updateDesign("cardLayout", v)}
+                  />
                 </FormLayout>
               </BlockStack>
             </Card>
@@ -667,12 +678,13 @@ export default function VolumeBundleForm() {
                 </div>
 
                 {/* Tiers */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                <div style={{ display: "flex", flexDirection: design.cardLayout === "horizontal" ? "row" : "column", gap: "8px", marginBottom: "12px" }}>
                   {tiers.map((tier, i) => {
                     const isSelected = selectedPreviewTier === i;
                     const totalOriginal = tier.qty * unitPrice;
                     const totalFinal = Math.round(totalOriginal * (1 - tier.discountPct / 100));
                     const saveAmount = totalOriginal - totalFinal;
+                    const isHorizontal = design.cardLayout === "horizontal";
                     return (
                       <div
                         key={i}
@@ -680,14 +692,18 @@ export default function VolumeBundleForm() {
                         style={{
                           position: "relative",
                           display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "12px 14px",
+                          flexDirection: isHorizontal ? "column" : "row",
+                          alignItems: isHorizontal ? "center" : "center",
+                          gap: isHorizontal ? "6px" : "10px",
+                          padding: isHorizontal ? "14px 10px" : "12px 14px",
                           borderRadius: "12px",
                           border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #e5e5e5",
                           background: isSelected ? `${design.accentColor}08` : "#fff",
                           cursor: "pointer",
                           transition: "all 0.15s",
+                          flex: isHorizontal ? 1 : undefined,
+                          textAlign: isHorizontal ? "center" : undefined,
+                          minWidth: 0,
                         }}
                       >
                         {/* Popular badge */}
@@ -699,9 +715,9 @@ export default function VolumeBundleForm() {
                             transform: "translateX(-50%)",
                             background: design.accentColor,
                             color: "#fff",
-                            fontSize: "10px",
+                            fontSize: "9px",
                             fontWeight: 700,
-                            padding: "2px 10px",
+                            padding: "2px 8px",
                             borderRadius: "4px",
                             whiteSpace: "nowrap",
                             textTransform: "uppercase" as const,
@@ -709,32 +725,39 @@ export default function VolumeBundleForm() {
                             {design.badgeText}
                           </div>
                         )}
-                        <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: design.accentColor }} />}
-                        </div>
-                        <div style={{ flex: 1 }}>
+                        {!isHorizontal && (
+                          <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: design.accentColor }} />}
+                          </div>
+                        )}
+                        <div style={{ flex: isHorizontal ? undefined : 1 }}>
                           <div style={{ fontWeight: 600, fontSize: "13px", color: design.textColor }}>
                             {tier.label || `${tier.qty} unit${tier.qty !== 1 ? "s" : ""}`}
                           </div>
                           <div style={{ fontSize: "11px", color: "#777", marginTop: "2px" }}>
-                            {tier.discountPct > 0 ? `You save ${tier.discountPct}%` : "Standard price"}
+                            {tier.discountPct > 0 ? `Save ${tier.discountPct}%` : "Standard"}
                           </div>
                         </div>
-                        <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: "14px", color: isSelected ? design.accentColor : design.textColor }}>
+                        <div style={{ textAlign: isHorizontal ? "center" : "right", flexShrink: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: isHorizontal ? "13px" : "14px", color: isSelected ? design.accentColor : design.textColor }}>
                             {formatPreviewPrice(totalFinal)}
                           </div>
                           {tier.discountPct > 0 && (
                             <>
-                              <div style={{ fontSize: "11px", textDecoration: "line-through", color: "#999" }}>
+                              <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>
                                 {formatPreviewPrice(totalOriginal)}
                               </div>
-                              <div style={{ fontSize: "10px", fontWeight: 700, color: design.accentColor, marginTop: "2px" }}>
+                              <div style={{ fontSize: "9px", fontWeight: 700, color: design.accentColor, marginTop: "2px" }}>
                                 SAVE {formatPreviewPrice(saveAmount)}
                               </div>
                             </>
                           )}
                         </div>
+                        {isHorizontal && (
+                          <div style={{ width: 16, height: 16, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {isSelected && <div style={{ width: 8, height: 8, borderRadius: "50%", background: design.accentColor }} />}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
