@@ -508,6 +508,7 @@ export async function setComplementBundleMetafield(
     designButtonTextColor: designConfig?.buttonTextColor ?? null,
     designBorderRadius: designConfig?.borderRadius ?? null,
     designHeaderText: designConfig?.headerText ?? null,
+    designCardLayout: designConfig?.cardLayout ?? "vertical",
   });
 
   await admin.graphql(
@@ -577,6 +578,7 @@ export async function setShopComplementBundleMetafield(
       designButtonTextColor: designConfig?.buttonTextColor ?? null,
       designBorderRadius: designConfig?.borderRadius ?? null,
       designHeaderText: designConfig?.headerText ?? null,
+      designCardLayout: designConfig?.cardLayout ?? "vertical",
     });
   }
 

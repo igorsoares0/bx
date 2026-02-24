@@ -43,6 +43,7 @@ const DEFAULT_DESIGN = {
   buttonTextColor: "#ffffff",
   borderRadius: 12,
   headerText: "FREQUENTLY BOUGHT TOGETHER",
+  cardLayout: "vertical",
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -736,6 +737,15 @@ export default function ComplementBundleForm() {
                     autoComplete="off"
                     placeholder="e.g. FREQUENTLY BOUGHT TOGETHER"
                   />
+                  <Select
+                    label="Card layout"
+                    options={[
+                      { label: "Vertical (stacked)", value: "vertical" },
+                      { label: "Horizontal (side by side)", value: "horizontal" },
+                    ]}
+                    value={design.cardLayout || "vertical"}
+                    onChange={(v) => updateDesign("cardLayout", v)}
+                  />
                 </FormLayout>
               </BlockStack>
             </Card>
@@ -784,118 +794,81 @@ export default function ComplementBundleForm() {
                 </div>
 
                 {/* Complement cards */}
-                {complements.map((comp, i) => {
-                  const qty = comp.quantity || 1;
-                  const originalPrice = (comp.price || 1990) * qty;
-                  const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
-                  return (
-                    <div key={comp.productId}>
-                      {/* Plus separator between complement cards */}
-                      {i > 0 && (
-                        <div
-                          style={{
-                            textAlign: "center",
-                            fontSize: "18px",
-                            fontWeight: 700,
-                            color: design.accentColor,
-                            margin: "4px 0",
-                          }}
-                        >
-                          +
-                        </div>
-                      )}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "10px",
-                          background: "#fff",
-                          borderRadius: "8px",
-                          border: "1px solid #e5e5e5",
-                          marginBottom: i < complements.length - 1 ? "0" : "8px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 50,
-                            height: 50,
-                            borderRadius: 6,
-                            background: comp.image ? undefined : "#f0f0f0",
-                            backgroundImage: comp.image ? `url(${comp.image})` : undefined,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
-                            flexShrink: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 9,
-                            color: "#999",
-                          }}
-                        >
-                          {!comp.image && "IMG"}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              color: design.textColor,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {qty > 1 && (
-                              <span style={{ color: design.accentColor, marginRight: 4 }}>
-                                {qty}×
-                              </span>
-                            )}
-                            {comp.title || "Product"}
-                          </div>
-                          {comp.discountPct > 0 && (
-                            <span
-                              style={{
-                                display: "inline-block",
-                                fontSize: "10px",
-                                fontWeight: 700,
-                                color: "#fff",
-                                background: design.accentColor,
-                                padding: "1px 6px",
-                                borderRadius: "4px",
-                                marginTop: "2px",
-                              }}
-                            >
-                              SAVE {comp.discountPct}%
-                            </span>
+                {design.cardLayout === "horizontal" ? (
+                  <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginBottom: "8px" }}>
+                    {complements.map((comp, i) => {
+                      const qty = comp.quantity || 1;
+                      const originalPrice = (comp.price || 1990) * qty;
+                      const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
+                      return (
+                        <div key={comp.productId} style={{ display: "contents" }}>
+                          {i > 0 && (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px", fontSize: "16px", fontWeight: 700, color: design.accentColor, flexShrink: 0 }}>+</div>
                           )}
-                        </div>
-                        <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          {comp.discountPct > 0 ? (
-                            <>
-                              <div
-                                style={{
-                                  fontSize: "11px",
-                                  textDecoration: "line-through",
-                                  color: "#999",
-                                }}
-                              >
-                                {formatPreviewPrice(originalPrice)}
-                              </div>
-                              <div style={{ fontWeight: 700, fontSize: "13px", color: design.accentColor }}>
-                                {formatPreviewPrice(discountedPrice)}
-                              </div>
-                            </>
-                          ) : (
-                            <div style={{ fontWeight: 700, fontSize: "13px", color: design.textColor }}>
-                              {formatPreviewPrice(originalPrice)}
+                          <div style={{ flex: 1, minWidth: 0, background: "#fff", borderRadius: "8px", border: "1px solid #e5e5e5", padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                            <div style={{ width: 50, height: 50, borderRadius: 6, background: comp.image ? undefined : "#f0f0f0", backgroundImage: comp.image ? `url(${comp.image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999", marginBottom: 6 }}>
+                              {!comp.image && "IMG"}
                             </div>
-                          )}
+                            <div style={{ fontSize: "11px", fontWeight: 600, color: design.textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", marginBottom: 2 }}>
+                              {qty > 1 && <span style={{ color: design.accentColor }}>{qty}× </span>}
+                              {comp.title || "Product"}
+                            </div>
+                            {comp.discountPct > 0 && (
+                              <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 5px", borderRadius: "3px", marginBottom: 2 }}>SAVE {comp.discountPct}%</span>
+                            )}
+                            <div style={{ fontSize: "12px" }}>
+                              {comp.discountPct > 0 ? (
+                                <>
+                                  <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(originalPrice)}</div>
+                                  <div style={{ fontWeight: 700, color: design.accentColor }}>{formatPreviewPrice(discountedPrice)}</div>
+                                </>
+                              ) : (
+                                <div style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(originalPrice)}</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  complements.map((comp, i) => {
+                    const qty = comp.quantity || 1;
+                    const originalPrice = (comp.price || 1990) * qty;
+                    const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
+                    return (
+                      <div key={comp.productId}>
+                        {i > 0 && (
+                          <div style={{ textAlign: "center", fontSize: "18px", fontWeight: 700, color: design.accentColor, margin: "4px 0" }}>+</div>
+                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: "#fff", borderRadius: "8px", border: "1px solid #e5e5e5", marginBottom: i < complements.length - 1 ? "0" : "8px" }}>
+                          <div style={{ width: 50, height: 50, borderRadius: 6, background: comp.image ? undefined : "#f0f0f0", backgroundImage: comp.image ? `url(${comp.image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
+                            {!comp.image && "IMG"}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "12px", fontWeight: 600, color: design.textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {qty > 1 && <span style={{ color: design.accentColor, marginRight: 4 }}>{qty}×</span>}
+                              {comp.title || "Product"}
+                            </div>
+                            {comp.discountPct > 0 && (
+                              <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 6px", borderRadius: "4px", marginTop: "2px" }}>SAVE {comp.discountPct}%</span>
+                            )}
+                          </div>
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            {comp.discountPct > 0 ? (
+                              <>
+                                <div style={{ fontSize: "11px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(originalPrice)}</div>
+                                <div style={{ fontWeight: 700, fontSize: "13px", color: design.accentColor }}>{formatPreviewPrice(discountedPrice)}</div>
+                              </>
+                            ) : (
+                              <div style={{ fontWeight: 700, fontSize: "13px", color: design.textColor }}>{formatPreviewPrice(originalPrice)}</div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
 
                 {complements.length === 0 && (
                   <div

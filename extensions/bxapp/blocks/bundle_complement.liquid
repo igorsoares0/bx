@@ -12,6 +12,7 @@
   {% assign ds_button_text_color = fbt_data.designButtonTextColor | default: block.settings.button_text_color %}
   {% assign ds_border_radius = fbt_data.designBorderRadius | default: 12 %}
   {% assign ds_header_text = fbt_data.designHeaderText | default: block.settings.header_text %}
+  {% assign ds_card_layout = fbt_data.designCardLayout | default: "vertical" %}
 
   {% comment %} Current (trigger) product data {% endcomment %}
   {% assign main_image = product.featured_image | image_url: width: 300 %}
@@ -42,6 +43,34 @@
     align-items: stretch;
     gap: 0;
     margin-bottom: 16px;
+  }
+  .bxgy-fbt__cards--vertical {
+    flex-direction: column;
+    align-items: center;
+  }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__plus {
+    padding: 6px 0;
+  }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__card {
+    width: 100%;
+    max-width: none;
+    flex-direction: row;
+    text-align: left;
+    gap: 10px;
+  }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__card-image,
+  .bxgy-fbt__cards--vertical .bxgy-fbt__card-image-placeholder {
+    width: 60px;
+    max-width: 60px;
+    margin-bottom: 0;
+  }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__card-details {
+    flex: 1;
+    min-width: 0;
+  }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__card-price-col {
+    text-align: right;
+    flex-shrink: 0;
   }
   .bxgy-fbt__card {
     flex: 1;
@@ -223,15 +252,15 @@
     margin-top: 10px;
   }
   @media (max-width: 749px) {
-    .bxgy-fbt__cards {
+    .bxgy-fbt__cards--horizontal {
       flex-direction: column;
       align-items: center;
     }
-    .bxgy-fbt__plus {
+    .bxgy-fbt__cards--horizontal .bxgy-fbt__plus {
       padding: 6px 0;
       transform: rotate(90deg);
     }
-    .bxgy-fbt__card {
+    .bxgy-fbt__cards--horizontal .bxgy-fbt__card {
       width: 100%;
       max-width: 260px;
     }
@@ -241,7 +270,7 @@
 <div class="bxgy-fbt" id="bxgy-fbt-{{ block.id }}">
   <div class="bxgy-fbt__header">{{ ds_header_text }}</div>
 
-  <div class="bxgy-fbt__cards">
+  <div class="bxgy-fbt__cards bxgy-fbt__cards--{{ ds_card_layout }}">
     {% comment %} === Complement Product Cards === {% endcomment %}
     {% for comp in complements %}
       {% if forloop.index > 1 %}
@@ -285,28 +314,30 @@
         data-fbt-comp-price="{{ comp_price }}"
         data-fbt-comp-quantity="{{ comp_quantity }}"
       >
-        {% if comp_quantity > 1 %}
-          <div class="bxgy-fbt__card-badge">{{ comp_quantity }}×</div>
-        {% endif %}
-        {% if comp_discount_pct > 0 %}
-          <div class="bxgy-fbt__card-badge">SAVE {{ comp_discount_pct }}%</div>
-        {% else %}
-          {% unless comp_quantity > 1 %}
-            <div class="bxgy-fbt__card-label">Add-on</div>
-          {% endunless %}
-        {% endif %}
-
         {% if comp_image != blank %}
           <img class="bxgy-fbt__card-image" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy">
         {% else %}
           <div class="bxgy-fbt__card-image-placeholder">No image</div>
         {% endif %}
 
-        <div class="bxgy-fbt__card-title">{{ comp.title }}</div>
+        <div class="bxgy-fbt__card-details">
+          {% if comp_quantity > 1 %}
+            <div class="bxgy-fbt__card-badge">{{ comp_quantity }}×</div>
+          {% endif %}
+          {% if comp_discount_pct > 0 %}
+            <div class="bxgy-fbt__card-badge">SAVE {{ comp_discount_pct }}%</div>
+          {% else %}
+            {% unless comp_quantity > 1 %}
+              <div class="bxgy-fbt__card-label">Add-on</div>
+            {% endunless %}
+          {% endif %}
+
+          <div class="bxgy-fbt__card-title">{{ comp.title }}</div>
+        </div>
 
         {% assign comp_total_price = comp_price | times: comp_quantity %}
         {% assign comp_total_discounted = comp_discounted | times: comp_quantity %}
-        <div class="bxgy-fbt__card-price">
+        <div class="bxgy-fbt__card-price bxgy-fbt__card-price-col">
           {% if comp_discount_pct > 0 and comp_discounted < comp_price %}
             <span class="bxgy-fbt__card-price--original">{{ comp_total_price | money }}</span>
             <span class="bxgy-fbt__card-price--discounted">{{ comp_total_discounted | money }}</span>
