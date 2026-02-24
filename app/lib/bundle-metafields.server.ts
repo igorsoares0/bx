@@ -247,6 +247,7 @@ export async function setTieredBundleMetafield(
     designBorderRadius: designConfig?.borderRadius ?? null,
     designHeaderText: designConfig?.headerText ?? null,
     designGiftText: designConfig?.giftText ?? null,
+    designCardLayout: designConfig?.cardLayout ?? "vertical",
   });
 
   await admin.graphql(

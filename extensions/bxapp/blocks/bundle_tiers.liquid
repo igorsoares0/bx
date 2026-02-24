@@ -11,6 +11,7 @@
 
   {% assign header_text = bundle_data.designHeaderText | default: block.settings.header_text %}
   {% assign gift_text = bundle_data.designGiftText | default: block.settings.gift_text %}
+  {% assign ds_card_layout = bundle_data.designCardLayout | default: "vertical" %}
 
   {% comment %} Dynamic tiers from metafield array {% endcomment %}
   {% assign tiers = bundle_data.tiers %}
@@ -44,6 +45,54 @@
     flex-direction: column;
     gap: 8px;
     margin-bottom: 14px;
+  }
+  .bxgy-tiers__list--horizontal {
+    flex-direction: row;
+  }
+  .bxgy-tiers__list--horizontal .bxgy-tiers__row {
+    flex: 1;
+    flex-direction: column;
+    text-align: center;
+    padding: 14px 10px;
+    border-radius: 12px;
+    min-width: 0;
+  }
+  .bxgy-tiers__list--horizontal .bxgy-tiers__label {
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .bxgy-tiers__list--horizontal .bxgy-tiers__prices {
+    text-align: center;
+  }
+  .bxgy-tiers__list--horizontal .bxgy-tiers__radio {
+    order: 10;
+    width: 18px;
+    height: 18px;
+  }
+  .bxgy-tiers__list--horizontal .bxgy-tiers__radio-dot {
+    width: 10px;
+    height: 10px;
+  }
+  @media (max-width: 749px) {
+    .bxgy-tiers__list--horizontal {
+      flex-direction: column;
+    }
+    .bxgy-tiers__list--horizontal .bxgy-tiers__row {
+      flex-direction: row;
+      text-align: left;
+      border-radius: 28px;
+    }
+    .bxgy-tiers__list--horizontal .bxgy-tiers__label {
+      flex-direction: row;
+      justify-content: flex-start;
+    }
+    .bxgy-tiers__list--horizontal .bxgy-tiers__prices {
+      text-align: right;
+    }
+    .bxgy-tiers__list--horizontal .bxgy-tiers__radio {
+      order: 0;
+    }
   }
   .bxgy-tiers__row {
     display: flex;
@@ -215,7 +264,7 @@
   </div>
 
   {% comment %} Tier rows - dynamic loop {% endcomment %}
-  <div class="bxgy-tiers__list">
+  <div class="bxgy-tiers__list bxgy-tiers__list--{{ ds_card_layout }}">
     {% for tier in tiers %}
       {% assign t_buy = tier.buyQty | default: 1 %}
       {% assign t_free = tier.freeQty | default: 1 %}

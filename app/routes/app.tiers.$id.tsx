@@ -13,6 +13,7 @@ import {
   Text,
   Banner,
   Thumbnail,
+  Select,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -37,6 +38,7 @@ const DEFAULT_DESIGN = {
   borderRadius: 12,
   headerText: "BUILD YOUR COMBO & SAVE",
   giftText: "+ FREE special gift!",
+  cardLayout: "vertical",
 };
 
 type TierConfig = { buyQty: number; freeQty: number; discountPct: number };
@@ -626,6 +628,15 @@ export default function TieredBundleForm() {
                     placeholder="e.g. + FREE special gift!"
                     helpText="Leave empty to hide"
                   />
+                  <Select
+                    label="Card layout"
+                    options={[
+                      { label: "Vertical (stacked)", value: "vertical" },
+                      { label: "Horizontal (side by side)", value: "horizontal" },
+                    ]}
+                    value={design.cardLayout || "vertical"}
+                    onChange={(v) => updateDesign("cardLayout", v)}
+                  />
                 </FormLayout>
               </BlockStack>
             </Card>
@@ -659,7 +670,7 @@ export default function TieredBundleForm() {
                 </div>
 
                 {/* Tiers */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                <div style={{ display: "flex", flexDirection: design.cardLayout === "horizontal" ? "row" : "column", gap: "8px", marginBottom: "12px" }}>
                   {tiers.map((tier, i) => {
                     const isSelected = selectedPreviewTier === i;
                     const totalQty = tier.buyQty + tier.freeQty;
@@ -667,41 +678,55 @@ export default function TieredBundleForm() {
                     const freeDiscountCents = Math.round(tier.freeQty * unitPrice * tier.discountPct / 100);
                     const finalCents = originalCents - freeDiscountCents;
                     const savePct = totalQty > 0 ? Math.round((freeDiscountCents / originalCents) * 100) : 0;
+                    const isHorizontal = design.cardLayout === "horizontal";
                     return (
                       <div
                         key={i}
                         onClick={() => setSelectedPreviewTier(i)}
                         style={{
                           display: "flex",
+                          flexDirection: isHorizontal ? "column" : "row",
                           alignItems: "center",
-                          gap: "10px",
-                          padding: "12px 14px",
-                          borderRadius: "28px",
+                          gap: isHorizontal ? "6px" : "10px",
+                          padding: isHorizontal ? "14px 10px" : "12px 14px",
+                          borderRadius: isHorizontal ? "12px" : "28px",
                           border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #e5e5e5",
                           background: isSelected ? `${design.accentColor}08` : "#fff",
                           cursor: "pointer",
                           transition: "all 0.15s",
+                          flex: isHorizontal ? 1 : undefined,
+                          textAlign: isHorizontal ? "center" : undefined,
+                          minWidth: 0,
                         }}
                       >
-                        <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: design.accentColor }} />}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontWeight: 600, fontSize: "13px", color: design.textColor }}>
+                        {!isHorizontal && (
+                          <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: design.accentColor }} />}
+                          </div>
+                        )}
+                        <div style={{ flex: isHorizontal ? undefined : 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: "12px", color: design.textColor }}>
                             Buy {tier.buyQty}, get {tier.freeQty} {tier.discountPct >= 100 ? "free" : `${tier.discountPct}% off`}
-                          </span>
-                          <span style={{ marginLeft: "8px", fontSize: "10px", fontWeight: 700, color: design.accentColor, background: `${design.accentColor}18`, padding: "2px 8px", borderRadius: "4px", textTransform: "uppercase" as const }}>
-                            SAVE {savePct}%
-                          </span>
+                          </div>
+                          <div style={{ marginTop: "4px" }}>
+                            <span style={{ fontSize: "9px", fontWeight: 700, color: design.accentColor, background: `${design.accentColor}18`, padding: "2px 6px", borderRadius: "4px", textTransform: "uppercase" as const }}>
+                              SAVE {savePct}%
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: "14px", color: isSelected ? design.accentColor : design.textColor }}>
+                        <div style={{ textAlign: isHorizontal ? "center" : "right", flexShrink: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: isHorizontal ? "13px" : "14px", color: isSelected ? design.accentColor : design.textColor }}>
                             {formatPreviewPrice(finalCents)}
                           </div>
-                          <div style={{ fontSize: "11px", textDecoration: "line-through", color: "#999" }}>
+                          <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>
                             {formatPreviewPrice(originalCents)}
                           </div>
                         </div>
+                        {isHorizontal && (
+                          <div style={{ width: 16, height: 16, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {isSelected && <div style={{ width: 8, height: 8, borderRadius: "50%", background: design.accentColor }} />}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
