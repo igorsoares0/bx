@@ -23,6 +23,7 @@
   {% assign ds_font_size = bundle_data.designFontSizePx | default: 14 %}
   {% assign ds_button_font_size = bundle_data.designButtonFontSizePx | default: 16 %}
   {% assign ds_badge_text = bundle_data.designBadgeText | default: block.settings.badge_text %}
+  {% assign ds_card_layout = bundle_data.designCardLayout | default: "horizontal" %}
 
   {% comment %} Try to get live reward product data via all_products {% endcomment %}
   {% assign reward_product = all_products[reward_product_handle] %}
@@ -101,6 +102,36 @@
     align-items: stretch;
     gap: 0;
     margin-bottom: 16px;
+  }
+  .bxgy-widget__products--vertical {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bxgy-widget__products--vertical .bxgy-widget__plus {
+    padding: 4px 0;
+    transform: none;
+  }
+  .bxgy-widget__products--vertical .bxgy-widget__product-card {
+    flex-direction: row;
+    text-align: left;
+    gap: 10px;
+    width: 100%;
+    max-width: none;
+  }
+  .bxgy-widget__products--vertical .bxgy-widget__product-image,
+  .bxgy-widget__products--vertical .bxgy-widget__product-image-placeholder {
+    width: 60px;
+    max-width: 60px;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+  .bxgy-widget__products--vertical .bxgy-widget__product-details {
+    flex: 1;
+    min-width: 0;
+  }
+  .bxgy-widget__products--vertical .bxgy-widget__product-price-col {
+    text-align: right;
+    flex-shrink: 0;
   }
   .bxgy-widget__product-card {
     flex: 1;
@@ -295,15 +326,15 @@
     margin-top: 10px;
   }
   @media (max-width: 749px) {
-    .bxgy-widget__products {
+    .bxgy-widget__products--horizontal {
       flex-direction: column;
       align-items: center;
     }
-    .bxgy-widget__plus {
+    .bxgy-widget__products--horizontal .bxgy-widget__plus {
       padding: 6px 0;
       transform: rotate(90deg);
     }
-    .bxgy-widget__product-card {
+    .bxgy-widget__products--horizontal .bxgy-widget__product-card {
       width: 100%;
       max-width: 280px;
     }
@@ -320,10 +351,9 @@
   </div>
 
   {% comment %} Product cards {% endcomment %}
-  <div class="bxgy-widget__products">
+  <div class="bxgy-widget__products bxgy-widget__products--{{ ds_card_layout }}">
     {% comment %} === Buy Product Card === {% endcomment %}
     <div class="bxgy-widget__product-card">
-      <div class="bxgy-widget__product-label">Buy</div>
       {% if buy_image != blank %}
         <img
           class="bxgy-widget__product-image"
@@ -334,11 +364,16 @@
       {% else %}
         <div class="bxgy-widget__product-image-placeholder">No image</div>
       {% endif %}
-      <div class="bxgy-widget__product-title">{{ buy_title }}</div>
-      <div class="bxgy-widget__product-price" data-bxgy-buy-price>
-        {{ buy_price | money }}
+      <div class="bxgy-widget__product-details">
+        <div class="bxgy-widget__product-label">Buy</div>
+        <div class="bxgy-widget__product-title">{{ buy_title }}</div>
+        <div class="bxgy-widget__product-qty">Qty: {{ min_quantity }}</div>
       </div>
-      <div class="bxgy-widget__product-qty">Qty: {{ min_quantity }}</div>
+      <div class="bxgy-widget__product-price-col">
+        <div class="bxgy-widget__product-price" data-bxgy-buy-price>
+          {{ buy_price | money }}
+        </div>
+      </div>
     </div>
 
     {% comment %} === Plus sign === {% endcomment %}
@@ -346,9 +381,6 @@
 
     {% comment %} === Reward Product Card === {% endcomment %}
     <div class="bxgy-widget__product-card">
-      <div class="bxgy-widget__product-label bxgy-widget__product-label--reward">
-        Get {{ discount_label }}
-      </div>
       {% if rw_image != blank %}
         <img
           class="bxgy-widget__product-image"
@@ -360,32 +392,38 @@
       {% else %}
         <div class="bxgy-widget__product-image-placeholder">No image</div>
       {% endif %}
-      <div class="bxgy-widget__product-title">{{ reward_product_title }}</div>
-      <div class="bxgy-widget__product-price" data-bxgy-reward-price>
-        {% if rw_discounted < rw_price %}
-          <span class="bxgy-widget__product-price--original">{{ rw_price | money }}</span>
-          <span class="bxgy-widget__product-price--discounted">{{ rw_discounted | money }}</span>
-        {% else %}
-          {{ rw_price | money }}
+      <div class="bxgy-widget__product-details">
+        <div class="bxgy-widget__product-label bxgy-widget__product-label--reward">
+          Get {{ discount_label }}
+        </div>
+        <div class="bxgy-widget__product-title">{{ reward_product_title }}</div>
+        {% comment %} Variant selector for reward product (if multi-variant) {% endcomment %}
+        {% if reward_product != blank and reward_product.variants.size > 1 %}
+          <select class="bxgy-widget__variant-select" data-bxgy-reward-variant-select>
+            {% for variant in reward_product.variants %}
+              {% if variant.available %}
+                <option
+                  value="{{ variant.id }}"
+                  data-price="{{ variant.price }}"
+                  {% if variant.featured_image %}data-image="{{ variant.featured_image | image_url: width: 300 }}"{% endif %}
+                >
+                  {{ variant.title }}{% if variant.title != "Default Title" %} - {{ variant.price | money }}{% endif %}
+                </option>
+              {% endif %}
+            {% endfor %}
+          </select>
         {% endif %}
       </div>
-
-      {% comment %} Variant selector for reward product (if multi-variant) {% endcomment %}
-      {% if reward_product != blank and reward_product.variants.size > 1 %}
-        <select class="bxgy-widget__variant-select" data-bxgy-reward-variant-select>
-          {% for variant in reward_product.variants %}
-            {% if variant.available %}
-              <option
-                value="{{ variant.id }}"
-                data-price="{{ variant.price }}"
-                {% if variant.featured_image %}data-image="{{ variant.featured_image | image_url: width: 300 }}"{% endif %}
-              >
-                {{ variant.title }}{% if variant.title != "Default Title" %} - {{ variant.price | money }}{% endif %}
-              </option>
-            {% endif %}
-          {% endfor %}
-        </select>
-      {% endif %}
+      <div class="bxgy-widget__product-price-col">
+        <div class="bxgy-widget__product-price" data-bxgy-reward-price>
+          {% if rw_discounted < rw_price %}
+            <span class="bxgy-widget__product-price--original">{{ rw_price | money }}</span>
+            <span class="bxgy-widget__product-price--discounted">{{ rw_discounted | money }}</span>
+          {% else %}
+            {{ rw_price | money }}
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
 

@@ -82,6 +82,7 @@ export async function setBundleMetafield(
     designFontSizePx: designConfig?.fontSizePx ?? null,
     designButtonFontSizePx: designConfig?.buttonFontSizePx ?? null,
     designBadgeText: designConfig?.badgeText ?? null,
+    designCardLayout: designConfig?.cardLayout ?? "horizontal",
   });
 
   await admin.graphql(

@@ -37,6 +37,7 @@ const DEFAULT_DESIGN = {
   fontSizePx: 14,
   buttonFontSizePx: 16,
   badgeText: "Bundle Deal",
+  cardLayout: "horizontal",
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -882,6 +883,15 @@ export default function BundleForm() {
                     autoComplete="off"
                     placeholder="e.g. Bundle Deal"
                   />
+                  <Select
+                    label="Card layout"
+                    options={[
+                      { label: "Horizontal (side by side)", value: "horizontal" },
+                      { label: "Vertical (stacked)", value: "vertical" },
+                    ]}
+                    value={design.cardLayout || "horizontal"}
+                    onChange={(v) => updateDesign("cardLayout", v)}
+                  />
                 </FormLayout>
               </BlockStack>
             </Card>
@@ -929,51 +939,70 @@ export default function BundleForm() {
                     </div>
 
                     {/* Product cards */}
-                    <div style={{ display: "flex", alignItems: "stretch", gap: "0", marginBottom: "12px" }}>
-                      {/* Buy product */}
-                      <div style={{ flex: 1, background: "#fff", border: "1px solid #e5e5e5", borderRadius: "8px", padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-                        <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: "#666", marginBottom: "6px", letterSpacing: "0.3px" }}>Buy</div>
-                        {buyImage ? (
-                          <img src={buyImage} alt={buyReferenceLabel} style={{ width: "100%", maxWidth: `${previewImageSize}px`, aspectRatio: "1", objectFit: "cover", borderRadius: "6px", background: "#f5f5f5", marginBottom: "8px" }} />
-                        ) : (
-                          <div style={{ width: `${previewImageSize}px`, height: `${previewImageSize}px`, borderRadius: "6px", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "8px", color: "#999", fontSize: "10px" }}>No image</div>
-                        )}
-                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px", lineHeight: "1.3", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                          {buyReferenceLabel || "Buy Product"}
-                        </div>
-                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px" }}>
-                          {buyPriceCents > 0 ? formatPreviewPrice(buyPriceCents) : "\u2014"}
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#666", background: "#f5f5f5", padding: "2px 8px", borderRadius: "10px" }}>Qty: {minQuantity || 1}</div>
-                      </div>
-
-                      {/* Plus */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", fontSize: "20px", fontWeight: 700, color: design.accentColor }}>+</div>
-
-                      {/* Reward product */}
-                      <div style={{ flex: 1, background: "#fff", border: "1px solid #e5e5e5", borderRadius: "8px", padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-                        <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: design.accentColor, marginBottom: "6px", letterSpacing: "0.3px" }}>Get {previewDiscountLabel}</div>
-                        {getImage ? (
-                          <img src={getImage} alt={getProductLabel} style={{ width: "100%", maxWidth: `${previewImageSize}px`, aspectRatio: "1", objectFit: "cover", borderRadius: "6px", background: "#f5f5f5", marginBottom: "8px" }} />
-                        ) : (
-                          <div style={{ width: `${previewImageSize}px`, height: `${previewImageSize}px`, borderRadius: "6px", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "8px", color: "#999", fontSize: "10px" }}>No image</div>
-                        )}
-                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px", lineHeight: "1.3", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                          {getProductLabel || "Reward Product"}
-                        </div>
-                        <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, marginBottom: "3px" }}>
-                          {getPriceCents > 0 ? (
-                            discountedRewardCents < getPriceCents ? (
-                              <><span style={{ textDecoration: "line-through", color: "#999", fontWeight: 400, marginRight: "4px" }}>{formatPreviewPrice(getPriceCents)}</span><span style={{ color: "#e53e3e", fontWeight: 700 }}>{formatPreviewPrice(discountedRewardCents)}</span></>
-                            ) : (
-                              <span style={{ fontWeight: 600, color: design.textColor }}>{formatPreviewPrice(getPriceCents)}</span>
-                            )
+                    {(() => {
+                      const isVertical = design.cardLayout === "vertical";
+                      const buyCard = (
+                        <div style={{ flex: 1, background: "#fff", border: "1px solid #e5e5e5", borderRadius: "8px", padding: "10px", display: "flex", flexDirection: isVertical ? "row" : "column", alignItems: isVertical ? "center" : "center", textAlign: isVertical ? "left" : "center", gap: isVertical ? "10px" : undefined }}>
+                          {!isVertical && <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: "#666", marginBottom: "6px", letterSpacing: "0.3px" }}>Buy</div>}
+                          {buyImage ? (
+                            <img src={buyImage} alt={buyReferenceLabel} style={{ width: isVertical ? "50px" : "100%", maxWidth: isVertical ? "50px" : `${previewImageSize}px`, aspectRatio: "1", objectFit: "cover", borderRadius: "6px", background: "#f5f5f5", marginBottom: isVertical ? 0 : "8px", flexShrink: 0 }} />
                           ) : (
-                            <span style={{ color: "#999" }}>{"\u2014"}</span>
+                            <div style={{ width: isVertical ? "50px" : `${previewImageSize}px`, height: isVertical ? "50px" : `${previewImageSize}px`, borderRadius: "6px", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: isVertical ? 0 : "8px", color: "#999", fontSize: "10px", flexShrink: 0 }}>No image</div>
+                          )}
+                          <div style={{ flex: isVertical ? 1 : undefined, minWidth: 0 }}>
+                            {isVertical && <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: "#666", letterSpacing: "0.3px", marginBottom: "2px" }}>Buy</div>}
+                            <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px", lineHeight: "1.3", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                              {buyReferenceLabel || "Buy Product"}
+                            </div>
+                            <div style={{ fontSize: "10px", color: "#666", background: "#f5f5f5", padding: "2px 8px", borderRadius: "10px", display: "inline-block" }}>Qty: {minQuantity || 1}</div>
+                          </div>
+                          {isVertical && (
+                            <div style={{ textAlign: "right", flexShrink: 0, fontWeight: 600, fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, color: design.textColor }}>
+                              {buyPriceCents > 0 ? formatPreviewPrice(buyPriceCents) : "\u2014"}
+                            </div>
+                          )}
+                          {!isVertical && (
+                            <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px" }}>
+                              {buyPriceCents > 0 ? formatPreviewPrice(buyPriceCents) : "\u2014"}
+                            </div>
                           )}
                         </div>
-                      </div>
-                    </div>
+                      );
+                      const rewardCard = (
+                        <div style={{ flex: 1, background: "#fff", border: "1px solid #e5e5e5", borderRadius: "8px", padding: "10px", display: "flex", flexDirection: isVertical ? "row" : "column", alignItems: isVertical ? "center" : "center", textAlign: isVertical ? "left" : "center", gap: isVertical ? "10px" : undefined }}>
+                          {!isVertical && <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: design.accentColor, marginBottom: "6px", letterSpacing: "0.3px" }}>Get {previewDiscountLabel}</div>}
+                          {getImage ? (
+                            <img src={getImage} alt={getProductLabel} style={{ width: isVertical ? "50px" : "100%", maxWidth: isVertical ? "50px" : `${previewImageSize}px`, aspectRatio: "1", objectFit: "cover", borderRadius: "6px", background: "#f5f5f5", marginBottom: isVertical ? 0 : "8px", flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: isVertical ? "50px" : `${previewImageSize}px`, height: isVertical ? "50px" : `${previewImageSize}px`, borderRadius: "6px", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: isVertical ? 0 : "8px", color: "#999", fontSize: "10px", flexShrink: 0 }}>No image</div>
+                          )}
+                          <div style={{ flex: isVertical ? 1 : undefined, minWidth: 0 }}>
+                            {isVertical && <div style={{ fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const, color: design.accentColor, letterSpacing: "0.3px", marginBottom: "2px" }}>Get {previewDiscountLabel}</div>}
+                            <div style={{ fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, fontWeight: 600, color: design.textColor, marginBottom: "3px", lineHeight: "1.3", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                              {getProductLabel || "Reward Product"}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: isVertical ? "right" : "center", flexShrink: 0, fontSize: `${Math.round(design.fontSizePx * 0.85)}px`, marginBottom: isVertical ? 0 : "3px" }}>
+                            {getPriceCents > 0 ? (
+                              discountedRewardCents < getPriceCents ? (
+                                <><span style={{ textDecoration: "line-through", color: "#999", fontWeight: 400, marginRight: "4px" }}>{formatPreviewPrice(getPriceCents)}</span><span style={{ color: "#e53e3e", fontWeight: 700 }}>{formatPreviewPrice(discountedRewardCents)}</span></>
+                              ) : (
+                                <span style={{ fontWeight: 600, color: design.textColor }}>{formatPreviewPrice(getPriceCents)}</span>
+                              )
+                            ) : (
+                              <span style={{ color: "#999" }}>{"\u2014"}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                      return (
+                        <div style={{ display: "flex", flexDirection: isVertical ? "column" : "row", alignItems: "stretch", gap: 0, marginBottom: "12px" }}>
+                          {buyCard}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: isVertical ? "4px 0" : "0 8px", fontSize: isVertical ? "16px" : "20px", fontWeight: 700, color: design.accentColor }}>+</div>
+                          {rewardCard}
+                        </div>
+                      );
+                    })()}
 
                     {/* Summary */}
                     <div style={{ textAlign: "center", marginBottom: "10px", padding: "8px", background: "#f9f9f9", borderRadius: "6px" }}>
