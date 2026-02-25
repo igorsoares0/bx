@@ -4,48 +4,195 @@
   {% assign complements = fbt_data.complements %}
   {% assign complement_count = complements.size %}
 
-  {% comment %} Design config from metafield with fallback {% endcomment %}
-  {% assign ds_accent_color = fbt_data.designAccentColor | default: block.settings.accent_color %}
-  {% assign ds_background_color = fbt_data.designBackgroundColor | default: block.settings.background_color %}
-  {% assign ds_text_color = fbt_data.designTextColor | default: block.settings.text_color %}
-  {% assign ds_button_color = fbt_data.designButtonColor | default: block.settings.button_color %}
-  {% assign ds_button_text_color = fbt_data.designButtonTextColor | default: block.settings.button_text_color %}
-  {% assign ds_border_radius = fbt_data.designBorderRadius | default: 12 %}
-  {% assign ds_header_text = fbt_data.designHeaderText | default: block.settings.header_text %}
-  {% assign ds_card_layout = fbt_data.designCardLayout | default: "vertical" %}
+  {% comment %} Design config {% endcomment %}
+  {% assign ds_accent = fbt_data.designAccentColor | default: block.settings.accent_color %}
+  {% assign ds_bg = fbt_data.designBackgroundColor | default: block.settings.background_color %}
+  {% assign ds_text = fbt_data.designTextColor | default: block.settings.text_color %}
+  {% assign ds_btn = fbt_data.designButtonColor | default: block.settings.button_color %}
+  {% assign ds_btn_text = fbt_data.designButtonTextColor | default: block.settings.button_text_color %}
+  {% assign ds_radius = fbt_data.designBorderRadius | default: 12 %}
+  {% assign ds_header = fbt_data.designHeaderText | default: block.settings.header_text %}
+  {% assign ds_layout = fbt_data.designCardLayout | default: "vertical" %}
 
-  {% comment %} Mode: "fbt" (default) or "combo" {% endcomment %}
   {% assign bundle_mode = fbt_data.mode | default: "fbt" %}
   {% assign trigger_discount_pct = fbt_data.triggerDiscountPct | default: 0 %}
 
-  {% comment %} Current (trigger) product data {% endcomment %}
   {% assign main_image = product.featured_image | image_url: width: 300 %}
   {% assign main_price = product.price %}
   {% assign main_title = product.title %}
 
-  {% comment %} Trigger discounted price for combo mode {% endcomment %}
-  {% assign trigger_discount_fraction = trigger_discount_pct | times: 100 | divided_by: 10000.0 %}
-  {% assign trigger_discount_amount = main_price | times: 1.0 | times: trigger_discount_fraction %}
-  {% assign trigger_discounted_price = main_price | minus: trigger_discount_amount | round %}
+  {% assign trigger_frac = trigger_discount_pct | times: 100 | divided_by: 10000.0 %}
+  {% assign trigger_disc_amt = main_price | times: 1.0 | times: trigger_frac %}
+  {% assign trigger_final = main_price | minus: trigger_disc_amt | round %}
+
+  {% comment %} Discover unique group indices {% endcomment %}
+  {% assign group_indices = "" %}
+  {% for comp in complements %}
+    {% assign g = comp.group | default: 0 %}
+    {% assign g_str = g | append: "" %}
+    {% assign check = group_indices | split: "," %}
+    {% assign found = false %}
+    {% for existing in check %}
+      {% if existing == g_str %}{% assign found = true %}{% endif %}
+    {% endfor %}
+    {% unless found %}
+      {% if group_indices == "" %}
+        {% assign group_indices = g_str %}
+      {% else %}
+        {% assign group_indices = group_indices | append: "," | append: g_str %}
+      {% endif %}
+    {% endunless %}
+  {% endfor %}
+  {% assign groups_array = group_indices | split: "," %}
+  {% assign group_count = groups_array.size %}
 
 <style>
   .bxgy-fbt {
     border: 1px solid #e5e5e5;
-    border-radius: {{ ds_border_radius }}px;
+    border-radius: {{ ds_radius }}px;
     padding: 20px;
     margin: 16px 0;
-    background: {{ ds_background_color }};
+    background: {{ ds_bg }};
     font-family: inherit;
   }
   .bxgy-fbt__header {
     font-weight: 800;
     font-size: 13px;
-    color: {{ ds_text_color }};
+    color: {{ ds_text }};
     text-transform: uppercase;
     letter-spacing: 0.5px;
     text-align: center;
     margin-bottom: 16px;
   }
+  /* Radio option wrapper */
+  .bxgy-fbt__radio {
+    border: 2px solid #e5e5e5;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    overflow: hidden;
+  }
+  .bxgy-fbt__radio:hover { border-color: #ccc; }
+  .bxgy-fbt__radio--active { border-color: {{ ds_accent }}; }
+  .bxgy-fbt__radio-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .bxgy-fbt__dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .bxgy-fbt__radio--active .bxgy-fbt__dot {
+    border-color: {{ ds_accent }};
+  }
+  .bxgy-fbt__radio--active .bxgy-fbt__dot::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: {{ ds_accent }};
+  }
+  .bxgy-fbt__radio-info { flex: 1; min-width: 0; }
+  .bxgy-fbt__radio-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: {{ ds_text }};
+  }
+  .bxgy-fbt__radio-save {
+    font-size: 12px;
+    font-weight: 600;
+    color: #16a34a;
+  }
+  .bxgy-fbt__radio-prices { text-align: right; flex-shrink: 0; }
+  .bxgy-fbt__radio-final {
+    font-size: 15px;
+    font-weight: 700;
+    color: {{ ds_text }};
+  }
+  .bxgy-fbt__radio-orig {
+    font-size: 11px;
+    text-decoration: line-through;
+    color: #999;
+  }
+  /* Embedded product cards inside radio */
+  .bxgy-fbt__radio-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 14px 14px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .bxgy-fbt__mini-card {
+    flex: 1 1 90px;
+    min-width: 80px;
+    max-width: 130px;
+    text-align: center;
+    position: relative;
+  }
+  .bxgy-fbt__mini-plus {
+    position: absolute;
+    left: -10px;
+    top: 22px;
+    font-size: 14px;
+    font-weight: 700;
+    color: {{ ds_accent }};
+  }
+  .bxgy-fbt__mini-img {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #f5f5f5;
+    margin: 0 auto 4px;
+    display: block;
+  }
+  .bxgy-fbt__mini-img-ph {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    background: #f0f0f0;
+    margin: 0 auto 4px;
+    display: flex; align-items: center; justify-content: center;
+    color: #999; font-size: 10px;
+  }
+  .bxgy-fbt__mini-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: {{ ds_text }};
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bxgy-fbt__mini-price {
+    font-size: 11px;
+    font-weight: 700;
+    color: {{ ds_accent }};
+  }
+  .bxgy-fbt__mini-orig {
+    font-size: 10px;
+    text-decoration: line-through;
+    color: #999;
+    margin-left: 3px;
+  }
+  .bxgy-fbt__mini-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    background: {{ ds_accent }};
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-bottom: 2px;
+  }
+  /* FBT mode cards (unchanged) */
   .bxgy-fbt__cards {
     display: flex;
     flex-wrap: wrap;
@@ -57,451 +204,288 @@
     flex-direction: column;
     align-items: center;
   }
-  .bxgy-fbt__cards--vertical .bxgy-fbt__plus {
-    padding: 6px 0;
-  }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__plus { padding: 6px 0; }
   .bxgy-fbt__cards--vertical .bxgy-fbt__card {
-    width: 100%;
-    max-width: none;
-    flex-direction: row;
-    text-align: left;
-    gap: 10px;
+    width: 100%; max-width: none;
+    flex-direction: row; text-align: left; gap: 10px;
   }
   .bxgy-fbt__cards--vertical .bxgy-fbt__card-image,
   .bxgy-fbt__cards--vertical .bxgy-fbt__card-image-placeholder {
-    width: 60px;
-    max-width: 60px;
-    margin-bottom: 0;
+    width: 60px; max-width: 60px; margin-bottom: 0;
   }
-  .bxgy-fbt__cards--vertical .bxgy-fbt__card-details {
-    flex: 1;
-    min-width: 0;
-  }
-  .bxgy-fbt__cards--vertical .bxgy-fbt__card-price-col {
-    text-align: right;
-    flex-shrink: 0;
-  }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__card-details { flex: 1; min-width: 0; }
+  .bxgy-fbt__cards--vertical .bxgy-fbt__card-price-col { text-align: right; flex-shrink: 0; }
   .bxgy-fbt__card {
-    flex: 1;
-    min-width: 120px;
-    background: #fff;
-    border: 1px solid #e5e5e5;
-    border-radius: 10px;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+    flex: 1; min-width: 120px;
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column;
+    align-items: center; text-align: center;
   }
   .bxgy-fbt__card-image {
-    width: 100%;
-    max-width: 100px;
-    aspect-ratio: 1;
-    object-fit: cover;
-    border-radius: 8px;
-    background: #f5f5f5;
-    margin-bottom: 8px;
+    width: 100%; max-width: 100px; aspect-ratio: 1;
+    object-fit: cover; border-radius: 8px;
+    background: #f5f5f5; margin-bottom: 8px;
   }
   .bxgy-fbt__card-image-placeholder {
-    width: 100%;
-    max-width: 100px;
-    aspect-ratio: 1;
-    border-radius: 8px;
-    background: #f0f0f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 8px;
-    color: #999;
-    font-size: 12px;
+    width: 100%; max-width: 100px; aspect-ratio: 1;
+    border-radius: 8px; background: #f0f0f0;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px; color: #999; font-size: 12px;
   }
   .bxgy-fbt__card-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    color: #888;
-    margin-bottom: 4px;
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.3px;
+    color: #888; margin-bottom: 4px;
   }
   .bxgy-fbt__card-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: {{ ds_text_color }};
-    margin-bottom: 4px;
-    line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    font-size: 13px; font-weight: 600;
+    color: {{ ds_text }}; margin-bottom: 4px; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
   }
-  .bxgy-fbt__card-price {
-    font-size: 13px;
-    font-weight: 600;
-    color: {{ ds_text_color }};
-    margin-bottom: 2px;
-  }
-  .bxgy-fbt__card-price--original {
-    text-decoration: line-through;
-    color: #999;
-    font-weight: 400;
-    margin-right: 4px;
-  }
-  .bxgy-fbt__card-price--discounted {
-    color: #e53e3e;
-    font-weight: 700;
-  }
+  .bxgy-fbt__card-price { font-size: 13px; font-weight: 600; color: {{ ds_text }}; margin-bottom: 2px; }
+  .bxgy-fbt__card-price--original { text-decoration: line-through; color: #999; font-weight: 400; margin-right: 4px; }
+  .bxgy-fbt__card-price--discounted { color: #e53e3e; font-weight: 700; }
   .bxgy-fbt__card-badge {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
-    color: #fff;
-    background: {{ ds_accent_color }};
-    padding: 2px 8px;
-    border-radius: 4px;
-    margin-top: 4px;
+    display: inline-block; font-size: 10px; font-weight: 700;
+    color: #fff; background: {{ ds_accent }};
+    padding: 2px 8px; border-radius: 4px; margin-top: 4px;
   }
   .bxgy-fbt__plus {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 10px;
-    font-size: 22px;
-    font-weight: 700;
-    color: {{ ds_accent_color }};
-    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 10px; font-size: 22px; font-weight: 700;
+    color: {{ ds_accent }}; flex-shrink: 0;
   }
   .bxgy-fbt__summary {
-    text-align: center;
-    margin-bottom: 14px;
-    padding: 10px;
-    background: #f9f9f9;
-    border-radius: 8px;
+    text-align: center; margin-bottom: 14px; padding: 10px;
+    background: #f9f9f9; border-radius: 8px;
   }
-  .bxgy-fbt__summary-prices {
-    font-size: 16px;
-    margin-bottom: 2px;
-  }
-  .bxgy-fbt__summary-original {
-    text-decoration: line-through;
-    color: #999;
-    margin-right: 6px;
-  }
-  .bxgy-fbt__summary-final {
-    font-weight: 700;
-    color: {{ ds_text_color }};
-  }
-  .bxgy-fbt__summary-savings {
-    font-size: 13px;
-    font-weight: 600;
-    color: #16a34a;
-  }
+  .bxgy-fbt__summary-prices { font-size: 16px; margin-bottom: 2px; }
+  .bxgy-fbt__summary-original { text-decoration: line-through; color: #999; margin-right: 6px; }
+  .bxgy-fbt__summary-final { font-weight: 700; color: {{ ds_text }}; }
+  .bxgy-fbt__summary-savings { font-size: 13px; font-weight: 600; color: #16a34a; }
   .bxgy-fbt__add-btn {
-    width: 100%;
-    padding: 14px 20px;
-    font-size: 16px;
-    font-weight: 700;
-    font-family: inherit;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    background: {{ ds_button_color }};
-    color: {{ ds_button_text_color }};
-    transition: opacity 0.2s;
-    position: relative;
+    width: 100%; padding: 14px 20px;
+    font-size: 16px; font-weight: 700; font-family: inherit;
+    border: none; border-radius: 8px; cursor: pointer;
+    background: {{ ds_btn }}; color: {{ ds_btn_text }};
+    transition: opacity 0.2s; position: relative;
   }
-  .bxgy-fbt__add-btn:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-  .bxgy-fbt__add-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .bxgy-fbt__add-btn--loading {
-    color: transparent !important;
-  }
+  .bxgy-fbt__add-btn:hover:not(:disabled) { opacity: 0.9; }
+  .bxgy-fbt__add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .bxgy-fbt__add-btn--loading { color: transparent !important; }
   .bxgy-fbt__add-btn--loading::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 20px;
-    height: 20px;
-    margin: -10px 0 0 -10px;
-    border: 3px solid {{ ds_button_text_color }};
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: bxgy-fbt-spin 0.7s linear infinite;
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 20px; height: 20px; margin: -10px 0 0 -10px;
+    border: 3px solid {{ ds_btn_text }}; border-top-color: transparent;
+    border-radius: 50%; animation: bxgy-spin 0.7s linear infinite;
   }
-  @keyframes bxgy-fbt-spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes bxgy-spin { to { transform: rotate(360deg); } }
   .bxgy-fbt__feedback {
-    text-align: center;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 8px;
-    border-radius: 6px;
-    margin-top: 10px;
-    display: none;
+    text-align: center; font-size: 14px; font-weight: 600;
+    padding: 8px; border-radius: 6px; margin-top: 10px; display: none;
   }
-  .bxgy-fbt__feedback--success {
-    display: block;
-    color: #166534;
-    background: #dcfce7;
-  }
-  .bxgy-fbt__feedback--error {
-    display: block;
-    color: #991b1b;
-    background: #fee2e2;
-  }
-  .bxgy-fbt__footer {
-    text-align: center;
-    font-size: 12px;
-    color: #888;
-    margin-top: 10px;
-  }
-  /* Combo mode radio options */
-  .bxgy-fbt__radio-group {
-    margin-bottom: 14px;
-  }
-  .bxgy-fbt__radio-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    border: 2px solid #e5e5e5;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    background: #fff;
-  }
-  .bxgy-fbt__radio-option:hover {
-    border-color: #ccc;
-  }
-  .bxgy-fbt__radio-option--active {
-    border-color: {{ ds_accent_color }};
-    background: {{ ds_background_color }};
-  }
-  .bxgy-fbt__radio-dot {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid #ccc;
-    flex-shrink: 0;
-    position: relative;
-    transition: border-color 0.2s;
-  }
-  .bxgy-fbt__radio-option--active .bxgy-fbt__radio-dot {
-    border-color: {{ ds_accent_color }};
-  }
-  .bxgy-fbt__radio-option--active .bxgy-fbt__radio-dot::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: {{ ds_accent_color }};
-  }
-  .bxgy-fbt__radio-label {
-    flex: 1;
-  }
-  .bxgy-fbt__radio-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: {{ ds_text_color }};
-  }
-  .bxgy-fbt__radio-subtitle {
-    font-size: 12px;
-    color: #888;
-  }
-  .bxgy-fbt__radio-subtitle--savings {
-    color: #16a34a;
-    font-weight: 600;
-  }
-  .bxgy-fbt__radio-price {
-    text-align: right;
-    flex-shrink: 0;
-  }
-  .bxgy-fbt__card--trigger {
-    border-color: {{ ds_accent_color }};
-  }
-  .bxgy-fbt__combo-section {
-    display: none;
-  }
-  .bxgy-fbt__combo-section--visible {
-    display: block;
-  }
+  .bxgy-fbt__feedback--success { display: block; color: #166534; background: #dcfce7; }
+  .bxgy-fbt__feedback--error { display: block; color: #991b1b; background: #fee2e2; }
+  .bxgy-fbt__footer { text-align: center; font-size: 12px; color: #888; margin-top: 10px; }
   @media (max-width: 749px) {
-    .bxgy-fbt__cards--horizontal {
-      flex-direction: column;
-      align-items: center;
-    }
-    .bxgy-fbt__cards--horizontal .bxgy-fbt__plus {
-      padding: 6px 0;
-      transform: rotate(90deg);
-    }
-    .bxgy-fbt__cards--horizontal .bxgy-fbt__card {
-      width: 100%;
-      max-width: 260px;
-    }
+    .bxgy-fbt__cards--horizontal { flex-direction: column; align-items: center; }
+    .bxgy-fbt__cards--horizontal .bxgy-fbt__plus { padding: 6px 0; transform: rotate(90deg); }
+    .bxgy-fbt__cards--horizontal .bxgy-fbt__card { width: 100%; max-width: 260px; }
   }
 </style>
 
-<div class="bxgy-fbt" id="bxgy-fbt-{{ block.id }}" data-fbt-mode="{{ bundle_mode }}" data-fbt-trigger-discount-pct="{{ trigger_discount_pct }}">
+<div class="bxgy-fbt" id="bxgy-fbt-{{ block.id }}"
+  data-fbt-mode="{{ bundle_mode }}"
+  data-fbt-trigger-discount-pct="{{ trigger_discount_pct }}"
+  data-fbt-group-count="{{ group_count }}">
+
   <div class="bxgy-fbt__header">
-    {% if bundle_mode == "combo" %}
-      COMPLETE THE COMBO
-    {% else %}
-      {{ ds_header_text }}
-    {% endif %}
+    {% if bundle_mode == "combo" %}COMPLETE THE COMBO{% else %}{{ ds_header }}{% endif %}
   </div>
 
   {% if bundle_mode == "combo" %}
-    <div class="bxgy-fbt__radio-group">
-      <div class="bxgy-fbt__radio-option" data-fbt-radio="standard">
-        <div class="bxgy-fbt__radio-dot"></div>
-        <div class="bxgy-fbt__radio-label">
-          <div class="bxgy-fbt__radio-title">Standard price</div>
-          <div class="bxgy-fbt__radio-subtitle">Buy only the product</div>
+    {%- comment -%} ═══ COMBO MODE ═══ {%- endcomment -%}
+
+    {%- comment -%} Standard price radio {%- endcomment -%}
+    <div class="bxgy-fbt__radio" data-fbt-radio="standard">
+      <div class="bxgy-fbt__radio-head">
+        <div class="bxgy-fbt__dot"></div>
+        <div class="bxgy-fbt__radio-info">
+          <div class="bxgy-fbt__radio-title">{{ main_title }}</div>
+          <div style="font-size:12px;color:#888;">Standard price</div>
         </div>
-        <div class="bxgy-fbt__radio-price">
-          <span class="bxgy-fbt__summary-final" data-fbt-standard-price>{{ main_price | money }}</span>
-        </div>
-      </div>
-      <div class="bxgy-fbt__radio-option bxgy-fbt__radio-option--active" data-fbt-radio="combo">
-        <div class="bxgy-fbt__radio-dot"></div>
-        <div class="bxgy-fbt__radio-label">
-          <div class="bxgy-fbt__radio-title">Complete the bundle</div>
-          <div class="bxgy-fbt__radio-subtitle bxgy-fbt__radio-subtitle--savings" data-fbt-combo-savings></div>
-        </div>
-        <div class="bxgy-fbt__radio-price">
-          <span class="bxgy-fbt__card-price--original" data-fbt-combo-original></span>
-          <span class="bxgy-fbt__card-price--discounted" data-fbt-combo-final></span>
+        <div class="bxgy-fbt__radio-prices">
+          <div class="bxgy-fbt__radio-final" data-fbt-standard-price>{{ main_price | money }}</div>
         </div>
       </div>
     </div>
-  {% endif %}
 
-  <div class="bxgy-fbt__combo-section {% if bundle_mode != 'combo' %}bxgy-fbt__combo-section--visible{% else %}bxgy-fbt__combo-section--visible{% endif %}" data-fbt-combo-section>
-  <div class="bxgy-fbt__cards bxgy-fbt__cards--{{ ds_card_layout }}">
-    {% comment %} === Trigger Product Card (combo mode only) === {% endcomment %}
-    {% if bundle_mode == "combo" %}
-      <div class="bxgy-fbt__card bxgy-fbt__card--trigger"
-        data-fbt-trigger-card
-        data-fbt-trigger-price="{{ main_price }}"
-      >
-        {% if main_image != blank %}
-          <img class="bxgy-fbt__card-image" src="{{ main_image }}" alt="{{ main_title | escape }}" loading="lazy">
-        {% else %}
-          <div class="bxgy-fbt__card-image-placeholder">No image</div>
-        {% endif %}
-
-        <div class="bxgy-fbt__card-details">
-          {% if trigger_discount_pct > 0 %}
-            <div class="bxgy-fbt__card-badge">SAVE {{ trigger_discount_pct }}%</div>
-          {% else %}
-            <div class="bxgy-fbt__card-label">Main product</div>
-          {% endif %}
-          <div class="bxgy-fbt__card-title">{{ main_title }}</div>
+    {%- comment -%} One radio per combo group with embedded cards {%- endcomment -%}
+    {% for g_str in groups_array %}
+      {% assign g_idx = g_str | plus: 0 %}
+      <div class="bxgy-fbt__radio{% if forloop.last %} bxgy-fbt__radio--active{% endif %}"
+        data-fbt-radio="combo" data-fbt-radio-group="{{ g_idx }}">
+        <div class="bxgy-fbt__radio-head">
+          <div class="bxgy-fbt__dot"></div>
+          <div class="bxgy-fbt__radio-info">
+            <div class="bxgy-fbt__radio-title">Complete the bundle</div>
+            <div class="bxgy-fbt__radio-save" data-fbt-combo-savings-{{ g_idx }}></div>
+          </div>
+          <div class="bxgy-fbt__radio-prices">
+            <div class="bxgy-fbt__radio-final" data-fbt-combo-final-{{ g_idx }}></div>
+            <div class="bxgy-fbt__radio-orig" data-fbt-combo-original-{{ g_idx }}></div>
+          </div>
         </div>
 
-        <div class="bxgy-fbt__card-price bxgy-fbt__card-price-col">
-          {% if trigger_discount_pct > 0 and trigger_discounted_price < main_price %}
-            <span class="bxgy-fbt__card-price--original">{{ main_price | money }}</span>
-            <span class="bxgy-fbt__card-price--discounted">{{ trigger_discounted_price | money }}</span>
-          {% else %}
-            {{ main_price | money }}
-          {% endif %}
-        </div>
-      </div>
-      {% if complement_count > 0 %}
-        <div class="bxgy-fbt__plus">+</div>
-      {% endif %}
-    {% endif %}
-    {% comment %} === Complement Product Cards === {% endcomment %}
-    {% for comp in complements %}
-      {% if forloop.index > 1 %}
-        <div class="bxgy-fbt__plus">+</div>
-      {% endif %}
+        {%- comment -%} Embedded product cards {%- endcomment -%}
+        <div class="bxgy-fbt__radio-cards">
+          {%- comment -%} Trigger card {%- endcomment -%}
+          <div class="bxgy-fbt__mini-card"
+            data-fbt-trigger-card data-fbt-trigger-price="{{ main_price }}">
+            {% if main_image != blank %}
+              <img class="bxgy-fbt__mini-img" src="{{ main_image }}" alt="{{ main_title | escape }}" loading="lazy">
+            {% else %}
+              <div class="bxgy-fbt__mini-img-ph">No img</div>
+            {% endif %}
+            <div class="bxgy-fbt__mini-name">{{ main_title }}</div>
+            {% if trigger_discount_pct > 0 %}
+              <div><span class="bxgy-fbt__mini-price" data-fbt-trigger-final-{{ g_idx }}>{{ trigger_final | money }}</span>
+              <span class="bxgy-fbt__mini-orig" data-fbt-trigger-orig-{{ g_idx }}>{{ main_price | money }}</span></div>
+            {% else %}
+              <div class="bxgy-fbt__mini-price" style="color:{{ ds_text }}">{{ main_price | money }}</div>
+            {% endif %}
+          </div>
 
-      {% assign comp_handle = comp.handle %}
-      {% assign comp_product = all_products[comp_handle] %}
-      {% assign comp_discount_pct = comp.discountPct %}
+          {%- comment -%} Group complement cards {%- endcomment -%}
+          {% for comp in complements %}
+            {% assign cg = comp.group | default: 0 %}
+            {% if cg == g_idx %}
+              {% assign comp_handle = comp.handle %}
+              {% assign comp_product = all_products[comp_handle] %}
+              {% assign comp_discount_pct = comp.discountPct %}
 
-      {% comment %} Resolve image {% endcomment %}
-      {% if comp_product != blank and comp_product.featured_image != blank %}
-        {% assign comp_image = comp_product.featured_image | image_url: width: 300 %}
-      {% elsif comp.image != blank %}
-        {% assign comp_image = comp.image %}
-      {% else %}
-        {% assign comp_image = '' %}
-      {% endif %}
+              {% if comp_product != blank and comp_product.featured_image != blank %}
+                {% assign comp_image = comp_product.featured_image | image_url: width: 300 %}
+              {% elsif comp.image != blank %}
+                {% assign comp_image = comp.image %}
+              {% else %}
+                {% assign comp_image = '' %}
+              {% endif %}
 
-      {% comment %} Resolve price (cents) {% endcomment %}
-      {% if comp_product != blank %}
-        {% assign comp_price = comp_product.price %}
-      {% elsif comp.price != blank %}
-        {% assign comp_price = comp.price %}
-      {% else %}
-        {% assign comp_price = 0 %}
-      {% endif %}
+              {% if comp_product != blank %}
+                {% assign comp_price = comp_product.price %}
+              {% elsif comp.price != blank %}
+                {% assign comp_price = comp.price %}
+              {% else %}
+                {% assign comp_price = 0 %}
+              {% endif %}
 
-      {% comment %} Calculate discounted price {% endcomment %}
-      {% assign discount_fraction = comp_discount_pct | times: 100 | divided_by: 10000.0 %}
-      {% assign discount_amount = comp_price | times: 1.0 | times: discount_fraction %}
-      {% assign comp_discounted = comp_price | minus: discount_amount | round %}
+              {% assign disc_frac = comp_discount_pct | times: 100 | divided_by: 10000.0 %}
+              {% assign disc_amt = comp_price | times: 1.0 | times: disc_frac %}
+              {% assign comp_final = comp_price | minus: disc_amt | round %}
+              {% assign comp_qty = comp.quantity | default: 1 %}
+              {% assign comp_total = comp_price | times: comp_qty %}
+              {% assign comp_total_final = comp_final | times: comp_qty %}
 
-      {% assign comp_quantity = comp.quantity | default: 1 %}
-
-      <div class="bxgy-fbt__card"
-        data-fbt-comp-card
-        data-fbt-comp-product-id="{{ comp.productId }}"
-        data-fbt-comp-variant-id="{{ comp.variantId }}"
-        data-fbt-comp-discount-pct="{{ comp_discount_pct }}"
-        data-fbt-comp-price="{{ comp_price }}"
-        data-fbt-comp-quantity="{{ comp_quantity }}"
-      >
-        {% if comp_image != blank %}
-          <img class="bxgy-fbt__card-image" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy">
-        {% else %}
-          <div class="bxgy-fbt__card-image-placeholder">No image</div>
-        {% endif %}
-
-        <div class="bxgy-fbt__card-details">
-          {% if comp_quantity > 1 %}
-            <div class="bxgy-fbt__card-badge">{{ comp_quantity }}×</div>
-          {% endif %}
-          {% if comp_discount_pct > 0 %}
-            <div class="bxgy-fbt__card-badge">SAVE {{ comp_discount_pct }}%</div>
-          {% else %}
-            {% unless comp_quantity > 1 %}
-              <div class="bxgy-fbt__card-label">Add-on</div>
-            {% endunless %}
-          {% endif %}
-
-          <div class="bxgy-fbt__card-title">{{ comp.title }}</div>
-        </div>
-
-        {% assign comp_total_price = comp_price | times: comp_quantity %}
-        {% assign comp_total_discounted = comp_discounted | times: comp_quantity %}
-        <div class="bxgy-fbt__card-price bxgy-fbt__card-price-col">
-          {% if comp_discount_pct > 0 and comp_discounted < comp_price %}
-            <span class="bxgy-fbt__card-price--original">{{ comp_total_price | money }}</span>
-            <span class="bxgy-fbt__card-price--discounted">{{ comp_total_discounted | money }}</span>
-          {% else %}
-            {{ comp_total_price | money }}
-          {% endif %}
+              <div class="bxgy-fbt__mini-card"
+                data-fbt-comp-card
+                data-fbt-comp-group="{{ g_idx }}"
+                data-fbt-comp-variant-id="{{ comp.variantId }}"
+                data-fbt-comp-discount-pct="{{ comp_discount_pct }}"
+                data-fbt-comp-price="{{ comp_price }}"
+                data-fbt-comp-quantity="{{ comp_qty }}">
+                <div class="bxgy-fbt__mini-plus">+</div>
+                {% if comp_image != blank %}
+                  <img class="bxgy-fbt__mini-img" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy">
+                {% else %}
+                  <div class="bxgy-fbt__mini-img-ph">No img</div>
+                {% endif %}
+                {% if comp_discount_pct > 0 %}
+                  <div class="bxgy-fbt__mini-badge">SAVE {{ comp_discount_pct }}%</div>
+                {% endif %}
+                <div class="bxgy-fbt__mini-name">{{ comp.title }}</div>
+                {% if comp_discount_pct > 0 and comp_final < comp_price %}
+                  <div><span class="bxgy-fbt__mini-price">{{ comp_total_final | money }}</span>
+                  <span class="bxgy-fbt__mini-orig">{{ comp_total | money }}</span></div>
+                {% else %}
+                  <div class="bxgy-fbt__mini-price" style="color:{{ ds_text }}">{{ comp_total | money }}</div>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
         </div>
       </div>
     {% endfor %}
 
-  </div> {% comment %} close .bxgy-fbt__cards {% endcomment %}
-  </div> {% comment %} close .bxgy-fbt__combo-section {% endcomment %}
+  {% else %}
+    {%- comment -%} ═══ FBT MODE ═══ {%- endcomment -%}
+    <div class="bxgy-fbt__cards bxgy-fbt__cards--{{ ds_layout }}">
+      {% for comp in complements %}
+        {% if forloop.index > 1 %}<div class="bxgy-fbt__plus">+</div>{% endif %}
 
-  {% comment %} Summary {% endcomment %}
+        {% assign comp_handle = comp.handle %}
+        {% assign comp_product = all_products[comp_handle] %}
+        {% assign comp_discount_pct = comp.discountPct %}
+
+        {% if comp_product != blank and comp_product.featured_image != blank %}
+          {% assign comp_image = comp_product.featured_image | image_url: width: 300 %}
+        {% elsif comp.image != blank %}
+          {% assign comp_image = comp.image %}
+        {% else %}
+          {% assign comp_image = '' %}
+        {% endif %}
+
+        {% if comp_product != blank %}
+          {% assign comp_price = comp_product.price %}
+        {% elsif comp.price != blank %}
+          {% assign comp_price = comp.price %}
+        {% else %}
+          {% assign comp_price = 0 %}
+        {% endif %}
+
+        {% assign disc_frac = comp_discount_pct | times: 100 | divided_by: 10000.0 %}
+        {% assign disc_amt = comp_price | times: 1.0 | times: disc_frac %}
+        {% assign comp_final = comp_price | minus: disc_amt | round %}
+        {% assign comp_qty = comp.quantity | default: 1 %}
+        {% assign comp_total = comp_price | times: comp_qty %}
+        {% assign comp_total_final = comp_final | times: comp_qty %}
+
+        <div class="bxgy-fbt__card"
+          data-fbt-comp-card
+          data-fbt-comp-group="0"
+          data-fbt-comp-variant-id="{{ comp.variantId }}"
+          data-fbt-comp-discount-pct="{{ comp_discount_pct }}"
+          data-fbt-comp-price="{{ comp_price }}"
+          data-fbt-comp-quantity="{{ comp_qty }}">
+          {% if comp_image != blank %}
+            <img class="bxgy-fbt__card-image" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy">
+          {% else %}
+            <div class="bxgy-fbt__card-image-placeholder">No image</div>
+          {% endif %}
+          <div class="bxgy-fbt__card-details">
+            {% if comp_qty > 1 %}<div class="bxgy-fbt__card-badge">{{ comp_qty }}×</div>{% endif %}
+            {% if comp_discount_pct > 0 %}
+              <div class="bxgy-fbt__card-badge">SAVE {{ comp_discount_pct }}%</div>
+            {% else %}
+              {% unless comp_qty > 1 %}<div class="bxgy-fbt__card-label">Add-on</div>{% endunless %}
+            {% endif %}
+            <div class="bxgy-fbt__card-title">{{ comp.title }}</div>
+          </div>
+          <div class="bxgy-fbt__card-price bxgy-fbt__card-price-col">
+            {% if comp_discount_pct > 0 and comp_final < comp_price %}
+              <span class="bxgy-fbt__card-price--original">{{ comp_total | money }}</span>
+              <span class="bxgy-fbt__card-price--discounted">{{ comp_total_final | money }}</span>
+            {% else %}
+              {{ comp_total | money }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {%- comment -%} Summary {%- endcomment -%}
   <div class="bxgy-fbt__summary">
     <div class="bxgy-fbt__summary-prices">
       <span class="bxgy-fbt__summary-original" data-fbt-total-original></span>
@@ -510,7 +494,6 @@
     <div class="bxgy-fbt__summary-savings" data-fbt-savings></div>
   </div>
 
-  {% comment %} Add All to Cart button {% endcomment %}
   <button class="bxgy-fbt__add-btn" data-fbt-add-btn type="button">
     {% if bundle_mode == "combo" %}Complete the Combo{% else %}Add All to Cart{% endif %}
   </button>
@@ -521,319 +504,235 @@
 
 <script>
 (function() {
-  var WIDGET_ID = 'bxgy-fbt-{{ block.id }}';
-  var widget = document.getElementById(WIDGET_ID);
-  if (!widget) return;
+  var W = document.getElementById('bxgy-fbt-{{ block.id }}');
+  if (!W) return;
 
   var shopCurrency = {{ shop.currency | json }};
-  var bundleMode = widget.getAttribute('data-fbt-mode') || 'fbt';
-  var triggerDiscountPct = parseFloat(widget.getAttribute('data-fbt-trigger-discount-pct')) || 0;
-  var comboSelected = bundleMode === 'combo'; // combo option selected by default
+  var bundleMode = W.getAttribute('data-fbt-mode') || 'fbt';
+  var triggerDiscountPct = parseFloat(W.getAttribute('data-fbt-trigger-discount-pct')) || 0;
 
-  /* ── Helpers ── */
-  function formatMoney(cents) {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: shopCurrency || 'USD'
-    }).format(cents / 100);
+  var selectedGroup = null; // group index or null (standard)
+  var comboSelected = false;
+
+  function fmt(cents) {
+    return new Intl.NumberFormat(undefined, { style:'currency', currency: shopCurrency||'USD' }).format(cents/100);
   }
 
-  /* ── Buy product variants lookup ── */
-  var buyVariants = {};
-  {% for variant in product.variants %}
-    buyVariants['{{ variant.id }}'] = {
-      price: {{ variant.price }},
-      available: {{ variant.available | json }}
-    };
+  /* Buy variants */
+  var bv = {};
+  {% for v in product.variants %}
+    bv['{{ v.id }}'] = { price: {{ v.price }}, available: {{ v.available | json }} };
   {% endfor %}
 
-  /* ── Detect current buy variant ── */
   function detectBuyVariant() {
-    var urlParams = new URLSearchParams(window.location.search);
-    var urlVariant = urlParams.get('variant');
-    if (urlVariant && buyVariants[urlVariant]) return urlVariant;
-    var input = document.querySelector('form[action*="/cart/add"] input[name="id"]');
-    if (input && input.value && buyVariants[input.value]) return input.value;
-    var select = document.querySelector('form[action*="/cart/add"] select[name="id"]');
-    if (select && select.value && buyVariants[select.value]) return select.value;
-    var keys = Object.keys(buyVariants);
-    for (var i = 0; i < keys.length; i++) {
-      if (buyVariants[keys[i]].available) return keys[i];
+    var p = new URLSearchParams(window.location.search);
+    var u = p.get('variant');
+    if (u && bv[u]) return u;
+    var inp = document.querySelector('form[action*="/cart/add"] input[name="id"]');
+    if (inp && inp.value && bv[inp.value]) return inp.value;
+    var sel = document.querySelector('form[action*="/cart/add"] select[name="id"]');
+    if (sel && sel.value && bv[sel.value]) return sel.value;
+    var keys = Object.keys(bv);
+    for (var i=0;i<keys.length;i++) { if (bv[keys[i]].available) return keys[i]; }
+    return keys[0]||null;
+  }
+
+  var curVid = detectBuyVariant();
+  var curPrice = curVid && bv[curVid] ? bv[curVid].price : {{ main_price | json }};
+
+  /* Complements by group */
+  var compCards = W.querySelectorAll('[data-fbt-comp-card]');
+  var byGroup = {};
+  var allComps = [];
+  for (var i=0;i<compCards.length;i++) {
+    var c = compCards[i];
+    var g = parseInt(c.getAttribute('data-fbt-comp-group'),10)||0;
+    var obj = {
+      variantId: c.getAttribute('data-fbt-comp-variant-id'),
+      discountPct: parseFloat(c.getAttribute('data-fbt-comp-discount-pct'))||0,
+      price: parseInt(c.getAttribute('data-fbt-comp-price'),10)||0,
+      quantity: parseInt(c.getAttribute('data-fbt-comp-quantity'),10)||1
+    };
+    if (!byGroup[g]) byGroup[g]=[];
+    byGroup[g].push(obj);
+    allComps.push(obj);
+  }
+  var groupKeys = Object.keys(byGroup).map(Number).sort(function(a,b){return a-b;});
+
+  /* DOM */
+  var totalOrigEl = W.querySelector('[data-fbt-total-original]');
+  var totalFinEl = W.querySelector('[data-fbt-total-final]');
+  var savingsEl = W.querySelector('[data-fbt-savings]');
+  var addBtn = W.querySelector('[data-fbt-add-btn]');
+  var feedbackEl = W.querySelector('[data-fbt-feedback]');
+  var stdPriceEl = W.querySelector('[data-fbt-standard-price]');
+  var allRadios = W.querySelectorAll('[data-fbt-radio]');
+
+  function calcGroup(gIdx) {
+    var comps = byGroup[gIdx]||[];
+    var tOrig = curPrice;
+    var tFin = Math.round(curPrice*(1-triggerDiscountPct/100));
+    for (var i=0;i<comps.length;i++) {
+      var q = comps[i].quantity||1;
+      tOrig += comps[i].price*q;
+      tFin += Math.round(comps[i].price*(1-comps[i].discountPct/100))*q;
     }
-    return keys[0] || null;
+    return {orig:tOrig, fin:tFin, save:tOrig-tFin};
   }
 
-  var currentBuyVariantId = detectBuyVariant();
-  var currentBuyPrice = currentBuyVariantId && buyVariants[currentBuyVariantId]
-    ? buyVariants[currentBuyVariantId].price
-    : {{ main_price | json }};
-
-  /* ── Complement cards data ── */
-  var compCards = widget.querySelectorAll('[data-fbt-comp-card]');
-  var complements = [];
-  for (var i = 0; i < compCards.length; i++) {
-    var card = compCards[i];
-    complements.push({
-      variantId: card.getAttribute('data-fbt-comp-variant-id'),
-      discountPct: parseFloat(card.getAttribute('data-fbt-comp-discount-pct')) || 0,
-      price: parseInt(card.getAttribute('data-fbt-comp-price'), 10) || 0,
-      quantity: parseInt(card.getAttribute('data-fbt-comp-quantity'), 10) || 1
-    });
-  }
-
-  /* ── DOM refs ── */
-  var totalOriginalEl = widget.querySelector('[data-fbt-total-original]');
-  var totalFinalEl = widget.querySelector('[data-fbt-total-final]');
-  var savingsEl = widget.querySelector('[data-fbt-savings]');
-  var addBtn = widget.querySelector('[data-fbt-add-btn]');
-  var feedbackEl = widget.querySelector('[data-fbt-feedback]');
-
-  /* ── Combo mode DOM refs ── */
-  var standardRadio = widget.querySelector('[data-fbt-radio="standard"]');
-  var comboRadio = widget.querySelector('[data-fbt-radio="combo"]');
-  var comboSection = widget.querySelector('[data-fbt-combo-section]');
-  var comboSavingsEl = widget.querySelector('[data-fbt-combo-savings]');
-  var comboOriginalEl = widget.querySelector('[data-fbt-combo-original]');
-  var comboFinalEl = widget.querySelector('[data-fbt-combo-final]');
-  var standardPriceEl = widget.querySelector('[data-fbt-standard-price]');
-
-  /* ── Update prices ── */
   function updatePrices() {
-    if (currentBuyVariantId && buyVariants[currentBuyVariantId]) {
-      currentBuyPrice = buyVariants[currentBuyVariantId].price;
-    }
+    if (curVid && bv[curVid]) curPrice = bv[curVid].price;
 
-    if (bundleMode === 'combo') {
-      /* Combo mode: trigger (with discount) + complements */
-      var triggerOriginal = currentBuyPrice;
-      var triggerFinal = Math.round(currentBuyPrice * (1 - triggerDiscountPct / 100));
-      var totalOriginal = triggerOriginal;
-      var totalFinal = triggerFinal;
+    if (bundleMode==='combo') {
+      if (stdPriceEl) stdPriceEl.textContent = fmt(curPrice);
 
-      for (var i = 0; i < complements.length; i++) {
-        var c = complements[i];
-        var qty = c.quantity || 1;
-        totalOriginal += c.price * qty;
-        totalFinal += Math.round(c.price * (1 - c.discountPct / 100)) * qty;
+      for (var i=0;i<groupKeys.length;i++) {
+        var g = groupKeys[i];
+        var t = calcGroup(g);
+        var sEl = W.querySelector('[data-fbt-combo-savings-'+g+']');
+        var oEl = W.querySelector('[data-fbt-combo-original-'+g+']');
+        var fEl = W.querySelector('[data-fbt-combo-final-'+g+']');
+        if (sEl) sEl.textContent = t.save>0 ? 'Save '+fmt(t.save)+'!' : '';
+        if (oEl) oEl.textContent = t.save>0 ? fmt(t.orig) : '';
+        if (fEl) fEl.textContent = fmt(t.fin);
       }
 
-      var savings = totalOriginal - totalFinal;
-
-      /* Update radio option prices */
-      if (standardPriceEl) standardPriceEl.textContent = formatMoney(currentBuyPrice);
-      if (comboOriginalEl) comboOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
-      if (comboFinalEl) comboFinalEl.textContent = formatMoney(totalFinal);
-      if (comboSavingsEl) comboSavingsEl.textContent = savings > 0 ? 'Save ' + formatMoney(savings) + '!' : '';
-
-      /* Summary bar */
-      if (totalOriginalEl) totalOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
-      if (totalFinalEl) totalFinalEl.textContent = formatMoney(totalFinal);
-      if (savingsEl) savingsEl.textContent = savings > 0 ? 'You save ' + formatMoney(savings) : '';
+      if (comboSelected && selectedGroup!==null) {
+        var sel = calcGroup(selectedGroup);
+        if (totalOrigEl) totalOrigEl.textContent = sel.save>0 ? fmt(sel.orig) : '';
+        if (totalFinEl) totalFinEl.textContent = fmt(sel.fin);
+        if (savingsEl) savingsEl.textContent = sel.save>0 ? 'You save '+fmt(sel.save) : '';
+      } else {
+        if (totalOrigEl) totalOrigEl.textContent = '';
+        if (totalFinEl) totalFinEl.textContent = fmt(curPrice);
+        if (savingsEl) savingsEl.textContent = '';
+      }
     } else {
-      /* FBT mode: trigger at full price + discounted complements */
-      var totalOriginal = currentBuyPrice;
-      var totalFinal = currentBuyPrice;
-
-      for (var i = 0; i < complements.length; i++) {
-        var c = complements[i];
-        var qty = c.quantity || 1;
-        totalOriginal += c.price * qty;
-        var discounted = Math.round(c.price * (1 - c.discountPct / 100)) * qty;
-        totalFinal += discounted;
+      var tO = curPrice, tF = curPrice;
+      for (var i=0;i<allComps.length;i++) {
+        var q = allComps[i].quantity||1;
+        tO += allComps[i].price*q;
+        tF += Math.round(allComps[i].price*(1-allComps[i].discountPct/100))*q;
       }
-
-      var savings = totalOriginal - totalFinal;
-
-      if (totalOriginalEl) totalOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
-      if (totalFinalEl) totalFinalEl.textContent = formatMoney(totalFinal);
-      if (savingsEl) savingsEl.textContent = savings > 0 ? 'You save ' + formatMoney(savings) : '';
+      var s = tO-tF;
+      if (totalOrigEl) totalOrigEl.textContent = s>0 ? fmt(tO) : '';
+      if (totalFinEl) totalFinEl.textContent = fmt(tF);
+      if (savingsEl) savingsEl.textContent = s>0 ? 'You save '+fmt(s) : '';
     }
   }
 
-  /* ── Buy variant change listeners ── */
-  function onBuyVariantChange(variantId) {
-    if (variantId && buyVariants[variantId]) {
-      currentBuyVariantId = variantId;
-      updatePrices();
-    }
+  /* Variant change */
+  function onVarChange(vid) { if (vid && bv[vid]) { curVid=vid; updatePrices(); } }
+  function checkUrl() {
+    var v = new URLSearchParams(window.location.search).get('variant');
+    if (v && v!==curVid) onVarChange(v);
   }
-
-  function checkUrlVariant() {
-    var urlParams = new URLSearchParams(window.location.search);
-    var v = urlParams.get('variant');
-    if (v && v !== currentBuyVariantId) onBuyVariantChange(v);
-  }
-  window.addEventListener('popstate', checkUrlVariant);
-
+  window.addEventListener('popstate', checkUrl);
   document.addEventListener('variant:changed', function(e) {
-    if (e.detail && e.detail.variant && e.detail.variant.id) {
-      onBuyVariantChange(String(e.detail.variant.id));
-    }
+    if (e.detail && e.detail.variant && e.detail.variant.id) onVarChange(String(e.detail.variant.id));
   });
-
-  var variantInput = document.querySelector('form[action*="/cart/add"] input[name="id"]');
-  if (variantInput) {
-    var observer = new MutationObserver(function() { onBuyVariantChange(variantInput.value); });
-    observer.observe(variantInput, { attributes: true, attributeFilter: ['value'] });
-    var variantSelect = document.querySelector('form[action*="/cart/add"] select[name="id"]');
-    if (variantSelect) {
-      variantSelect.addEventListener('change', function() { onBuyVariantChange(variantSelect.value); });
-    }
+  var vi = document.querySelector('form[action*="/cart/add"] input[name="id"]');
+  if (vi) {
+    new MutationObserver(function(){onVarChange(vi.value);}).observe(vi,{attributes:true,attributeFilter:['value']});
+    var vs = document.querySelector('form[action*="/cart/add"] select[name="id"]');
+    if (vs) vs.addEventListener('change',function(){onVarChange(vs.value);});
   }
-
   var lastUrl = window.location.href;
-  setInterval(function() {
-    if (window.location.href !== lastUrl) {
-      lastUrl = window.location.href;
-      checkUrlVariant();
-    }
-  }, 500);
+  setInterval(function(){if(window.location.href!==lastUrl){lastUrl=window.location.href;checkUrl();}},500);
 
-  /* ── Feedback ── */
-  function showFeedback(type, message) {
-    feedbackEl.textContent = message;
-    feedbackEl.className = 'bxgy-fbt__feedback bxgy-fbt__feedback--' + type;
-    if (type === 'success') {
-      setTimeout(function() { feedbackEl.className = 'bxgy-fbt__feedback'; }, 4000);
-    }
+  /* Feedback */
+  function showFB(type,msg) {
+    feedbackEl.textContent=msg;
+    feedbackEl.className='bxgy-fbt__feedback bxgy-fbt__feedback--'+type;
+    if (type==='success') setTimeout(function(){feedbackEl.className='bxgy-fbt__feedback';},4000);
   }
 
-  /* ── Cart count update ── */
-  function updateCartCount(itemCount) {
-    var selectors = [
-      '.cart-count-bubble span[aria-hidden="true"]',
-      '.cart-count-bubble',
-      '.cart-count',
-      '[data-cart-count]',
-      '.site-header__cart-count',
-      '#cart-icon-bubble span',
-      '.header__cart-count'
-    ];
-    for (var i = 0; i < selectors.length; i++) {
-      var el = document.querySelector(selectors[i]);
-      if (el) {
-        var current = parseInt(el.textContent, 10) || 0;
-        el.textContent = current + itemCount;
-        break;
-      }
-    }
+  /* Cart count */
+  function updCart(n) {
+    var sels = ['.cart-count-bubble span[aria-hidden="true"]','.cart-count-bubble','.cart-count','[data-cart-count]','.site-header__cart-count','#cart-icon-bubble span','.header__cart-count'];
+    for (var i=0;i<sels.length;i++){var el=document.querySelector(sels[i]);if(el){el.textContent=String((parseInt(el.textContent,10)||0)+n);break;}}
   }
 
-  /* ── Add All to Cart (trigger + complements) ── */
+  /* Add to cart */
   addBtn.addEventListener('click', function() {
     if (addBtn.disabled) return;
-
-    addBtn.disabled = true;
+    addBtn.disabled=true;
     addBtn.classList.add('bxgy-fbt__add-btn--loading');
-    feedbackEl.className = 'bxgy-fbt__feedback';
+    feedbackEl.className='bxgy-fbt__feedback';
 
-    var items = [];
+    var items=[];
+    var vid = detectBuyVariant();
 
-    /* Always include the trigger (current PDP) product so the discount
-       function sees it in the cart and activates the FBT discounts. */
-    var buyVid = detectBuyVariant();
-
-    /* In combo mode with "standard" selected, only add the trigger product */
-    if (bundleMode === 'combo' && !comboSelected) {
-      if (buyVid) {
-        items.push({ id: Number(buyVid), quantity: 1 });
-      }
+    if (bundleMode==='combo' && !comboSelected) {
+      if (vid) items.push({id:Number(vid),quantity:1});
     } else {
-      if (buyVid) {
-        items.push({ id: Number(buyVid), quantity: 1 });
-      }
-      for (var i = 0; i < complements.length; i++) {
-        if (complements[i].variantId) {
-          items.push({ id: Number(complements[i].variantId), quantity: complements[i].quantity || 1 });
-        }
+      if (vid) items.push({id:Number(vid),quantity:1});
+      var list = (bundleMode==='combo' && selectedGroup!==null) ? (byGroup[selectedGroup]||[]) : allComps;
+      for (var i=0;i<list.length;i++) {
+        if (list[i].variantId) items.push({id:Number(list[i].variantId),quantity:list[i].quantity||1});
       }
     }
 
-    if (items.length === 0) {
-      addBtn.disabled = false;
-      addBtn.classList.remove('bxgy-fbt__add-btn--loading');
-      showFeedback('error', 'No products to add.');
-      return;
-    }
+    if (!items.length) { addBtn.disabled=false; addBtn.classList.remove('bxgy-fbt__add-btn--loading'); showFB('error','No products to add.'); return; }
 
-    fetch('/cart/add.js', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ items: items })
+    fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
+    .then(function(r){if(!r.ok) return r.json().then(function(d){throw new Error(d.description||d.message||'Failed');}); return r.json();})
+    .then(function(){
+      addBtn.disabled=false; addBtn.classList.remove('bxgy-fbt__add-btn--loading');
+      showFB('success','Bundle added to cart!');
+      updCart(items.reduce(function(s,it){return s+it.quantity;},0));
     })
-    .then(function(response) {
-      if (!response.ok) {
-        return response.json().then(function(data) {
-          throw new Error(data.description || data.message || 'Failed to add to cart');
-        });
-      }
-      return response.json();
-    })
-    .then(function() {
-      addBtn.disabled = false;
-      addBtn.classList.remove('bxgy-fbt__add-btn--loading');
-      showFeedback('success', 'Bundle added to cart!');
-      var totalItemCount = items.reduce(function(sum, item) { return sum + item.quantity; }, 0);
-      updateCartCount(totalItemCount);
-    })
-    .catch(function(err) {
-      addBtn.disabled = false;
-      addBtn.classList.remove('bxgy-fbt__add-btn--loading');
-      showFeedback('error', err.message || 'Something went wrong. Please try again.');
+    .catch(function(err){
+      addBtn.disabled=false; addBtn.classList.remove('bxgy-fbt__add-btn--loading');
+      showFB('error', err.message||'Something went wrong.');
     });
   });
 
-  /* ── Combo mode radio toggle ── */
-  if (bundleMode === 'combo') {
-    function setComboSelection(selected) {
-      comboSelected = selected === 'combo';
-      if (standardRadio) {
-        standardRadio.classList.toggle('bxgy-fbt__radio-option--active', !comboSelected);
+  /* Combo radio selection */
+  if (bundleMode==='combo') {
+    function setSelection(type, gIdx) {
+      comboSelected = type==='combo';
+      selectedGroup = comboSelected ? gIdx : null;
+
+      for (var r=0;r<allRadios.length;r++) {
+        var radio = allRadios[r];
+        var rType = radio.getAttribute('data-fbt-radio');
+        var rGroup = parseInt(radio.getAttribute('data-fbt-radio-group'),10);
+        var active = false;
+        if (type==='standard' && rType==='standard') active=true;
+        if (type==='combo' && rType==='combo' && rGroup===gIdx) active=true;
+        radio.classList.toggle('bxgy-fbt__radio--active', active);
       }
-      if (comboRadio) {
-        comboRadio.classList.toggle('bxgy-fbt__radio-option--active', comboSelected);
-      }
-      if (comboSection) {
-        comboSection.classList.toggle('bxgy-fbt__combo-section--visible', comboSelected);
-      }
-      /* Update button text */
-      if (addBtn) {
-        addBtn.textContent = comboSelected ? 'Complete the Combo' : 'Add to Cart';
-      }
+
+      if (addBtn) addBtn.textContent = comboSelected ? 'Complete the Combo' : 'Add to Cart';
+      updatePrices();
     }
 
-    if (standardRadio) {
-      standardRadio.addEventListener('click', function() { setComboSelection('standard'); });
-    }
-    if (comboRadio) {
-      comboRadio.addEventListener('click', function() { setComboSelection('combo'); });
+    for (var r=0;r<allRadios.length;r++) {
+      (function(radio){
+        radio.addEventListener('click', function(){
+          var type = radio.getAttribute('data-fbt-radio');
+          var gIdx = parseInt(radio.getAttribute('data-fbt-radio-group'),10)||0;
+          setSelection(type, gIdx);
+        });
+      })(allRadios[r]);
     }
 
-    /* Default to combo selected */
-    setComboSelection('combo');
+    /* Default: last group selected */
+    if (groupKeys.length>0) setSelection('combo', groupKeys[groupKeys.length-1]);
   }
 
-  /* ── Initialize ── */
   updatePrices();
 })();
 </script>
 
 {% else %}
-  {% comment %} No complement bundle configured for this product - show fallback/preview {% endcomment %}
   {% if request.design_mode %}
-    <div style="
-      border: 1px solid #e5e5e5;
-      border-radius: 12px;
-      padding: 20px;
-      margin: 16px 0;
-      background: {{ block.settings.background_color }};
-      font-family: inherit;
-    ">
-      <div style="font-weight: 800; font-size: 13px; color: {{ block.settings.accent_color }}; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; margin-bottom: 8px;">
+    <div style="border:1px solid #e5e5e5;border-radius:12px;padding:20px;margin:16px 0;background:{{ block.settings.background_color }};font-family:inherit;">
+      <div style="font-weight:800;font-size:13px;color:{{ block.settings.accent_color }};text-transform:uppercase;letter-spacing:0.5px;text-align:center;margin-bottom:8px;">
         {{ block.settings.header_text }}
       </div>
-      <p style="font-size: 14px; margin: 0; color: {{ block.settings.text_color }}; text-align: center;">
+      <p style="font-size:14px;margin:0;color:{{ block.settings.text_color }};text-align:center;">
         Configure a Frequently Bought Together bundle for this product in the BXApp admin.
       </p>
     </div>
@@ -845,42 +744,12 @@
   "name": "FBT Complement Bundle",
   "target": "section",
   "settings": [
-    {
-      "type": "text",
-      "id": "header_text",
-      "label": "Header text",
-      "default": "FREQUENTLY BOUGHT TOGETHER"
-    },
-    {
-      "type": "color",
-      "id": "accent_color",
-      "label": "Accent color",
-      "default": "#2563eb"
-    },
-    {
-      "type": "color",
-      "id": "background_color",
-      "label": "Background color",
-      "default": "#f0f6ff"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#1a1a1a"
-    },
-    {
-      "type": "color",
-      "id": "button_color",
-      "label": "Button color",
-      "default": "#2563eb"
-    },
-    {
-      "type": "color",
-      "id": "button_text_color",
-      "label": "Button text color",
-      "default": "#ffffff"
-    }
+    { "type": "text", "id": "header_text", "label": "Header text", "default": "FREQUENTLY BOUGHT TOGETHER" },
+    { "type": "color", "id": "accent_color", "label": "Accent color", "default": "#2563eb" },
+    { "type": "color", "id": "background_color", "label": "Background color", "default": "#f0f6ff" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#1a1a1a" },
+    { "type": "color", "id": "button_color", "label": "Button color", "default": "#2563eb" },
+    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#ffffff" }
   ]
 }
 {% endschema %}

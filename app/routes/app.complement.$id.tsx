@@ -33,6 +33,7 @@ type ComplementItem = {
   variantId: string;
   discountPct: number;
   quantity: number;
+  group: number; // combo group index (0, 1, 2...)
 };
 
 const DEFAULT_DESIGN = {
@@ -418,7 +419,7 @@ export default function ComplementBundleForm() {
     }
   }, [shopify]);
 
-  const handleAddComplement = useCallback(async () => {
+  const handleAddComplement = useCallback(async (groupIndex = 0) => {
     const selected = await shopify.resourcePicker({
       type: "product",
       multiple: true,
@@ -426,7 +427,7 @@ export default function ComplementBundleForm() {
     if (selected) {
       const items = Array.isArray(selected) ? selected : [selected];
       const newItems: ComplementItem[] = items
-        .filter((item: any) => !complements.some((c) => c.productId === item.id))
+        .filter((item: any) => !complements.some((c) => c.productId === item.id && c.group === groupIndex))
         .map((item: any) => {
           const firstVariant = item.variants?.[0];
           const variantGid = firstVariant?.id || "";
@@ -440,9 +441,13 @@ export default function ComplementBundleForm() {
             variantId: numericVariantId,
             discountPct: 10,
             quantity: 1,
+            group: groupIndex,
           };
         });
-      setComplements((prev) => [...prev, ...newItems]);
+      setComplements((prev) => [
+        ...prev.filter((c) => !(c.group === groupIndex && c.productId.startsWith("__placeholder"))),
+        ...newItems,
+      ]);
     }
   }, [shopify, complements]);
 
@@ -462,6 +467,57 @@ export default function ComplementBundleForm() {
     setComplements((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Combo groups: derive unique groups from complements
+  const comboGroups = (() => {
+    const groupSet = new Set(complements.map((c) => c.group ?? 0));
+    return Array.from(groupSet).sort((a, b) => a - b);
+  })();
+
+  const addComboGroup = () => {
+    const nextGroup = comboGroups.length > 0 ? Math.max(...comboGroups) + 1 : 0;
+    // Add an empty placeholder so the group appears immediately (user adds products after)
+    setComplements((prev) => [
+      ...prev,
+      {
+        productId: `__placeholder_${nextGroup}`,
+        title: "",
+        handle: "",
+        image: "",
+        price: 0,
+        variantId: "",
+        discountPct: 0,
+        quantity: 1,
+        group: nextGroup,
+      },
+    ]);
+  };
+
+  const removeComboGroup = (groupIndex: number) => {
+    setComplements((prev) => prev.filter((c) => (c.group ?? 0) !== groupIndex));
+  };
+
+  // Helper: get complements for a specific group (excluding placeholders)
+  const getGroupComplements = (groupIndex: number) =>
+    complements.filter((c) => (c.group ?? 0) === groupIndex && !c.productId.startsWith("__placeholder"));
+
+  // Helper: calculate group totals for preview
+  const calcGroupTotals = (groupIndex: number) => {
+    const groupComps = getGroupComplements(groupIndex);
+    const compsOrig = groupComps.reduce((sum, c) => sum + (c.price || 1990) * (c.quantity || 1), 0);
+    const compsFin = groupComps.reduce((sum, c) => {
+      const p = c.price || 1990;
+      const qty = c.quantity || 1;
+      return sum + Math.round(p * (1 - c.discountPct / 100)) * qty;
+    }, 0);
+    const triggerOrig = triggerPricePreview;
+    const triggerFin = Math.round(triggerPricePreview * (1 - triggerPctNum / 100));
+    return {
+      totalOriginal: triggerOrig + compsOrig,
+      totalFinal: triggerFin + compsFin,
+      totalSave: (triggerOrig + compsOrig) - (triggerFin + compsFin),
+    };
+  };
+
   const handleSubmit = () => {
     const validationErrors: string[] = [];
     if (!name.trim()) validationErrors.push("Name is required");
@@ -470,7 +526,8 @@ export default function ComplementBundleForm() {
         triggerType === "product" ? "Trigger product is required" : "Trigger collection is required",
       );
     }
-    if (complements.length === 0) validationErrors.push("At least one complement product is required");
+    const realComplements = complements.filter((c) => !c.productId.startsWith("__placeholder"));
+    if (realComplements.length === 0) validationErrors.push("At least one complement product is required");
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
@@ -483,7 +540,7 @@ export default function ComplementBundleForm() {
     formData.set("triggerType", triggerType);
     formData.set("triggerReference", triggerReference);
     formData.set("functionId", functionId);
-    formData.set("complements", JSON.stringify(complements));
+    formData.set("complements", JSON.stringify(complements.filter((c) => !c.productId.startsWith("__placeholder"))));
     formData.set("designConfig", JSON.stringify(design));
     formData.set("mode", mode);
     formData.set("triggerDiscountPct", triggerDiscountPct);
@@ -496,18 +553,24 @@ export default function ComplementBundleForm() {
   // Preview calculations
   const triggerPctNum = Number(triggerDiscountPct) || 0;
   const triggerPricePreview = triggerPriceState || 2990; // fallback for preview
-  const compsOriginal = complements.reduce((sum, c) => sum + (c.price || 1990) * (c.quantity || 1), 0);
-  const compsFinal = complements.reduce((sum, c) => {
+  const realComps = complements.filter((c) => !c.productId.startsWith("__placeholder"));
+  const compsOriginal = realComps.reduce((sum, c) => sum + (c.price || 1990) * (c.quantity || 1), 0);
+  const compsFinal = realComps.reduce((sum, c) => {
     const p = c.price || 1990;
     const qty = c.quantity || 1;
     return sum + Math.round(p * (1 - c.discountPct / 100)) * qty;
   }, 0);
 
-  const totalOriginal = mode === "combo"
-    ? triggerPricePreview + compsOriginal
+  // For combo mode preview summary, use first filled group; for FBT, use all complements
+  const filledComboGroups = comboGroups.filter((g) => getGroupComplements(g).length > 0);
+  const firstGroupTotals = mode === "combo" && filledComboGroups.length > 0
+    ? calcGroupTotals(filledComboGroups[0])
+    : null;
+  const totalOriginal = firstGroupTotals
+    ? firstGroupTotals.totalOriginal
     : compsOriginal;
-  const totalFinal = mode === "combo"
-    ? Math.round(triggerPricePreview * (1 - triggerPctNum / 100)) + compsFinal
+  const totalFinal = firstGroupTotals
+    ? firstGroupTotals.totalFinal
     : compsFinal;
   const totalSave = totalOriginal - totalFinal;
 
@@ -621,86 +684,110 @@ export default function ComplementBundleForm() {
             <Card>
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">
-                  Complement products
+                  {mode === "combo" ? "Combo options" : "Complement products"}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Products shown alongside the trigger product. Each has its own discount percentage.
+                  {mode === "combo"
+                    ? "Each combo option is a different bundle the customer can choose. Add multiple options with different products."
+                    : "Products shown alongside the trigger product. Each has its own discount percentage."}
                 </Text>
 
-                {complements.map((comp, i) => (
-                  <div
-                    key={comp.productId}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "12px",
-                      border: "1px solid #e5e5e5",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    {comp.image ? (
-                      <Thumbnail source={comp.image} alt={comp.title} size="small" />
-                    ) : (
+                {mode === "combo" ? (
+                  <>
+                    {(comboGroups.length === 0 ? [0] : comboGroups).map((groupIdx, visualIdx) => {
+                      const groupComps = complements
+                        .map((c, i) => ({ ...c, _idx: i }))
+                        .filter((c) => (c.group ?? 0) === groupIdx && !c.productId.startsWith("__placeholder"));
+                      return (
+                        <div key={groupIdx} style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 12 }}>
+                          <InlineStack align="space-between" blockAlign="center">
+                            <Text as="h3" variant="headingSm">
+                              Combo option {visualIdx + 1}
+                            </Text>
+                            {comboGroups.length > 1 && (
+                              <Button variant="plain" tone="critical" onClick={() => removeComboGroup(groupIdx)}>
+                                Remove option
+                              </Button>
+                            )}
+                          </InlineStack>
+                          <div style={{ marginTop: 8 }}>
+                            {groupComps.map((comp) => (
+                              <div
+                                key={comp.productId}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "12px",
+                                  padding: "10px",
+                                  border: "1px solid #f0f0f0",
+                                  borderRadius: "8px",
+                                  marginBottom: 6,
+                                }}
+                              >
+                                {comp.image ? (
+                                  <Thumbnail source={comp.image} alt={comp.title} size="small" />
+                                ) : (
+                                  <div style={{ width: 40, height: 40, background: "#f0f0f0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#999" }}>N/A</div>
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <Text as="p" variant="bodyMd" fontWeight="semibold">{comp.title}</Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">{formatPreviewPrice(comp.price)}</Text>
+                                </div>
+                                <div style={{ width: 60 }}>
+                                  <TextField label="Qty" labelHidden type="number" value={String(comp.quantity || 1)} onChange={(v) => updateComplementQuantity(comp._idx, v)} autoComplete="off" prefix="×" min={1} max={99} />
+                                </div>
+                                <div style={{ width: 100 }}>
+                                  <TextField label="Discount %" labelHidden type="number" value={String(comp.discountPct)} onChange={(v) => updateComplementDiscount(comp._idx, v)} autoComplete="off" suffix="%" min={0} max={100} />
+                                </div>
+                                <Button variant="plain" tone="critical" onClick={() => removeComplement(comp._idx)}>Remove</Button>
+                              </div>
+                            ))}
+                            <Button size="slim" onClick={() => handleAddComplement(groupIdx)}>{`Add product to option ${visualIdx + 1}`}</Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <InlineStack align="start">
+                      <Button onClick={addComboGroup}>Add combo option</Button>
+                    </InlineStack>
+                  </>
+                ) : (
+                  <>
+                    {complements.map((comp, i) => (
                       <div
+                        key={comp.productId}
                         style={{
-                          width: 40,
-                          height: 40,
-                          background: "#f0f0f0",
-                          borderRadius: 6,
                           display: "flex",
                           alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 10,
-                          color: "#999",
+                          gap: "12px",
+                          padding: "12px",
+                          border: "1px solid #e5e5e5",
+                          borderRadius: "8px",
                         }}
                       >
-                        N/A
+                        {comp.image ? (
+                          <Thumbnail source={comp.image} alt={comp.title} size="small" />
+                        ) : (
+                          <div style={{ width: 40, height: 40, background: "#f0f0f0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#999" }}>N/A</div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">{comp.title}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{formatPreviewPrice(comp.price)}</Text>
+                        </div>
+                        <div style={{ width: 60 }}>
+                          <TextField label="Qty" labelHidden type="number" value={String(comp.quantity || 1)} onChange={(v) => updateComplementQuantity(i, v)} autoComplete="off" prefix="×" min={1} max={99} />
+                        </div>
+                        <div style={{ width: 100 }}>
+                          <TextField label="Discount %" labelHidden type="number" value={String(comp.discountPct)} onChange={(v) => updateComplementDiscount(i, v)} autoComplete="off" suffix="%" min={0} max={100} />
+                        </div>
+                        <Button variant="plain" tone="critical" onClick={() => removeComplement(i)}>Remove</Button>
                       </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        {comp.title}
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {formatPreviewPrice(comp.price)}
-                      </Text>
-                    </div>
-                    <div style={{ width: 60 }}>
-                      <TextField
-                        label="Qty"
-                        labelHidden
-                        type="number"
-                        value={String(comp.quantity || 1)}
-                        onChange={(v) => updateComplementQuantity(i, v)}
-                        autoComplete="off"
-                        prefix="×"
-                        min={1}
-                        max={99}
-                      />
-                    </div>
-                    <div style={{ width: 100 }}>
-                      <TextField
-                        label="Discount %"
-                        labelHidden
-                        type="number"
-                        value={String(comp.discountPct)}
-                        onChange={(v) => updateComplementDiscount(i, v)}
-                        autoComplete="off"
-                        suffix="%"
-                        min={0}
-                        max={100}
-                      />
-                    </div>
-                    <Button variant="plain" tone="critical" onClick={() => removeComplement(i)}>
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-
-                <InlineStack align="start">
-                  <Button onClick={handleAddComplement}>Add product</Button>
-                </InlineStack>
+                    ))}
+                    <InlineStack align="start">
+                      <Button onClick={() => handleAddComplement(0)}>Add product</Button>
+                    </InlineStack>
+                  </>
+                )}
               </BlockStack>
             </Card>
 
@@ -849,233 +936,216 @@ export default function ComplementBundleForm() {
                   {mode === "combo" ? "COMPLETE THE COMBO" : design.headerText}
                 </div>
 
-                {/* Combo mode: radio selection */}
-                {mode === "combo" && complements.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    {/* Standard price option */}
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "10px 12px", border: "1px solid #e5e5e5", borderRadius: 8, marginBottom: 6,
-                      background: "#fff", cursor: "pointer",
-                    }}>
-                      <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #ccc" }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: design.textColor }}>Standard price</div>
-                        <div style={{ fontSize: 11, color: "#888" }}>Buy only the product</div>
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: design.textColor }}>
-                        {formatPreviewPrice(triggerPricePreview)}
-                      </div>
+                {/* Combo mode: radios with embedded product cards */}
+                {mode === "combo" && (() => {
+                  const filled = comboGroups.filter((g) => getGroupComplements(g).length > 0);
+                  if (filled.length === 0) return (
+                    <div style={{ textAlign: "center", padding: "20px", color: "#999", fontSize: "12px" }}>
+                      Add complement products to see preview
                     </div>
-                    {/* Combo option */}
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "10px 12px", border: `2px solid ${design.accentColor}`, borderRadius: 8,
-                      background: design.backgroundColor, cursor: "pointer",
-                    }}>
-                      <div style={{
-                        width: 16, height: 16, borderRadius: "50%",
-                        border: `2px solid ${design.accentColor}`,
-                        background: design.accentColor,
-                        boxShadow: `inset 0 0 0 3px ${design.backgroundColor}`,
-                      }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: design.textColor }}>Complete the bundle</div>
-                        <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>
-                          Save {formatPreviewPrice(totalSave)}!
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        {totalSave > 0 && (
-                          <div style={{ fontSize: 10, textDecoration: "line-through", color: "#999" }}>
-                            {formatPreviewPrice(totalOriginal)}
-                          </div>
-                        )}
-                        <div style={{ fontWeight: 700, fontSize: 13, color: design.accentColor }}>
-                          {formatPreviewPrice(totalFinal)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  );
 
-                {/* Complement cards (with trigger card prepended in combo mode) */}
-                {design.cardLayout === "horizontal" ? (
-                  <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginBottom: "8px" }}>
-                    {mode === "combo" && triggerLabel && (
-                      <>
-                        <div style={{ flex: 1, minWidth: 0, background: "#fff", borderRadius: "8px", border: `1px solid ${design.accentColor}`, padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-                          <div style={{ width: 50, height: 50, borderRadius: 6, background: triggerImg ? undefined : "#f0f0f0", backgroundImage: triggerImg ? `url(${triggerImg})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999", marginBottom: 6 }}>
-                            {!triggerImg && "IMG"}
+                  const triggerFinalPrice = Math.round(triggerPricePreview * (1 - triggerPctNum / 100));
+
+                  return (
+                    <div>
+                      {/* Standard price radio */}
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "12px 14px", border: "1px solid #e5e5e5", borderRadius: 10, marginBottom: 8,
+                        background: "#fff", cursor: "pointer",
+                      }}>
+                        <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid #ccc", flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: design.textColor }}>{triggerLabel || "Product"}</div>
+                          <div style={{ fontSize: 11, color: "#888" }}>Standard price</div>
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: design.textColor }}>
+                          {formatPreviewPrice(triggerPricePreview)}
+                        </div>
+                      </div>
+
+                      {/* One radio per group — cards embedded inside */}
+                      {filled.map((groupIdx, radioIdx) => {
+                        const gt = calcGroupTotals(groupIdx);
+                        const groupComps = getGroupComplements(groupIdx);
+                        const isSelected = radioIdx === filled.length - 1; // last selected in preview
+                        return (
+                          <div key={groupIdx} style={{
+                            border: isSelected ? `2px solid ${design.accentColor}` : "1px solid #e5e5e5",
+                            borderRadius: 10, marginBottom: 8, overflow: "hidden",
+                            background: "#fff",
+                          }}>
+                            {/* Radio header */}
+                            <div style={{
+                              display: "flex", alignItems: "center", gap: 8,
+                              padding: "12px 14px", cursor: "pointer",
+                            }}>
+                              <div style={{
+                                width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                                border: `2px solid ${isSelected ? design.accentColor : "#ccc"}`,
+                                background: isSelected ? design.accentColor : "transparent",
+                                boxShadow: isSelected ? "inset 0 0 0 3px #fff" : "none",
+                              }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: design.textColor }}>
+                                  Complete the bundle
+                                </div>
+                                {gt.totalSave > 0 && (
+                                  <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>
+                                    {`Save ${formatPreviewPrice(gt.totalSave)}!`}
+                                  </div>
+                                )}
+                              </div>
+                              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: design.textColor }}>
+                                  {formatPreviewPrice(gt.totalFinal)}
+                                </div>
+                                {gt.totalSave > 0 && (
+                                  <div style={{ fontSize: 10, textDecoration: "line-through", color: "#999" }}>
+                                    {formatPreviewPrice(gt.totalOriginal)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Embedded product cards */}
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 14px 14px 14px", justifyContent: "center" }}>
+                              {/* Trigger card */}
+                              <div style={{ flex: "1 1 100px", minWidth: 80, maxWidth: 120, textAlign: "center" }}>
+                                <div style={{ width: 50, height: 50, borderRadius: 6, margin: "0 auto 4px", background: triggerImg ? undefined : "#f0f0f0", backgroundImage: triggerImg ? `url(${triggerImg})` : undefined, backgroundSize: "cover", backgroundPosition: "center", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
+                                  {!triggerImg && "IMG"}
+                                </div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: design.textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{triggerLabel || "Product"}</div>
+                                <div style={{ fontSize: 11 }}>
+                                  {triggerPctNum > 0 ? (
+                                    <>
+                                      <span style={{ fontWeight: 700, color: design.accentColor }}>{formatPreviewPrice(triggerFinalPrice)}</span>
+                                      <span style={{ textDecoration: "line-through", color: "#999", marginLeft: 3, fontSize: 10 }}>{formatPreviewPrice(triggerPricePreview)}</span>
+                                    </>
+                                  ) : (
+                                    <span style={{ fontWeight: 600, color: design.textColor }}>{formatPreviewPrice(triggerPricePreview)}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {groupComps.map((comp) => {
+                                const qty = comp.quantity || 1;
+                                const orig = (comp.price || 0) * qty;
+                                const disc = Math.round((comp.price || 0) * (1 - comp.discountPct / 100)) * qty;
+                                return (
+                                  <div key={comp.productId} style={{ flex: "1 1 100px", minWidth: 80, maxWidth: 120, textAlign: "center", position: "relative" }}>
+                                    {/* Plus connector */}
+                                    <div style={{ position: "absolute", left: -12, top: 20, fontSize: 14, fontWeight: 700, color: design.accentColor }}>+</div>
+                                    <div style={{ width: 50, height: 50, borderRadius: 6, margin: "0 auto 4px", background: comp.image ? undefined : "#f0f0f0", backgroundImage: comp.image ? `url(${comp.image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
+                                      {!comp.image && "IMG"}
+                                    </div>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: design.textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {qty > 1 ? `${qty}× ` : ""}{comp.title || "Product"}
+                                    </div>
+                                    <div style={{ fontSize: 11 }}>
+                                      {comp.discountPct > 0 ? (
+                                        <>
+                                          <span style={{ fontWeight: 700, color: design.accentColor }}>{formatPreviewPrice(disc)}</span>
+                                          <span style={{ textDecoration: "line-through", color: "#999", marginLeft: 3, fontSize: 10 }}>{formatPreviewPrice(orig)}</span>
+                                        </>
+                                      ) : (
+                                        <span style={{ fontWeight: 600, color: design.textColor }}>{formatPreviewPrice(orig)}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div style={{ fontSize: "11px", fontWeight: 600, color: design.textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", marginBottom: 2 }}>
-                            {triggerLabel}
-                          </div>
-                          {triggerPctNum > 0 && (
-                            <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 5px", borderRadius: "3px", marginBottom: 2 }}>SAVE {triggerPctNum}%</span>
-                          )}
-                          <div style={{ fontSize: "12px" }}>
-                            {triggerPctNum > 0 ? (
-                              <>
-                                <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(triggerPricePreview)}</div>
-                                <div style={{ fontWeight: 700, color: design.accentColor }}>{formatPreviewPrice(Math.round(triggerPricePreview * (1 - triggerPctNum / 100)))}</div>
-                              </>
-                            ) : (
-                              <div style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(triggerPricePreview)}</div>
+                        );
+                      })}
+
+                      {/* Summary */}
+                      {(() => {
+                        const lastGt = calcGroupTotals(filled[filled.length - 1]);
+                        return (
+                          <div style={{ textAlign: "center", padding: "10px", background: "#f9f9f9", borderRadius: 8, marginBottom: 10 }}>
+                            <div style={{ fontSize: 14 }}>
+                              {lastGt.totalSave > 0 && (
+                                <span style={{ textDecoration: "line-through", color: "#999", marginRight: 6 }}>{formatPreviewPrice(lastGt.totalOriginal)}</span>
+                              )}
+                              <span style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(lastGt.totalFinal)}</span>
+                            </div>
+                            {lastGt.totalSave > 0 && (
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#16a34a", marginTop: 2 }}>
+                                {`You save ${formatPreviewPrice(lastGt.totalSave)}`}
+                              </div>
                             )}
                           </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
+
+                {/* FBT mode cards */}
+                {mode !== "combo" && (
+                  <>
+                    {realComps.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "20px", color: "#999", fontSize: "12px" }}>
+                        Add complement products to see preview
+                      </div>
+                    ) : (
+                      <>
+                        {realComps.map((comp, i) => {
+                          const qty = comp.quantity || 1;
+                          const originalPrice = (comp.price || 1990) * qty;
+                          const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
+                          return (
+                            <div key={comp.productId}>
+                              {i > 0 && (
+                                <div style={{ textAlign: "center", fontSize: "18px", fontWeight: 700, color: design.accentColor, margin: "4px 0" }}>+</div>
+                              )}
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: "#fff", borderRadius: "8px", border: "1px solid #e5e5e5", marginBottom: i < realComps.length - 1 ? "0" : "8px" }}>
+                                <div style={{ width: 50, height: 50, borderRadius: 6, background: comp.image ? undefined : "#f0f0f0", backgroundImage: comp.image ? `url(${comp.image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
+                                  {!comp.image && "IMG"}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: "12px", fontWeight: 600, color: design.textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {qty > 1 && <span style={{ color: design.accentColor, marginRight: 4 }}>{qty}×</span>}
+                                    {comp.title || "Product"}
+                                  </div>
+                                  {comp.discountPct > 0 && (
+                                    <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 6px", borderRadius: "4px", marginTop: "2px" }}>SAVE {comp.discountPct}%</span>
+                                  )}
+                                </div>
+                                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                  {comp.discountPct > 0 ? (
+                                    <>
+                                      <div style={{ fontSize: "11px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(originalPrice)}</div>
+                                      <div style={{ fontWeight: 700, fontSize: "13px", color: design.accentColor }}>{formatPreviewPrice(discountedPrice)}</div>
+                                    </>
+                                  ) : (
+                                    <div style={{ fontWeight: 700, fontSize: "13px", color: design.textColor }}>{formatPreviewPrice(originalPrice)}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {/* FBT Summary */}
+                        <div style={{ textAlign: "center", padding: "10px", background: "#f9f9f9", borderRadius: "8px", marginBottom: "10px" }}>
+                          <div style={{ fontSize: "14px" }}>
+                            {totalSave > 0 && (
+                              <span style={{ textDecoration: "line-through", color: "#999", marginRight: 6 }}>{formatPreviewPrice(totalOriginal)}</span>
+                            )}
+                            <span style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(totalFinal)}</span>
+                          </div>
+                          {totalSave > 0 && (
+                            <div style={{ fontSize: "12px", fontWeight: 600, color: "#16a34a", marginTop: 2 }}>
+                              {`You save ${formatPreviewPrice(totalSave)}`}
+                            </div>
+                          )}
                         </div>
-                        {complements.length > 0 && (
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px", fontSize: "16px", fontWeight: 700, color: design.accentColor, flexShrink: 0 }}>+</div>
-                        )}
                       </>
                     )}
-                    {complements.map((comp, i) => {
-                      const qty = comp.quantity || 1;
-                      const originalPrice = (comp.price || 1990) * qty;
-                      const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
-                      return (
-                        <div key={comp.productId} style={{ display: "contents" }}>
-                          {i > 0 && (
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px", fontSize: "16px", fontWeight: 700, color: design.accentColor, flexShrink: 0 }}>+</div>
-                          )}
-                          <div style={{ flex: 1, minWidth: 0, background: "#fff", borderRadius: "8px", border: "1px solid #e5e5e5", padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-                            <div style={{ width: 50, height: 50, borderRadius: 6, background: comp.image ? undefined : "#f0f0f0", backgroundImage: comp.image ? `url(${comp.image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999", marginBottom: 6 }}>
-                              {!comp.image && "IMG"}
-                            </div>
-                            <div style={{ fontSize: "11px", fontWeight: 600, color: design.textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", marginBottom: 2 }}>
-                              {qty > 1 && <span style={{ color: design.accentColor }}>{qty}× </span>}
-                              {comp.title || "Product"}
-                            </div>
-                            {comp.discountPct > 0 && (
-                              <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 5px", borderRadius: "3px", marginBottom: 2 }}>SAVE {comp.discountPct}%</span>
-                            )}
-                            <div style={{ fontSize: "12px" }}>
-                              {comp.discountPct > 0 ? (
-                                <>
-                                  <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(originalPrice)}</div>
-                                  <div style={{ fontWeight: 700, color: design.accentColor }}>{formatPreviewPrice(discountedPrice)}</div>
-                                </>
-                              ) : (
-                                <div style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(originalPrice)}</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <>
-                  {mode === "combo" && triggerLabel && (
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: "#fff", borderRadius: "8px", border: `1px solid ${design.accentColor}`, marginBottom: complements.length > 0 ? "0" : "8px" }}>
-                        <div style={{ width: 50, height: 50, borderRadius: 6, background: triggerImg ? undefined : "#f0f0f0", backgroundImage: triggerImg ? `url(${triggerImg})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
-                          {!triggerImg && "IMG"}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: "12px", fontWeight: 600, color: design.textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {triggerLabel}
-                          </div>
-                          {triggerPctNum > 0 && (
-                            <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 6px", borderRadius: "4px", marginTop: "2px" }}>SAVE {triggerPctNum}%</span>
-                          )}
-                        </div>
-                        <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          {triggerPctNum > 0 ? (
-                            <>
-                              <div style={{ fontSize: "11px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(triggerPricePreview)}</div>
-                              <div style={{ fontWeight: 700, fontSize: "13px", color: design.accentColor }}>{formatPreviewPrice(Math.round(triggerPricePreview * (1 - triggerPctNum / 100)))}</div>
-                            </>
-                          ) : (
-                            <div style={{ fontWeight: 700, fontSize: "13px", color: design.textColor }}>{formatPreviewPrice(triggerPricePreview)}</div>
-                          )}
-                        </div>
-                      </div>
-                      {complements.length > 0 && (
-                        <div style={{ textAlign: "center", fontSize: "18px", fontWeight: 700, color: design.accentColor, margin: "4px 0" }}>+</div>
-                      )}
-                    </div>
-                  )}
-                  {complements.map((comp, i) => {
-                    const qty = comp.quantity || 1;
-                    const originalPrice = (comp.price || 1990) * qty;
-                    const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
-                    return (
-                      <div key={comp.productId}>
-                        {i > 0 && (
-                          <div style={{ textAlign: "center", fontSize: "18px", fontWeight: 700, color: design.accentColor, margin: "4px 0" }}>+</div>
-                        )}
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: "#fff", borderRadius: "8px", border: "1px solid #e5e5e5", marginBottom: i < complements.length - 1 ? "0" : "8px" }}>
-                          <div style={{ width: 50, height: 50, borderRadius: 6, background: comp.image ? undefined : "#f0f0f0", backgroundImage: comp.image ? `url(${comp.image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
-                            {!comp.image && "IMG"}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: "12px", fontWeight: 600, color: design.textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {qty > 1 && <span style={{ color: design.accentColor, marginRight: 4 }}>{qty}×</span>}
-                              {comp.title || "Product"}
-                            </div>
-                            {comp.discountPct > 0 && (
-                              <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 6px", borderRadius: "4px", marginTop: "2px" }}>SAVE {comp.discountPct}%</span>
-                            )}
-                          </div>
-                          <div style={{ textAlign: "right", flexShrink: 0 }}>
-                            {comp.discountPct > 0 ? (
-                              <>
-                                <div style={{ fontSize: "11px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(originalPrice)}</div>
-                                <div style={{ fontWeight: 700, fontSize: "13px", color: design.accentColor }}>{formatPreviewPrice(discountedPrice)}</div>
-                              </>
-                            ) : (
-                              <div style={{ fontWeight: 700, fontSize: "13px", color: design.textColor }}>{formatPreviewPrice(originalPrice)}</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
                   </>
-                )}
-
-                {complements.length === 0 && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "20px",
-                      color: "#999",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Add complement products to see preview
-                  </div>
-                )}
-
-                {/* Summary bar */}
-                {complements.length > 0 && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "10px",
-                      background: "#f9f9f9",
-                      borderRadius: "8px",
-                      marginBottom: "10px",
-                    }}
-                  >
-                    <div style={{ fontSize: "14px" }}>
-                      {totalSave > 0 && (
-                        <span style={{ textDecoration: "line-through", color: "#999", marginRight: 6 }}>
-                          {formatPreviewPrice(totalOriginal)}
-                        </span>
-                      )}
-                      <span style={{ fontWeight: 700, color: design.textColor }}>
-                        {formatPreviewPrice(totalFinal)}
-                      </span>
-                    </div>
-                    {totalSave > 0 && (
-                      <div style={{ fontSize: "12px", fontWeight: 600, color: "#16a34a", marginTop: 2 }}>
-                        You save {formatPreviewPrice(totalSave)}
-                      </div>
-                    )}
-                  </div>
                 )}
 
                 {/* Button */}

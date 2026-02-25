@@ -235,6 +235,7 @@ export async function setComplementBundleMetafield(
       variantId: string;
       discountPct: number;
       quantity?: number;
+      group?: number;
     }>;
     designConfig?: Record<string, unknown>;
     mode?: string;
@@ -276,6 +277,7 @@ export async function setComplementBundleMetafield(
         variantId: numericVariantId,
         discountPct: comp.discountPct,
         quantity: comp.quantity || 1,
+        group: comp.group ?? 0,
       });
     } catch {
       // Fallback to original data
