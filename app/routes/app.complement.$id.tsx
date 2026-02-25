@@ -77,6 +77,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       functionId,
       triggerTitle: "",
       triggerImage: "",
+      triggerPrice: 0,
     });
   }
 
@@ -95,6 +96,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   let triggerTitle = bundle.triggerReference || "";
   let triggerImage = "";
+  let triggerPrice = 0;
 
   if (bundle.triggerType === "product" && bundle.triggerReference) {
     try {
@@ -104,6 +106,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             product(id: $id) {
               title
               featuredImage { url }
+              variants(first: 1) {
+                edges { node { price } }
+              }
             }
           }`,
         { variables: { id: bundle.triggerReference } },
@@ -111,6 +116,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       const prodJson = await res.json();
       triggerTitle = prodJson.data?.product?.title || bundle.triggerReference;
       triggerImage = prodJson.data?.product?.featuredImage?.url || "";
+      const priceStr = prodJson.data?.product?.variants?.edges?.[0]?.node?.price;
+      triggerPrice = priceStr ? Math.round(parseFloat(priceStr) * 100) : 0;
     } catch {}
   } else if (bundle.triggerType === "collection" && bundle.triggerReference) {
     try {
@@ -130,7 +137,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     } catch {}
   }
 
-  return json({ bundle, complements, functionId, triggerTitle, triggerImage });
+  return json({ bundle, complements, functionId, triggerTitle, triggerImage, triggerPrice });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -143,6 +150,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const complementsRaw = formData.get("complements") as string;
   const designConfigRaw = formData.get("designConfig") as string | null;
   const designConfig = designConfigRaw ? JSON.parse(designConfigRaw) : null;
+  const mode = (formData.get("mode") as string) || "fbt";
+  const triggerDiscountPct = Number(formData.get("triggerDiscountPct")) || 0;
 
   const complements: ComplementItem[] = JSON.parse(complementsRaw);
 
@@ -166,6 +175,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     triggerProductId: triggerType === "product" && triggerReference
       ? triggerReference
       : null,
+    mode,
+    triggerDiscountPct,
   };
 
   const isNew = params.id === "new";
@@ -177,6 +188,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         triggerType,
         triggerReference,
         complements: complementsRaw,
+        mode,
+        triggerDiscountPct,
         shopId: session.shop,
         designConfig: designConfigRaw || null,
       },
@@ -240,6 +253,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         bundleName: name,
         complements,
         designConfig,
+        mode,
+        triggerDiscountPct,
       });
     }
 
@@ -262,6 +277,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         triggerType,
         triggerReference,
         complements: complementsRaw,
+        mode,
+        triggerDiscountPct,
         designConfig: designConfigRaw || null,
       },
     });
@@ -282,6 +299,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         bundleName: name,
         complements,
         designConfig,
+        mode,
+        triggerDiscountPct,
       });
     }
 
@@ -339,7 +358,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function ComplementBundleForm() {
-  const { bundle, complements: loadedComplements, functionId, triggerTitle, triggerImage } =
+  const { bundle, complements: loadedComplements, functionId, triggerTitle, triggerImage, triggerPrice: loadedTriggerPrice } =
     useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -358,6 +377,9 @@ export default function ComplementBundleForm() {
   const [triggerLabel, setTriggerLabel] = useState(triggerTitle || "");
   const [triggerImg, setTriggerImg] = useState(triggerImage || "");
   const [complements, setComplements] = useState<ComplementItem[]>(loadedComplements);
+  const [mode, setMode] = useState(bundle?.mode || "fbt");
+  const [triggerDiscountPct, setTriggerDiscountPct] = useState(String(bundle?.triggerDiscountPct || 0));
+  const [triggerPriceState] = useState(loadedTriggerPrice || 0);
   const [design, setDesign] = useState(savedDesign);
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -463,24 +485,35 @@ export default function ComplementBundleForm() {
     formData.set("functionId", functionId);
     formData.set("complements", JSON.stringify(complements));
     formData.set("designConfig", JSON.stringify(design));
+    formData.set("mode", mode);
+    formData.set("triggerDiscountPct", triggerDiscountPct);
 
     submit(formData, { method: "post" });
   };
 
   const formatPreviewPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-  // Preview calculations (complements only, trigger product is already on PDP)
-  const totalOriginal = complements.reduce((sum, c) => sum + (c.price || 1990) * (c.quantity || 1), 0);
-  const totalFinal = complements.reduce((sum, c) => {
+  // Preview calculations
+  const triggerPctNum = Number(triggerDiscountPct) || 0;
+  const triggerPricePreview = triggerPriceState || 2990; // fallback for preview
+  const compsOriginal = complements.reduce((sum, c) => sum + (c.price || 1990) * (c.quantity || 1), 0);
+  const compsFinal = complements.reduce((sum, c) => {
     const p = c.price || 1990;
     const qty = c.quantity || 1;
     return sum + Math.round(p * (1 - c.discountPct / 100)) * qty;
   }, 0);
+
+  const totalOriginal = mode === "combo"
+    ? triggerPricePreview + compsOriginal
+    : compsOriginal;
+  const totalFinal = mode === "combo"
+    ? Math.round(triggerPricePreview * (1 - triggerPctNum / 100)) + compsFinal
+    : compsFinal;
   const totalSave = totalOriginal - totalFinal;
 
   return (
     <Page
-      title={isNew ? "Create FBT bundle" : "Edit FBT bundle"}
+      title={isNew ? (mode === "combo" ? "Create Combo bundle" : "Create FBT bundle") : (mode === "combo" ? "Edit Combo bundle" : "Edit FBT bundle")}
       backAction={{ url: "/app" }}
     >
       <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
@@ -509,6 +542,29 @@ export default function ComplementBundleForm() {
                     autoComplete="off"
                     placeholder="e.g. Phone + Accessories"
                   />
+                  <Select
+                    label="Bundle mode"
+                    options={[
+                      { label: "FBT (Frequently Bought Together)", value: "fbt" },
+                      { label: "Complete the Combo", value: "combo" },
+                    ]}
+                    value={mode}
+                    onChange={setMode}
+                    helpText={mode === "combo" ? "The trigger product appears in the bundle card and can also receive a discount." : "Classic FBT — complements are shown below the trigger product."}
+                  />
+                  {mode === "combo" && (
+                    <TextField
+                      label="Trigger product discount %"
+                      type="number"
+                      value={triggerDiscountPct}
+                      onChange={setTriggerDiscountPct}
+                      autoComplete="off"
+                      suffix="%"
+                      min={0}
+                      max={100}
+                      helpText="Discount applied to the main product when bought as part of the combo."
+                    />
+                  )}
                   <Select
                     label="Trigger type"
                     options={[
@@ -756,7 +812,7 @@ export default function ComplementBundleForm() {
                 onClick={handleSubmit}
                 loading={isSubmitting}
               >
-                {isNew ? "Create FBT bundle" : "Save changes"}
+                {isNew ? (mode === "combo" ? "Create Combo bundle" : "Create FBT bundle") : "Save changes"}
               </Button>
             </InlineStack>
           </BlockStack>
@@ -790,12 +846,90 @@ export default function ComplementBundleForm() {
                     textAlign: "center",
                   }}
                 >
-                  {design.headerText}
+                  {mode === "combo" ? "COMPLETE THE COMBO" : design.headerText}
                 </div>
 
-                {/* Complement cards */}
+                {/* Combo mode: radio selection */}
+                {mode === "combo" && complements.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    {/* Standard price option */}
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "10px 12px", border: "1px solid #e5e5e5", borderRadius: 8, marginBottom: 6,
+                      background: "#fff", cursor: "pointer",
+                    }}>
+                      <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #ccc" }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: design.textColor }}>Standard price</div>
+                        <div style={{ fontSize: 11, color: "#888" }}>Buy only the product</div>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: design.textColor }}>
+                        {formatPreviewPrice(triggerPricePreview)}
+                      </div>
+                    </div>
+                    {/* Combo option */}
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "10px 12px", border: `2px solid ${design.accentColor}`, borderRadius: 8,
+                      background: design.backgroundColor, cursor: "pointer",
+                    }}>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: "50%",
+                        border: `2px solid ${design.accentColor}`,
+                        background: design.accentColor,
+                        boxShadow: `inset 0 0 0 3px ${design.backgroundColor}`,
+                      }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: design.textColor }}>Complete the bundle</div>
+                        <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>
+                          Save {formatPreviewPrice(totalSave)}!
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        {totalSave > 0 && (
+                          <div style={{ fontSize: 10, textDecoration: "line-through", color: "#999" }}>
+                            {formatPreviewPrice(totalOriginal)}
+                          </div>
+                        )}
+                        <div style={{ fontWeight: 700, fontSize: 13, color: design.accentColor }}>
+                          {formatPreviewPrice(totalFinal)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Complement cards (with trigger card prepended in combo mode) */}
                 {design.cardLayout === "horizontal" ? (
                   <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginBottom: "8px" }}>
+                    {mode === "combo" && triggerLabel && (
+                      <>
+                        <div style={{ flex: 1, minWidth: 0, background: "#fff", borderRadius: "8px", border: `1px solid ${design.accentColor}`, padding: "10px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                          <div style={{ width: 50, height: 50, borderRadius: 6, background: triggerImg ? undefined : "#f0f0f0", backgroundImage: triggerImg ? `url(${triggerImg})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999", marginBottom: 6 }}>
+                            {!triggerImg && "IMG"}
+                          </div>
+                          <div style={{ fontSize: "11px", fontWeight: 600, color: design.textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", marginBottom: 2 }}>
+                            {triggerLabel}
+                          </div>
+                          {triggerPctNum > 0 && (
+                            <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 5px", borderRadius: "3px", marginBottom: 2 }}>SAVE {triggerPctNum}%</span>
+                          )}
+                          <div style={{ fontSize: "12px" }}>
+                            {triggerPctNum > 0 ? (
+                              <>
+                                <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(triggerPricePreview)}</div>
+                                <div style={{ fontWeight: 700, color: design.accentColor }}>{formatPreviewPrice(Math.round(triggerPricePreview * (1 - triggerPctNum / 100)))}</div>
+                              </>
+                            ) : (
+                              <div style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(triggerPricePreview)}</div>
+                            )}
+                          </div>
+                        </div>
+                        {complements.length > 0 && (
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px", fontSize: "16px", fontWeight: 700, color: design.accentColor, flexShrink: 0 }}>+</div>
+                        )}
+                      </>
+                    )}
                     {complements.map((comp, i) => {
                       const qty = comp.quantity || 1;
                       const originalPrice = (comp.price || 1990) * qty;
@@ -832,7 +966,38 @@ export default function ComplementBundleForm() {
                     })}
                   </div>
                 ) : (
-                  complements.map((comp, i) => {
+                  <>
+                  {mode === "combo" && triggerLabel && (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: "#fff", borderRadius: "8px", border: `1px solid ${design.accentColor}`, marginBottom: complements.length > 0 ? "0" : "8px" }}>
+                        <div style={{ width: 50, height: 50, borderRadius: 6, background: triggerImg ? undefined : "#f0f0f0", backgroundImage: triggerImg ? `url(${triggerImg})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
+                          {!triggerImg && "IMG"}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "12px", fontWeight: 600, color: design.textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {triggerLabel}
+                          </div>
+                          {triggerPctNum > 0 && (
+                            <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 6px", borderRadius: "4px", marginTop: "2px" }}>SAVE {triggerPctNum}%</span>
+                          )}
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          {triggerPctNum > 0 ? (
+                            <>
+                              <div style={{ fontSize: "11px", textDecoration: "line-through", color: "#999" }}>{formatPreviewPrice(triggerPricePreview)}</div>
+                              <div style={{ fontWeight: 700, fontSize: "13px", color: design.accentColor }}>{formatPreviewPrice(Math.round(triggerPricePreview * (1 - triggerPctNum / 100)))}</div>
+                            </>
+                          ) : (
+                            <div style={{ fontWeight: 700, fontSize: "13px", color: design.textColor }}>{formatPreviewPrice(triggerPricePreview)}</div>
+                          )}
+                        </div>
+                      </div>
+                      {complements.length > 0 && (
+                        <div style={{ textAlign: "center", fontSize: "18px", fontWeight: 700, color: design.accentColor, margin: "4px 0" }}>+</div>
+                      )}
+                    </div>
+                  )}
+                  {complements.map((comp, i) => {
                     const qty = comp.quantity || 1;
                     const originalPrice = (comp.price || 1990) * qty;
                     const discountedPrice = Math.round((comp.price || 1990) * (1 - comp.discountPct / 100)) * qty;
@@ -867,7 +1032,8 @@ export default function ComplementBundleForm() {
                         </div>
                       </div>
                     );
-                  })
+                  })}
+                  </>
                 )}
 
                 {complements.length === 0 && (
@@ -927,7 +1093,7 @@ export default function ComplementBundleForm() {
                     cursor: "default",
                   }}
                 >
-                  Add All to Cart
+                  {mode === "combo" ? "Complete the Combo" : "Add All to Cart"}
                 </div>
                 <div style={{ textAlign: "center", fontSize: "10px", color: "#888", marginTop: "8px" }}>
                   Discount applied automatically at checkout

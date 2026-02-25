@@ -12,23 +12,16 @@ import {
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
-  removeBundleMetafield,
   removeTieredBundleMetafield,
   removeVolumeBundleMetafield,
   removeComplementBundleMetafield,
-  setBundleMetafield,
-  syncShopBundlesMetafield,
   setShopComplementBundleMetafield,
 } from "../lib/bundle-metafields.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
-  const [bundles, tieredBundles, volumeBundles, complementBundles] = await Promise.all([
-    db.bundle.findMany({
-      where: { shopId: session.shop },
-      orderBy: { createdAt: "desc" },
-    }),
+  const [tieredBundles, volumeBundles, complementBundles] = await Promise.all([
     db.tieredBundle.findMany({
       where: { shopId: session.shop },
       orderBy: { createdAt: "desc" },
@@ -43,7 +36,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }),
   ]);
 
-  return json({ bundles, tieredBundles, volumeBundles, complementBundles });
+  return json({ tieredBundles, volumeBundles, complementBundles });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -246,94 +239,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: true });
   }
 
-  // Classic BXGY bundle actions
-  if (intent === "delete") {
-    const bundle = await db.bundle.findFirst({
-      where: { id: bundleId, shopId: session.shop },
-    });
-
-    if (bundle?.discountId) {
-      await admin.graphql(
-        `#graphql
-          mutation discountAutomaticDelete($id: ID!) {
-            discountAutomaticDelete(id: $id) {
-              deletedAutomaticDiscountId
-              userErrors { field message }
-            }
-          }`,
-        { variables: { id: bundle.discountId } },
-      );
-    }
-
-    if (bundle && bundle.buyType === "product") {
-      await removeBundleMetafield(admin, bundle.buyReference);
-    }
-
-    await db.bundle.delete({ where: { id: bundleId } });
-  }
-
-  if (intent === "toggle") {
-    const bundle = await db.bundle.findFirst({
-      where: { id: bundleId, shopId: session.shop },
-    });
-
-    if (bundle) {
-      const newActive = !bundle.active;
-      await db.bundle.update({
-        where: { id: bundleId },
-        data: { active: newActive },
-      });
-
-      if (bundle.discountId) {
-        await admin.graphql(
-          `#graphql
-            mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
-              discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
-                userErrors { field message }
-              }
-            }`,
-          {
-            variables: {
-              id: bundle.discountId,
-              automaticAppDiscount: {
-                startsAt: newActive ? new Date().toISOString() : null,
-                endsAt: newActive ? null : new Date().toISOString(),
-              },
-            },
-          },
-        );
-      }
-
-      if (bundle.buyType === "product") {
-        if (newActive) {
-          await setBundleMetafield(admin, {
-            buyProductId: bundle.buyReference,
-            bundleName: bundle.name,
-            minQuantity: bundle.minQuantity,
-            rewardProductId: bundle.getProductId,
-            discountType: bundle.discountType,
-            discountValue: bundle.discountValue,
-            maxReward: bundle.maxReward,
-          });
-        } else {
-          await removeBundleMetafield(admin, bundle.buyReference);
-        }
-      }
-    }
-  }
-
-  await syncShopBundlesMetafield(admin, session.shop, db);
-
   return json({ ok: true });
 };
 
 export default function BundleIndex() {
-  const { bundles, tieredBundles, volumeBundles, complementBundles } = useLoaderData<typeof loader>();
+  const { tieredBundles, volumeBundles, complementBundles } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const submit = useSubmit();
   const { smUp } = useBreakpoints();
 
-  const handleDelete = (id: number, type: "classic" | "tiered" | "volume" | "complement" = "classic") => {
+  const handleDelete = (id: number, type: "tiered" | "volume" | "complement" = "tiered") => {
     const formData = new FormData();
     formData.set("intent", "delete");
     formData.set("bundleId", String(id));
@@ -341,7 +256,7 @@ export default function BundleIndex() {
     submit(formData, { method: "post" });
   };
 
-  const handleToggle = (id: number, type: "classic" | "tiered" | "volume" | "complement" = "classic") => {
+  const handleToggle = (id: number, type: "tiered" | "volume" | "complement" = "tiered") => {
     const formData = new FormData();
     formData.set("intent", "toggle");
     formData.set("bundleId", String(id));
@@ -349,22 +264,14 @@ export default function BundleIndex() {
     submit(formData, { method: "post" });
   };
 
-  const formatDiscount = (type: string, value: number) => {
-    return type === "percentage" ? `${value}%` : `$${value}`;
-  };
-
-  const formatBuyCondition = (buyType: string, minQty: number) => {
-    return `Buy ${minQty} ${buyType === "collection" ? "from collection" : "product(s)"}`;
-  };
-
-  const hasNoBundles = bundles.length === 0 && tieredBundles.length === 0 && volumeBundles.length === 0 && complementBundles.length === 0;
+  const hasNoBundles = tieredBundles.length === 0 && volumeBundles.length === 0 && complementBundles.length === 0;
 
   const emptyState = (
     <EmptyState
       heading="Create your first bundle"
       action={{
-        content: "Create BXGY bundle",
-        onAction: () => navigate("/app/bundles/new"),
+        content: "Create FBT bundle",
+        onAction: () => navigate("/app/complement/new"),
       }}
       secondaryAction={{
         content: "Create tiered combo",
@@ -373,79 +280,18 @@ export default function BundleIndex() {
       image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
     >
       <p>
-        Set up Buy X Get Y bundles, tiered combo deals, or volume discounts
+        Set up FBT/Combo bundles, tiered combo deals, or volume discounts
         to offer automatic discounts when customers add qualifying products to their cart.
       </p>
     </EmptyState>
   );
-
-  const classicRows = bundles.map((bundle, index) => (
-    <IndexTable.Row
-      id={`classic-${bundle.id}`}
-      key={`classic-${bundle.id}`}
-      selected={false}
-      position={index}
-      onClick={() => navigate(`/app/bundles/${bundle.id}`)}
-    >
-      <IndexTable.Cell>
-        <Text variant="bodyMd" fontWeight="bold" as="span">
-          {bundle.name}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge>BXGY</Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {formatBuyCondition(bundle.buyType, bundle.minQuantity)}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {formatDiscount(bundle.discountType, bundle.discountValue)} off
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone={bundle.active ? "success" : undefined}>
-          {bundle.active ? "Active" : "Inactive"}
-        </Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <div
-          style={{ display: "flex", gap: "8px" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => handleToggle(bundle.id)}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-emphasis)",
-              textDecoration: "underline",
-            }}
-          >
-            {bundle.active ? "Deactivate" : "Activate"}
-          </button>
-          <button
-            onClick={() => handleDelete(bundle.id)}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-critical)",
-              textDecoration: "underline",
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
 
   const tieredRows = tieredBundles.map((bundle, index) => (
     <IndexTable.Row
       id={`tiered-${bundle.id}`}
       key={`tiered-${bundle.id}`}
       selected={false}
-      position={bundles.length + index}
+      position={index}
       onClick={() => navigate(`/app/tiers/${bundle.id}`)}
     >
       <IndexTable.Cell>
@@ -516,7 +362,7 @@ export default function BundleIndex() {
       id={`volume-${bundle.id}`}
       key={`volume-${bundle.id}`}
       selected={false}
-      position={bundles.length + tieredBundles.length + index}
+      position={tieredBundles.length + index}
       onClick={() => navigate(`/app/volume/${bundle.id}`)}
     >
       <IndexTable.Cell>
@@ -587,7 +433,7 @@ export default function BundleIndex() {
       id={`complement-${bundle.id}`}
       key={`complement-${bundle.id}`}
       selected={false}
-      position={bundles.length + tieredBundles.length + volumeBundles.length + index}
+      position={tieredBundles.length + volumeBundles.length + index}
       onClick={() => navigate(`/app/complement/${bundle.id}`)}
     >
       <IndexTable.Cell>
@@ -596,7 +442,9 @@ export default function BundleIndex() {
         </Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
-        <Badge tone="magic">FBT</Badge>
+        {(bundle as any).mode === "combo"
+          ? <Badge tone="success">Combo</Badge>
+          : <Badge tone="magic">FBT</Badge>}
       </IndexTable.Cell>
       <IndexTable.Cell>
         {bundle.triggerType === "product"
@@ -652,14 +500,14 @@ export default function BundleIndex() {
     </IndexTable.Row>
   ));
 
-  const totalCount = bundles.length + tieredBundles.length + volumeBundles.length + complementBundles.length;
+  const totalCount = tieredBundles.length + volumeBundles.length + complementBundles.length;
 
   return (
     <Page
       title="Bundles"
       primaryAction={{
-        content: "Create BXGY bundle",
-        onAction: () => navigate("/app/bundles/new"),
+        content: "Create FBT bundle",
+        onAction: () => navigate("/app/complement/new"),
       }}
       secondaryActions={[
         {
@@ -669,10 +517,6 @@ export default function BundleIndex() {
         {
           content: "Create volume discount",
           onAction: () => navigate("/app/volume/new"),
-        },
-        {
-          content: "Create FBT bundle",
-          onAction: () => navigate("/app/complement/new"),
         },
       ]}
     >
@@ -695,7 +539,6 @@ export default function BundleIndex() {
           ]}
           selectable={false}
         >
-          {classicRows}
           {tieredRows}
           {volumeRows}
           {complementRows}

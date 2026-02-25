@@ -14,10 +14,19 @@
   {% assign ds_header_text = fbt_data.designHeaderText | default: block.settings.header_text %}
   {% assign ds_card_layout = fbt_data.designCardLayout | default: "vertical" %}
 
+  {% comment %} Mode: "fbt" (default) or "combo" {% endcomment %}
+  {% assign bundle_mode = fbt_data.mode | default: "fbt" %}
+  {% assign trigger_discount_pct = fbt_data.triggerDiscountPct | default: 0 %}
+
   {% comment %} Current (trigger) product data {% endcomment %}
   {% assign main_image = product.featured_image | image_url: width: 300 %}
   {% assign main_price = product.price %}
   {% assign main_title = product.title %}
+
+  {% comment %} Trigger discounted price for combo mode {% endcomment %}
+  {% assign trigger_discount_fraction = trigger_discount_pct | times: 100 | divided_by: 10000.0 %}
+  {% assign trigger_discount_amount = main_price | times: 1.0 | times: trigger_discount_fraction %}
+  {% assign trigger_discounted_price = main_price | minus: trigger_discount_amount | round %}
 
 <style>
   .bxgy-fbt {
@@ -251,6 +260,80 @@
     color: #888;
     margin-top: 10px;
   }
+  /* Combo mode radio options */
+  .bxgy-fbt__radio-group {
+    margin-bottom: 14px;
+  }
+  .bxgy-fbt__radio-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 2px solid #e5e5e5;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: #fff;
+  }
+  .bxgy-fbt__radio-option:hover {
+    border-color: #ccc;
+  }
+  .bxgy-fbt__radio-option--active {
+    border-color: {{ ds_accent_color }};
+    background: {{ ds_background_color }};
+  }
+  .bxgy-fbt__radio-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .bxgy-fbt__radio-option--active .bxgy-fbt__radio-dot {
+    border-color: {{ ds_accent_color }};
+  }
+  .bxgy-fbt__radio-option--active .bxgy-fbt__radio-dot::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: {{ ds_accent_color }};
+  }
+  .bxgy-fbt__radio-label {
+    flex: 1;
+  }
+  .bxgy-fbt__radio-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: {{ ds_text_color }};
+  }
+  .bxgy-fbt__radio-subtitle {
+    font-size: 12px;
+    color: #888;
+  }
+  .bxgy-fbt__radio-subtitle--savings {
+    color: #16a34a;
+    font-weight: 600;
+  }
+  .bxgy-fbt__radio-price {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .bxgy-fbt__card--trigger {
+    border-color: {{ ds_accent_color }};
+  }
+  .bxgy-fbt__combo-section {
+    display: none;
+  }
+  .bxgy-fbt__combo-section--visible {
+    display: block;
+  }
   @media (max-width: 749px) {
     .bxgy-fbt__cards--horizontal {
       flex-direction: column;
@@ -267,10 +350,77 @@
   }
 </style>
 
-<div class="bxgy-fbt" id="bxgy-fbt-{{ block.id }}">
-  <div class="bxgy-fbt__header">{{ ds_header_text }}</div>
+<div class="bxgy-fbt" id="bxgy-fbt-{{ block.id }}" data-fbt-mode="{{ bundle_mode }}" data-fbt-trigger-discount-pct="{{ trigger_discount_pct }}">
+  <div class="bxgy-fbt__header">
+    {% if bundle_mode == "combo" %}
+      COMPLETE THE COMBO
+    {% else %}
+      {{ ds_header_text }}
+    {% endif %}
+  </div>
 
+  {% if bundle_mode == "combo" %}
+    <div class="bxgy-fbt__radio-group">
+      <div class="bxgy-fbt__radio-option" data-fbt-radio="standard">
+        <div class="bxgy-fbt__radio-dot"></div>
+        <div class="bxgy-fbt__radio-label">
+          <div class="bxgy-fbt__radio-title">Standard price</div>
+          <div class="bxgy-fbt__radio-subtitle">Buy only the product</div>
+        </div>
+        <div class="bxgy-fbt__radio-price">
+          <span class="bxgy-fbt__summary-final" data-fbt-standard-price>{{ main_price | money }}</span>
+        </div>
+      </div>
+      <div class="bxgy-fbt__radio-option bxgy-fbt__radio-option--active" data-fbt-radio="combo">
+        <div class="bxgy-fbt__radio-dot"></div>
+        <div class="bxgy-fbt__radio-label">
+          <div class="bxgy-fbt__radio-title">Complete the bundle</div>
+          <div class="bxgy-fbt__radio-subtitle bxgy-fbt__radio-subtitle--savings" data-fbt-combo-savings></div>
+        </div>
+        <div class="bxgy-fbt__radio-price">
+          <span class="bxgy-fbt__card-price--original" data-fbt-combo-original></span>
+          <span class="bxgy-fbt__card-price--discounted" data-fbt-combo-final></span>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="bxgy-fbt__combo-section {% if bundle_mode != 'combo' %}bxgy-fbt__combo-section--visible{% else %}bxgy-fbt__combo-section--visible{% endif %}" data-fbt-combo-section>
   <div class="bxgy-fbt__cards bxgy-fbt__cards--{{ ds_card_layout }}">
+    {% comment %} === Trigger Product Card (combo mode only) === {% endcomment %}
+    {% if bundle_mode == "combo" %}
+      <div class="bxgy-fbt__card bxgy-fbt__card--trigger"
+        data-fbt-trigger-card
+        data-fbt-trigger-price="{{ main_price }}"
+      >
+        {% if main_image != blank %}
+          <img class="bxgy-fbt__card-image" src="{{ main_image }}" alt="{{ main_title | escape }}" loading="lazy">
+        {% else %}
+          <div class="bxgy-fbt__card-image-placeholder">No image</div>
+        {% endif %}
+
+        <div class="bxgy-fbt__card-details">
+          {% if trigger_discount_pct > 0 %}
+            <div class="bxgy-fbt__card-badge">SAVE {{ trigger_discount_pct }}%</div>
+          {% else %}
+            <div class="bxgy-fbt__card-label">Main product</div>
+          {% endif %}
+          <div class="bxgy-fbt__card-title">{{ main_title }}</div>
+        </div>
+
+        <div class="bxgy-fbt__card-price bxgy-fbt__card-price-col">
+          {% if trigger_discount_pct > 0 and trigger_discounted_price < main_price %}
+            <span class="bxgy-fbt__card-price--original">{{ main_price | money }}</span>
+            <span class="bxgy-fbt__card-price--discounted">{{ trigger_discounted_price | money }}</span>
+          {% else %}
+            {{ main_price | money }}
+          {% endif %}
+        </div>
+      </div>
+      {% if complement_count > 0 %}
+        <div class="bxgy-fbt__plus">+</div>
+      {% endif %}
+    {% endif %}
     {% comment %} === Complement Product Cards === {% endcomment %}
     {% for comp in complements %}
       {% if forloop.index > 1 %}
@@ -347,7 +497,9 @@
         </div>
       </div>
     {% endfor %}
-  </div>
+
+  </div> {% comment %} close .bxgy-fbt__cards {% endcomment %}
+  </div> {% comment %} close .bxgy-fbt__combo-section {% endcomment %}
 
   {% comment %} Summary {% endcomment %}
   <div class="bxgy-fbt__summary">
@@ -360,7 +512,7 @@
 
   {% comment %} Add All to Cart button {% endcomment %}
   <button class="bxgy-fbt__add-btn" data-fbt-add-btn type="button">
-    Add All to Cart
+    {% if bundle_mode == "combo" %}Complete the Combo{% else %}Add All to Cart{% endif %}
   </button>
 
   <div class="bxgy-fbt__feedback" data-fbt-feedback></div>
@@ -374,6 +526,9 @@
   if (!widget) return;
 
   var shopCurrency = {{ shop.currency | json }};
+  var bundleMode = widget.getAttribute('data-fbt-mode') || 'fbt';
+  var triggerDiscountPct = parseFloat(widget.getAttribute('data-fbt-trigger-discount-pct')) || 0;
+  var comboSelected = bundleMode === 'combo'; // combo option selected by default
 
   /* ── Helpers ── */
   function formatMoney(cents) {
@@ -433,34 +588,65 @@
   var addBtn = widget.querySelector('[data-fbt-add-btn]');
   var feedbackEl = widget.querySelector('[data-fbt-feedback]');
 
+  /* ── Combo mode DOM refs ── */
+  var standardRadio = widget.querySelector('[data-fbt-radio="standard"]');
+  var comboRadio = widget.querySelector('[data-fbt-radio="combo"]');
+  var comboSection = widget.querySelector('[data-fbt-combo-section]');
+  var comboSavingsEl = widget.querySelector('[data-fbt-combo-savings]');
+  var comboOriginalEl = widget.querySelector('[data-fbt-combo-original]');
+  var comboFinalEl = widget.querySelector('[data-fbt-combo-final]');
+  var standardPriceEl = widget.querySelector('[data-fbt-standard-price]');
+
   /* ── Update prices ── */
   function updatePrices() {
     if (currentBuyVariantId && buyVariants[currentBuyVariantId]) {
       currentBuyPrice = buyVariants[currentBuyVariantId].price;
     }
 
-    /* Include trigger product (full price) + discounted complements */
-    var totalOriginal = currentBuyPrice;
-    var totalFinal = currentBuyPrice;
+    if (bundleMode === 'combo') {
+      /* Combo mode: trigger (with discount) + complements */
+      var triggerOriginal = currentBuyPrice;
+      var triggerFinal = Math.round(currentBuyPrice * (1 - triggerDiscountPct / 100));
+      var totalOriginal = triggerOriginal;
+      var totalFinal = triggerFinal;
 
-    for (var i = 0; i < complements.length; i++) {
-      var c = complements[i];
-      var qty = c.quantity || 1;
-      totalOriginal += c.price * qty;
-      var discounted = Math.round(c.price * (1 - c.discountPct / 100)) * qty;
-      totalFinal += discounted;
-    }
+      for (var i = 0; i < complements.length; i++) {
+        var c = complements[i];
+        var qty = c.quantity || 1;
+        totalOriginal += c.price * qty;
+        totalFinal += Math.round(c.price * (1 - c.discountPct / 100)) * qty;
+      }
 
-    var savings = totalOriginal - totalFinal;
+      var savings = totalOriginal - totalFinal;
 
-    if (totalOriginalEl) {
-      totalOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
-    }
-    if (totalFinalEl) {
-      totalFinalEl.textContent = formatMoney(totalFinal);
-    }
-    if (savingsEl) {
-      savingsEl.textContent = savings > 0 ? 'You save ' + formatMoney(savings) : '';
+      /* Update radio option prices */
+      if (standardPriceEl) standardPriceEl.textContent = formatMoney(currentBuyPrice);
+      if (comboOriginalEl) comboOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
+      if (comboFinalEl) comboFinalEl.textContent = formatMoney(totalFinal);
+      if (comboSavingsEl) comboSavingsEl.textContent = savings > 0 ? 'Save ' + formatMoney(savings) + '!' : '';
+
+      /* Summary bar */
+      if (totalOriginalEl) totalOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
+      if (totalFinalEl) totalFinalEl.textContent = formatMoney(totalFinal);
+      if (savingsEl) savingsEl.textContent = savings > 0 ? 'You save ' + formatMoney(savings) : '';
+    } else {
+      /* FBT mode: trigger at full price + discounted complements */
+      var totalOriginal = currentBuyPrice;
+      var totalFinal = currentBuyPrice;
+
+      for (var i = 0; i < complements.length; i++) {
+        var c = complements[i];
+        var qty = c.quantity || 1;
+        totalOriginal += c.price * qty;
+        var discounted = Math.round(c.price * (1 - c.discountPct / 100)) * qty;
+        totalFinal += discounted;
+      }
+
+      var savings = totalOriginal - totalFinal;
+
+      if (totalOriginalEl) totalOriginalEl.textContent = savings > 0 ? formatMoney(totalOriginal) : '';
+      if (totalFinalEl) totalFinalEl.textContent = formatMoney(totalFinal);
+      if (savingsEl) savingsEl.textContent = savings > 0 ? 'You save ' + formatMoney(savings) : '';
     }
   }
 
@@ -546,13 +732,20 @@
     /* Always include the trigger (current PDP) product so the discount
        function sees it in the cart and activates the FBT discounts. */
     var buyVid = detectBuyVariant();
-    if (buyVid) {
-      items.push({ id: Number(buyVid), quantity: 1 });
-    }
 
-    for (var i = 0; i < complements.length; i++) {
-      if (complements[i].variantId) {
-        items.push({ id: Number(complements[i].variantId), quantity: complements[i].quantity || 1 });
+    /* In combo mode with "standard" selected, only add the trigger product */
+    if (bundleMode === 'combo' && !comboSelected) {
+      if (buyVid) {
+        items.push({ id: Number(buyVid), quantity: 1 });
+      }
+    } else {
+      if (buyVid) {
+        items.push({ id: Number(buyVid), quantity: 1 });
+      }
+      for (var i = 0; i < complements.length; i++) {
+        if (complements[i].variantId) {
+          items.push({ id: Number(complements[i].variantId), quantity: complements[i].quantity || 1 });
+        }
       }
     }
 
@@ -590,6 +783,36 @@
       showFeedback('error', err.message || 'Something went wrong. Please try again.');
     });
   });
+
+  /* ── Combo mode radio toggle ── */
+  if (bundleMode === 'combo') {
+    function setComboSelection(selected) {
+      comboSelected = selected === 'combo';
+      if (standardRadio) {
+        standardRadio.classList.toggle('bxgy-fbt__radio-option--active', !comboSelected);
+      }
+      if (comboRadio) {
+        comboRadio.classList.toggle('bxgy-fbt__radio-option--active', comboSelected);
+      }
+      if (comboSection) {
+        comboSection.classList.toggle('bxgy-fbt__combo-section--visible', comboSelected);
+      }
+      /* Update button text */
+      if (addBtn) {
+        addBtn.textContent = comboSelected ? 'Complete the Combo' : 'Add to Cart';
+      }
+    }
+
+    if (standardRadio) {
+      standardRadio.addEventListener('click', function() { setComboSelection('standard'); });
+    }
+    if (comboRadio) {
+      comboRadio.addEventListener('click', function() { setComboSelection('combo'); });
+    }
+
+    /* Default to combo selected */
+    setComboSelection('combo');
+  }
 
   /* ── Initialize ── */
   updatePrices();

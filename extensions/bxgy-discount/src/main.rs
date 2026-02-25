@@ -54,6 +54,8 @@ struct FunctionConfig {
     volume_tiers: Option<Vec<VolumeTierConfig>>,
     complement_products: Option<Vec<ComplementProductConfig>>,
     trigger_product_id: Option<String>,
+    mode: Option<String>,
+    trigger_discount_pct: Option<f64>,
 }
 
 #[shopify_function]
@@ -103,12 +105,44 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
             }
         }
 
+        // Determine if combo mode with trigger discount
+        let is_combo = config.mode.as_deref() == Some("combo");
+        let trigger_pct = config.trigger_discount_pct.unwrap_or(0.0);
+
+        // In combo mode, check if at least one complement product is in the cart
+        let has_complement_in_cart = if is_combo {
+            input.cart().lines().iter().any(|line| {
+                if let Merchandise::ProductVariant(variant) = line.merchandise() {
+                    complement_map.contains_key(&variant.product().id().to_string())
+                } else {
+                    false
+                }
+            })
+        } else {
+            false
+        };
+
         // Collect complement lines in the cart and group by discount_pct
         // Use the configured quantity as the max units to discount per complement
         let mut groups: std::collections::HashMap<i64, Vec<(String, i32)>> = std::collections::HashMap::new();
         for line in input.cart().lines() {
             if let Merchandise::ProductVariant(variant) = line.merchandise() {
                 let product_id = variant.product().id().to_string();
+
+                // In combo mode, also add trigger product to discount groups
+                // (only if at least one complement is also in the cart)
+                if is_combo && trigger_pct > 0.0 && has_complement_in_cart {
+                    if let Some(ref trigger_pid) = config.trigger_product_id {
+                        if !trigger_pid.is_empty() && product_id == *trigger_pid {
+                            let key = (trigger_pct * 100.0) as i64;
+                            groups
+                                .entry(key)
+                                .or_insert_with(Vec::new)
+                                .push((variant.id().to_string(), *line.quantity()));
+                        }
+                    }
+                }
+
                 if let Some(&(pct, expected_qty)) = complement_map.get(&product_id) {
                     if pct <= 0.0 {
                         continue; // No discount for this complement
@@ -140,8 +174,13 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
                     quantity: Some(*qty),
                 }));
             }
+            let msg = if is_combo {
+                format!("Combo {}% off", pct)
+            } else {
+                format!("FBT {}% off", pct)
+            };
             discounts.push(schema::Discount {
-                message: Some(format!("FBT {}% off", pct)),
+                message: Some(msg),
                 targets,
                 value: schema::Value::Percentage(schema::Percentage {
                     value: shopify_function::scalars::Decimal(pct),

@@ -33,23 +33,6 @@ model Session {
   refreshTokenExpires DateTime?
 }
 
-model Bundle {
-  id            Int      @id @default(autoincrement())
-  name          String
-  buyType       String   // "product" | "collection"
-  buyReference  String   // Shopify GID do produto ou coleção
-  minQuantity   Int
-  getProductId  String   // Shopify GID do produto reward
-  discountType  String   // "percentage" | "fixed"
-  discountValue Int
-  maxReward     Int
-  active        Boolean  @default(true)
-  shopId        String
-  discountId    String?  // GID do automatic discount criado no Shopify
-  designConfig  String?  // JSON com configurações de design
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
 
 model TieredBundle {
   id            Int      @id @default(autoincrement())
@@ -83,6 +66,8 @@ model ComplementBundle {
   triggerType      String   // "product" | "collection" | "all"
   triggerReference String?  // Shopify GID do produto ou coleção (null se "all")
   complements      String   // JSON: [{ productId, discountPct }]
+  mode             String   @default("fbt") // "fbt" | "combo"
+  triggerDiscountPct Int    @default(0) // discount % on trigger product (combo mode)
   active           Boolean  @default(true)
   shopId           String
   discountId       String?
