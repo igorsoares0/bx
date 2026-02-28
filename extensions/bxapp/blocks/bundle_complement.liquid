@@ -1,5 +1,26 @@
 {% assign fbt_data = product.metafields.bxgy_bundle.complement_config.value %}
 
+{% if fbt_data == blank %}
+  {% assign shop_complement_bundles = shop.metafields.bxgy_bundle.complement_bundles.value %}
+  {% if shop_complement_bundles != blank %}
+    {% for cb in shop_complement_bundles %}
+      {% if cb.triggerType == 'all' %}
+        {% assign fbt_data = cb %}
+        {% break %}
+      {% elsif cb.triggerType == 'collection' and cb.triggerReference != blank %}
+        {% for col in product.collections %}
+          {% assign col_gid = "gid://shopify/Collection/" | append: col.id %}
+          {% if col_gid == cb.triggerReference %}
+            {% assign fbt_data = cb %}
+            {% break %}
+          {% endif %}
+        {% endfor %}
+        {% if fbt_data != blank %}{% break %}{% endif %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endif %}
+
 {% if fbt_data != blank %}
   {% assign complements = fbt_data.complements %}
   {% assign complement_count = complements.size %}
