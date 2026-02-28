@@ -1,5 +1,17 @@
 {% assign bundle_data = product.metafields.bxgy_bundle.volume_config.value %}
 
+{% if bundle_data == blank %}
+  {% assign shop_volume_bundles = shop.metafields.bxgy_bundle.volume_bundles.value %}
+  {% if shop_volume_bundles != blank %}
+    {% for vb in shop_volume_bundles %}
+      {% if vb.triggerType == 'all' %}
+        {% assign bundle_data = vb %}
+        {% break %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endif %}
+
 {% if bundle_data != blank %}
   {% assign ds_accent = bundle_data.designAccentColor | default: block.settings.accent_color %}
   {% assign ds_bg = bundle_data.designBackgroundColor | default: block.settings.background_color %}

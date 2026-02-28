@@ -22,6 +22,7 @@ import db from "../db.server";
 import {
   setVolumeBundleMetafield,
   removeVolumeBundleMetafield,
+  setShopVolumeBundleMetafield,
 } from "../lib/bundle-metafields.server";
 
 const DEFAULT_VOLUME_TIERS = [
@@ -82,9 +83,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       bundle: null,
       volumeTiers: DEFAULT_VOLUME_TIERS,
       functionId,
-      productTitle: "",
-      productImage: "",
-      productPrice: 0,
+      products: [] as Array<{ id: string; title: string; image: string; price: number }>,
+      collectionTitle: "",
     });
   }
 
@@ -98,35 +98,63 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const volumeTiers = parseVolumeTiers(bundle.volumeTiers);
 
-  let productTitle = bundle.productId;
-  let productImage = "";
-  let productPrice = 0;
-
+  // Parse productIds (backward compat: could be single GID or JSON array)
+  let productIds: string[] = [];
   try {
-    const res = await admin.graphql(
-      `#graphql
-        query getProduct($id: ID!) {
-          product(id: $id) {
-            title
-            featuredImage { url }
-            variants(first: 1) {
-              edges { node { price } }
-            }
-          }
-        }`,
-      { variables: { id: bundle.productId } },
-    );
-    const prodJson = await res.json();
-    productTitle = prodJson.data?.product?.title || bundle.productId;
-    productImage = prodJson.data?.product?.featuredImage?.url || "";
-    productPrice = prodJson.data?.product?.variants?.edges?.[0]?.node?.price
-      ? Math.round(parseFloat(prodJson.data.product.variants.edges[0].node.price) * 100)
-      : 0;
+    const parsed = JSON.parse(bundle.productId);
+    productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
   } catch {
-    // Keep GID as fallback
+    productIds = bundle.productId ? [bundle.productId] : [];
   }
 
-  return json({ bundle, volumeTiers, functionId, productTitle, productImage, productPrice });
+  // Fetch product info for each product
+  const products: Array<{ id: string; title: string; image: string; price: number }> = [];
+  for (const pid of productIds) {
+    try {
+      const res = await admin.graphql(
+        `#graphql
+          query getProduct($id: ID!) {
+            product(id: $id) {
+              title
+              featuredImage { url }
+              variants(first: 1) {
+                edges { node { price } }
+              }
+            }
+          }`,
+        { variables: { id: pid } },
+      );
+      const prodJson = await res.json();
+      products.push({
+        id: pid,
+        title: prodJson.data?.product?.title || pid,
+        image: prodJson.data?.product?.featuredImage?.url || "",
+        price: prodJson.data?.product?.variants?.edges?.[0]?.node?.price
+          ? Math.round(parseFloat(prodJson.data.product.variants.edges[0].node.price) * 100)
+          : 0,
+      });
+    } catch {
+      products.push({ id: pid, title: pid, image: "", price: 0 });
+    }
+  }
+
+  // Fetch collection title if triggerType is collection
+  let collectionTitle = "";
+  if (bundle.triggerType === "collection" && bundle.triggerReference) {
+    try {
+      const colRes = await admin.graphql(
+        `#graphql
+          query getCollection($id: ID!) {
+            collection(id: $id) { title }
+          }`,
+        { variables: { id: bundle.triggerReference } },
+      );
+      const colJson = await colRes.json();
+      collectionTitle = colJson.data?.collection?.title || "";
+    } catch {}
+  }
+
+  return json({ bundle, volumeTiers, functionId, products, collectionTitle });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -134,20 +162,52 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const formData = await request.formData();
 
   const name = formData.get("name") as string;
-  const productId = formData.get("productId") as string;
+  const triggerType = (formData.get("triggerType") as string) || "product";
+  const triggerReference = (formData.get("triggerReference") as string) || null;
+  const productIdsRaw = formData.get("productIds") as string;
   const volumeTiersRaw = formData.get("volumeTiers") as string;
   const designConfigRaw = formData.get("designConfig") as string | null;
   const designConfig = designConfigRaw ? JSON.parse(designConfigRaw) : null;
 
+  let productIds: string[] = [];
+  try {
+    productIds = JSON.parse(productIdsRaw);
+  } catch {
+    if (productIdsRaw) productIds = [productIdsRaw];
+  }
+
   const volumeTiers: VolumeTier[] = JSON.parse(volumeTiersRaw);
 
-  // Function configuration with volumeTiers to trigger the volume path in Rust
+  // For collection trigger, resolve collection products
+  let resolvedProductIds = productIds;
+  if (triggerType === "collection" && triggerReference) {
+    try {
+      const colRes = await admin.graphql(
+        `#graphql
+          query getCollectionProducts($id: ID!) {
+            collection(id: $id) {
+              products(first: 250) {
+                edges { node { id } }
+              }
+            }
+          }`,
+        { variables: { id: triggerReference } },
+      );
+      const colJson = await colRes.json();
+      const colProducts = colJson.data?.collection?.products?.edges || [];
+      resolvedProductIds = colProducts.map((e: any) => e.node.id);
+    } catch {}
+  }
+
+  // Build function config — use buy_product_ids for volume path
   const functionConfig = {
-    buyType: "product",
-    buyProductId: productId,
+    buyType: triggerType === "all" ? "all" : "product",
+    buyProductId: resolvedProductIds[0] || "",
+    buyProductIds: resolvedProductIds,
     buyCollectionIds: null,
     minQuantity: 1,
-    getProductId: productId,
+    getProductId: resolvedProductIds[0] || "",
+    getProductIds: resolvedProductIds,
     discountType: "percentage",
     discountValue: 0,
     maxReward: 0,
@@ -157,13 +217,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     })),
   };
 
+  const productIdField = triggerType === "product" ? JSON.stringify(productIds) : JSON.stringify(resolvedProductIds);
+
   const isNew = params.id === "new";
 
   if (isNew) {
     const bundle = await db.volumeBundle.create({
       data: {
         name,
-        productId,
+        triggerType,
+        productId: productIdField,
+        triggerReference,
         volumeTiers: volumeTiersRaw,
         shopId: session.shop,
         designConfig: designConfigRaw || null,
@@ -221,12 +285,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
     }
 
-    await setVolumeBundleMetafield(admin, {
-      productId,
-      bundleName: name,
-      volumeTiers,
-      designConfig,
-    });
+    // Set metafields
+    if (triggerType === "product") {
+      await setVolumeBundleMetafield(admin, {
+        productIds,
+        bundleName: name,
+        volumeTiers,
+        designConfig,
+      });
+    } else {
+      // collection or all → shop-level metafield
+      await setShopVolumeBundleMetafield(admin, session.shop, db);
+    }
   } else {
     const bundleId = Number(params.id);
     const existing = await db.volumeBundle.findFirst({
@@ -237,26 +307,41 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       throw new Response("Volume bundle not found", { status: 404 });
     }
 
+    // Remove old product metafields
+    let oldProductIds: string[] = [];
+    try {
+      const parsed = JSON.parse(existing.productId);
+      oldProductIds = Array.isArray(parsed) ? parsed : [existing.productId];
+    } catch {
+      oldProductIds = existing.productId ? [existing.productId] : [];
+    }
+    if (oldProductIds.length > 0) {
+      await removeVolumeBundleMetafield(admin, oldProductIds);
+    }
+
     await db.volumeBundle.update({
       where: { id: bundleId },
       data: {
         name,
-        productId,
+        triggerType,
+        productId: productIdField,
+        triggerReference,
         volumeTiers: volumeTiersRaw,
         designConfig: designConfigRaw || null,
       },
     });
 
-    if (existing.productId !== productId) {
-      await removeVolumeBundleMetafield(admin, existing.productId);
+    // Set new metafields
+    if (triggerType === "product") {
+      await setVolumeBundleMetafield(admin, {
+        productIds,
+        bundleName: name,
+        volumeTiers,
+        designConfig,
+      });
+    } else {
+      await setShopVolumeBundleMetafield(admin, session.shop, db);
     }
-
-    await setVolumeBundleMetafield(admin, {
-      productId,
-      bundleName: name,
-      volumeTiers,
-      designConfig,
-    });
 
     if (existing.discountId) {
       await admin.graphql(
@@ -308,7 +393,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function VolumeBundleForm() {
-  const { bundle, volumeTiers: loadedTiers, functionId, productTitle, productImage, productPrice } =
+  const { bundle, volumeTiers: loadedTiers, functionId, products: loadedProducts, collectionTitle: loadedCollectionTitle } =
     useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -322,12 +407,12 @@ export default function VolumeBundleForm() {
     : DEFAULT_DESIGN;
 
   const [name, setName] = useState(bundle?.name || "");
-  const [productId, setProductId] = useState(bundle?.productId || "");
-  const [productLabel, setProductLabel] = useState(
-    productTitle || bundle?.productId || "",
-  );
-  const [prodImage, setProdImage] = useState(productImage || "");
-  const [prodPriceCents, setProdPriceCents] = useState(productPrice || 0);
+  const [triggerType, setTriggerType] = useState(bundle?.triggerType || "product");
+  const [triggerReference, setTriggerReference] = useState(bundle?.triggerReference || "");
+  const [collectionTitle, setCollectionTitle] = useState(loadedCollectionTitle || "");
+  const [selectedProducts, setSelectedProducts] = useState<
+    Array<{ id: string; title: string; image: string; price: number }>
+  >(loadedProducts || []);
 
   const [tiers, setTiers] = useState<VolumeTier[]>(loadedTiers);
 
@@ -375,31 +460,54 @@ export default function VolumeBundleForm() {
 
   const formatPreviewPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-  const handleSelectProduct = useCallback(async () => {
+  const handleSelectProducts = useCallback(async () => {
     const selected = await shopify.resourcePicker({
       type: "product",
+      multiple: true,
+      selectionIds: selectedProducts.map((p) => ({ id: p.id })),
+    });
+
+    if (selected) {
+      const items = Array.isArray(selected) ? selected : [selected];
+      setSelectedProducts(
+        items.map((item: any) => ({
+          id: item.id,
+          title: item.title || item.id,
+          image: item.images?.[0]?.originalSrc || "",
+          price: item.variants?.[0]?.price
+            ? Math.round(parseFloat(item.variants[0].price) * 100)
+            : 0,
+        })),
+      );
+    }
+  }, [shopify, selectedProducts]);
+
+  const handleSelectCollection = useCallback(async () => {
+    const selected = await shopify.resourcePicker({
+      type: "collection",
       multiple: false,
     });
 
     if (selected) {
-      const item = selected as any;
-      const items = Array.isArray(item) ? item : [item];
+      const items = Array.isArray(selected) ? selected : [selected];
       if (items.length > 0) {
-        setProductId(items[0].id);
-        setProductLabel(items[0].title || items[0].id);
-        setProdImage(items[0].images?.[0]?.originalSrc || "");
-        const firstVariant = items[0].variants?.[0];
-        if (firstVariant?.price) {
-          setProdPriceCents(Math.round(parseFloat(firstVariant.price) * 100));
-        }
+        setTriggerReference(items[0].id);
+        setCollectionTitle(items[0].title || items[0].id);
       }
     }
   }, [shopify]);
 
+  const removeProduct = (id: string) => {
+    setSelectedProducts((prev) => prev.filter((p) => p.id !== id));
+  };
+
   const handleSubmit = () => {
     const validationErrors: string[] = [];
     if (!name.trim()) validationErrors.push("Name is required");
-    if (!productId) validationErrors.push("Product is required");
+    if (triggerType === "product" && selectedProducts.length === 0)
+      validationErrors.push("At least one product is required");
+    if (triggerType === "collection" && !triggerReference)
+      validationErrors.push("A collection is required");
     if (tiers.length === 0) validationErrors.push("At least one tier is required");
 
     if (validationErrors.length > 0) {
@@ -410,7 +518,9 @@ export default function VolumeBundleForm() {
     setErrors([]);
     const formData = new FormData();
     formData.set("name", name);
-    formData.set("productId", productId);
+    formData.set("triggerType", triggerType);
+    formData.set("triggerReference", triggerReference);
+    formData.set("productIds", JSON.stringify(selectedProducts.map((p) => p.id)));
     formData.set("functionId", functionId);
     formData.set("volumeTiers", JSON.stringify(tiers));
     formData.set("designConfig", JSON.stringify(design));
@@ -418,7 +528,7 @@ export default function VolumeBundleForm() {
     submit(formData, { method: "post" });
   };
 
-  const unitPrice = prodPriceCents || 19900;
+  const unitPrice = selectedProducts[0]?.price || 19900;
 
   return (
     <Page
@@ -451,25 +561,64 @@ export default function VolumeBundleForm() {
                     autoComplete="off"
                     placeholder="e.g. Buy more save more"
                   />
-                  <InlineStack gap="300" blockAlign="center">
-                    {prodImage && (
-                      <Thumbnail
-                        source={prodImage}
-                        alt={productLabel}
-                        size="medium"
-                      />
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <TextField
-                        label="Product"
-                        value={productLabel}
-                        readOnly
-                        autoComplete="off"
-                        placeholder="Select a product..."
-                      />
-                    </div>
-                    <Button onClick={handleSelectProduct}>Browse</Button>
-                  </InlineStack>
+                  <Select
+                    label="Applies to"
+                    options={[
+                      { label: "Specific products", value: "product" },
+                      { label: "Collection", value: "collection" },
+                      { label: "All products", value: "all" },
+                    ]}
+                    value={triggerType}
+                    onChange={(v) => {
+                      setTriggerType(v);
+                      if (v !== "product") setSelectedProducts([]);
+                      if (v !== "collection") { setTriggerReference(""); setCollectionTitle(""); }
+                    }}
+                  />
+
+                  {triggerType === "product" && (
+                    <>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Button onClick={handleSelectProducts}>
+                          {selectedProducts.length > 0 ? "Change products" : "Browse products"}
+                        </Button>
+                      </InlineStack>
+                      {selectedProducts.map((p) => (
+                        <InlineStack key={p.id} gap="300" blockAlign="center">
+                          {p.image && (
+                            <Thumbnail source={p.image} alt={p.title} size="small" />
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <Text as="span" variant="bodyMd">{p.title}</Text>
+                          </div>
+                          <Button variant="plain" tone="critical" onClick={() => removeProduct(p.id)}>
+                            Remove
+                          </Button>
+                        </InlineStack>
+                      ))}
+                    </>
+                  )}
+
+                  {triggerType === "collection" && (
+                    <InlineStack gap="300" blockAlign="center">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Collection"
+                          value={collectionTitle}
+                          readOnly
+                          autoComplete="off"
+                          placeholder="Select a collection..."
+                        />
+                      </div>
+                      <Button onClick={handleSelectCollection}>Browse</Button>
+                    </InlineStack>
+                  )}
+
+                  {triggerType === "all" && (
+                    <Banner tone="info">
+                      This volume discount will apply to all products in your store.
+                    </Banner>
+                  )}
                 </FormLayout>
               </BlockStack>
             </Card>

@@ -15,6 +15,7 @@ import {
   removeTieredBundleMetafield,
   setShopTieredBundleMetafield,
   removeVolumeBundleMetafield,
+  setShopVolumeBundleMetafield,
   removeComplementBundleMetafield,
   setShopComplementBundleMetafield,
 } from "../lib/bundle-metafields.server";
@@ -149,8 +150,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             { variables: { id: bundle.discountId } },
           );
         }
-        await removeVolumeBundleMetafield(admin, bundle.productId);
+        // Parse productIds (backward compat)
+        let productIds: string[] = [];
+        try {
+          const parsed = JSON.parse(bundle.productId);
+          productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
+        } catch {
+          productIds = bundle.productId ? [bundle.productId] : [];
+        }
+        if (productIds.length > 0) {
+          await removeVolumeBundleMetafield(admin, productIds);
+        }
         await db.volumeBundle.delete({ where: { id: bundleId } });
+        // Refresh shop-level metafield
+        await setShopVolumeBundleMetafield(admin, session.shop, db);
       }
     }
 
@@ -186,8 +199,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         if (!newActive) {
-          await removeVolumeBundleMetafield(admin, bundle.productId);
+          let productIds: string[] = [];
+          try {
+            const parsed = JSON.parse(bundle.productId);
+            productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
+          } catch {
+            productIds = bundle.productId ? [bundle.productId] : [];
+          }
+          if (productIds.length > 0) {
+            await removeVolumeBundleMetafield(admin, productIds);
+          }
         }
+        // Refresh shop-level metafield
+        await setShopVolumeBundleMetafield(admin, session.shop, db);
       }
     }
 
@@ -401,10 +425,16 @@ export default function BundleIndex() {
       </IndexTable.Cell>
       <IndexTable.Cell>
         {(() => {
+          const tt = (bundle as any).triggerType || "product";
+          if (tt === "all") return "All products";
+          if (tt === "collection") return "Collection";
           try {
-            const t = JSON.parse(bundle.volumeTiers || "[]");
-            return `${t.length} tier${t.length !== 1 ? "s" : ""}`;
-          } catch { return "—"; }
+            const parsed = JSON.parse(bundle.productId || "[]");
+            const ids = Array.isArray(parsed) ? parsed : [bundle.productId];
+            return `${ids.length} product${ids.length !== 1 ? "s" : ""}`;
+          } catch {
+            return "1 product";
+          }
         })()}
       </IndexTable.Cell>
       <IndexTable.Cell>

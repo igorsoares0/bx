@@ -194,23 +194,14 @@ export async function removeTieredBundleMetafield(
 }
 
 /**
- * Writes volume bundle config metafield to the product so the theme extension can display volume tiers.
+ * Builds the volume config metafield JSON value.
  */
-export async function setVolumeBundleMetafield(
-  admin: any,
-  {
-    productId,
-    bundleName,
-    volumeTiers,
-    designConfig,
-  }: {
-    productId: string;
-    bundleName: string;
-    volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }>;
-    designConfig?: Record<string, unknown>;
-  },
+function buildVolumeMetafieldValue(
+  bundleName: string,
+  volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }>,
+  designConfig?: Record<string, unknown>,
 ) {
-  const metafieldValue = JSON.stringify({
+  return JSON.stringify({
     bundleName,
     volumeTiers,
     designAccentColor: designConfig?.accentColor ?? null,
@@ -223,6 +214,100 @@ export async function setVolumeBundleMetafield(
     designBadgeText: designConfig?.badgeText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
   });
+}
+
+/**
+ * Writes volume bundle config metafield to one or more products.
+ */
+export async function setVolumeBundleMetafield(
+  admin: any,
+  {
+    productIds,
+    bundleName,
+    volumeTiers,
+    designConfig,
+  }: {
+    productIds: string[];
+    bundleName: string;
+    volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }>;
+    designConfig?: Record<string, unknown>;
+  },
+) {
+  const metafieldValue = buildVolumeMetafieldValue(bundleName, volumeTiers, designConfig);
+
+  for (const productId of productIds) {
+    await admin.graphql(
+      `#graphql
+        mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id }
+            userErrors { field message }
+          }
+        }`,
+      {
+        variables: {
+          metafields: [
+            {
+              ownerId: productId,
+              namespace: "bxgy_bundle",
+              key: "volume_config",
+              type: "json",
+              value: metafieldValue,
+            },
+          ],
+        },
+      },
+    );
+  }
+}
+
+/**
+ * Writes volume bundle configs to a shop-level metafield (for collection/all triggers).
+ */
+export async function setShopVolumeBundleMetafield(
+  admin: any,
+  shopId: string,
+  db: any,
+) {
+  const bundles = await db.volumeBundle.findMany({
+    where: { shopId, active: true, triggerType: { not: "product" } },
+  });
+
+  const configs = [];
+  for (const bundle of bundles) {
+    let volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }> = [];
+    try {
+      volumeTiers = JSON.parse(bundle.volumeTiers || "[]");
+    } catch {}
+
+    const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : {};
+
+    configs.push({
+      id: bundle.id,
+      name: bundle.name,
+      triggerType: bundle.triggerType,
+      triggerReference: bundle.triggerReference,
+      bundleName: bundle.name,
+      volumeTiers,
+      designAccentColor: designConfig?.accentColor ?? null,
+      designBackgroundColor: designConfig?.backgroundColor ?? null,
+      designTextColor: designConfig?.textColor ?? null,
+      designButtonColor: designConfig?.buttonColor ?? null,
+      designButtonTextColor: designConfig?.buttonTextColor ?? null,
+      designBorderRadius: designConfig?.borderRadius ?? null,
+      designHeaderText: designConfig?.headerText ?? null,
+      designBadgeText: designConfig?.badgeText ?? null,
+      designCardLayout: designConfig?.cardLayout ?? "vertical",
+    });
+  }
+
+  const shopRes = await admin.graphql(
+    `#graphql
+      query { shop { id } }`,
+  );
+  const shopJson = await shopRes.json();
+  const shopGid = shopJson.data?.shop?.id;
+  if (!shopGid) return;
 
   await admin.graphql(
     `#graphql
@@ -236,11 +321,11 @@ export async function setVolumeBundleMetafield(
       variables: {
         metafields: [
           {
-            ownerId: productId,
+            ownerId: shopGid,
             namespace: "bxgy_bundle",
-            key: "volume_config",
+            key: "volume_bundles",
             type: "json",
-            value: metafieldValue,
+            value: JSON.stringify(configs),
           },
         ],
       },
@@ -249,53 +334,57 @@ export async function setVolumeBundleMetafield(
 }
 
 /**
- * Removes the volume bundle metafield from the product.
+ * Removes the volume bundle metafield from one or more products.
  */
 export async function removeVolumeBundleMetafield(
   admin: any,
-  productId: string,
+  productIds: string | string[],
 ) {
-  const response = await admin.graphql(
-    `#graphql
-      query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
-        product(id: $ownerId) {
-          metafield(namespace: $namespace, key: $key) {
-            id
-          }
-        }
-      }`,
-    {
-      variables: {
-        ownerId: productId,
-        namespace: "bxgy_bundle",
-        key: "volume_config",
-      },
-    },
-  );
-  const json = await response.json();
-  const metafieldId = json.data?.product?.metafield?.id;
+  const ids = Array.isArray(productIds) ? productIds : [productIds];
 
-  if (metafieldId) {
-    await admin.graphql(
+  for (const productId of ids) {
+    const response = await admin.graphql(
       `#graphql
-        mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
-          metafieldsDelete(metafields: $metafields) {
-            deletedMetafields { ownerId namespace key }
-            userErrors { field message }
+        query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
+          product(id: $ownerId) {
+            metafield(namespace: $namespace, key: $key) {
+              id
+            }
           }
         }`,
       {
         variables: {
-          metafields: [
-            {
-              ownerId: productId,
-              namespace: "bxgy_bundle",
-              key: "volume_config",
-            },
-          ],
+          ownerId: productId,
+          namespace: "bxgy_bundle",
+          key: "volume_config",
         },
       },
     );
+    const json = await response.json();
+    const metafieldId = json.data?.product?.metafield?.id;
+
+    if (metafieldId) {
+      await admin.graphql(
+        `#graphql
+          mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+            metafieldsDelete(metafields: $metafields) {
+              deletedMetafields { ownerId namespace key }
+              userErrors { field message }
+            }
+          }`,
+        {
+          variables: {
+            metafields: [
+              {
+                ownerId: productId,
+                namespace: "bxgy_bundle",
+                key: "volume_config",
+              },
+            ],
+          },
+        },
+      );
+    }
   }
 }
 

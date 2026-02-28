@@ -202,10 +202,18 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         // Find matching product lines
         let mut product_lines: Vec<(String, i32)> = Vec::new(); // (variant_id, qty)
         let mut total_qty: i32 = 0;
+
+        // Determine if buyType is "all" (match any product)
+        let buy_all = config.buy_type.as_str() == "all";
+
         for line in input.cart().lines() {
             if let Merchandise::ProductVariant(variant) = line.merchandise() {
                 let product_id = variant.product().id();
-                let matches = if let Some(ref buy_pid) = config.buy_product_id {
+                let matches = if buy_all {
+                    true
+                } else if let Some(ref ids) = config.buy_product_ids {
+                    ids.iter().any(|id| product_id == id.as_str())
+                } else if let Some(ref buy_pid) = config.buy_product_id {
                     product_id == buy_pid.as_str()
                 } else {
                     product_id == config.get_product_id.as_str()
