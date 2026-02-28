@@ -35,16 +35,18 @@ model Session {
 
 
 model TieredBundle {
-  id            Int      @id @default(autoincrement())
-  name          String
-  productId        String   // Shopify GID do produto (buy = get = mesmo produto)
+  id               Int      @id @default(autoincrement())
+  name             String
+  triggerType      String   @default("product") // "product" | "collection" | "all"
+  productId        String   // JSON array de Shopify GIDs ou GID único (backward compat)
+  triggerReference String?  // Shopify GID da coleção (quando triggerType=collection)
   tiersConfig      String   @default("[{\"buyQty\":1,\"freeQty\":1,\"discountPct\":100},{\"buyQty\":2,\"freeQty\":3,\"discountPct\":100},{\"buyQty\":3,\"freeQty\":6,\"discountPct\":100}]") // JSON array: [{ buyQty, freeQty, discountPct }, ...]
-  active        Boolean  @default(true)
-  shopId        String
-  discountId    String?  // GID do automatic discount criado no Shopify
-  designConfig  String?  // JSON com configurações de design
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  active           Boolean  @default(true)
+  shopId           String
+  discountId       String?  // GID do automatic discount criado no Shopify
+  designConfig     String?  // JSON com configurações de design
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model VolumeBundle {

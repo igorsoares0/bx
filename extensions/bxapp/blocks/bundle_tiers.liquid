@@ -1,5 +1,27 @@
 {% assign bundle_data = product.metafields.bxgy_bundle.tiered_config.value %}
 
+{% comment %} If no product-level config, check shop-level tiered bundles for collection/all triggers {% endcomment %}
+{% if bundle_data == blank %}
+  {% assign shop_tiered_bundles = shop.metafields.bxgy_bundle.tiered_bundles.value %}
+  {% if shop_tiered_bundles != blank %}
+    {% for sb in shop_tiered_bundles %}
+      {% if sb.triggerType == "all" %}
+        {% assign bundle_data = sb %}
+        {% break %}
+      {% elsif sb.triggerType == "collection" and sb.triggerReference != blank %}
+        {% for col in product.collections %}
+          {% assign col_gid = "gid://shopify/Collection/" | append: col.id %}
+          {% if col_gid == sb.triggerReference %}
+            {% assign bundle_data = sb %}
+            {% break %}
+          {% endif %}
+        {% endfor %}
+        {% if bundle_data != blank %}{% break %}{% endif %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endif %}
+
 {% if bundle_data != blank %}
   {% comment %} Design from metafield with fallback {% endcomment %}
   {% assign ds_accent = bundle_data.designAccentColor | default: block.settings.accent_color %}

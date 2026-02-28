@@ -44,9 +44,11 @@ fn default_quantity() -> i32 { 1 }
 struct FunctionConfig {
     buy_type: String,
     buy_product_id: Option<String>,
+    buy_product_ids: Option<Vec<String>>,
     buy_collection_ids: Option<Vec<String>>,
     min_quantity: i32,
     get_product_id: String,
+    get_product_ids: Option<Vec<String>>,
     discount_type: String,
     discount_value: f64,
     max_reward: i32,
@@ -281,15 +283,22 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
 
             // Check if this line matches "buy" criteria
             let is_buy = match config.buy_type.as_str() {
+                "all" => true,
                 "product" => {
-                    if let Some(ref buy_pid) = config.buy_product_id {
+                    // Check against buy_product_ids first, fallback to buy_product_id
+                    if let Some(ref ids) = config.buy_product_ids {
+                        ids.iter().any(|id| id.as_str() == product_id)
+                    } else if let Some(ref buy_pid) = config.buy_product_id {
                         product_id == buy_pid.as_str()
                     } else {
                         false
                     }
                 }
                 "collection" => {
-                    if let Some(ref ids) = config.buy_collection_ids {
+                    // For collection type, buy_product_ids contains resolved product IDs
+                    if let Some(ref ids) = config.buy_product_ids {
+                        ids.iter().any(|id| id.as_str() == product_id)
+                    } else if let Some(ref ids) = config.buy_collection_ids {
                         ids.iter().any(|id| id.as_str() == product_id)
                     } else {
                         false
@@ -302,17 +311,43 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
                 buy_quantity += *line.quantity();
             }
 
-            // Check if this line is the "get" (reward) product
-            if product_id == config.get_product_id.as_str() {
+            // Check if this line is a "get" (reward) product
+            // For multi-product / all / collection: the get product is the same as buy
+            let is_get = if let Some(ref ids) = config.get_product_ids {
+                ids.iter().any(|id| id.as_str() == product_id)
+            } else {
+                product_id == config.get_product_id.as_str()
+            };
+            // For "all" type, every product is also a get target
+            let is_get = is_get || config.buy_type.as_str() == "all";
+
+            if is_get {
                 get_targets.push((variant.id().to_string(), *line.quantity()));
             }
         }
     }
 
-    // Detect if buy and get are the same product (tiered combo scenario)
-    let same_product = match config.buy_product_id {
-        Some(ref buy_pid) => buy_pid == &config.get_product_id,
-        None => false,
+    // Detect if buy and get are the same product(s)
+    let same_product = match config.buy_type.as_str() {
+        "all" => true,
+        "product" => {
+            if let Some(ref ids) = config.get_product_ids {
+                if let Some(ref buy_ids) = config.buy_product_ids {
+                    buy_ids.iter().all(|b| ids.contains(b))
+                } else if let Some(ref buy_pid) = config.buy_product_id {
+                    ids.contains(buy_pid)
+                } else {
+                    false
+                }
+            } else {
+                match config.buy_product_id {
+                    Some(ref buy_pid) => buy_pid == &config.get_product_id,
+                    None => false,
+                }
+            }
+        }
+        "collection" => true,
+        _ => false,
     };
 
     // Determine which tier applies (if tiers are configured)

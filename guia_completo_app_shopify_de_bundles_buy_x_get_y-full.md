@@ -1,3 +1,4 @@
+
 # Guia Completo — App Shopify de Bundles Buy X Get Y (BXGY)
 
 > Do zero ao deploy: como construir um app Shopify completo de bundles BXGY com desconto nativo no checkout, widget interativo no tema e painel admin.

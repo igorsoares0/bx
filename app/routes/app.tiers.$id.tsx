@@ -21,6 +21,7 @@ import db from "../db.server";
 import {
   setTieredBundleMetafield,
   removeTieredBundleMetafield,
+  setShopTieredBundleMetafield,
 } from "../lib/bundle-metafields.server";
 
 const DEFAULT_TIERS = [
@@ -82,9 +83,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       bundle: null,
       tiers: DEFAULT_TIERS,
       functionId,
-      productTitle: "",
-      productImage: "",
-      productPrice: 0,
+      products: [] as Array<{ id: string; title: string; image: string; price: number }>,
+      triggerTitle: "",
+      triggerImage: "",
     });
   }
 
@@ -98,35 +99,70 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const tiers = parseTiersConfig(bundle.tiersConfig);
 
-  let productTitle = bundle.productId;
-  let productImage = "";
-  let productPrice = 0;
-
-  try {
-    const res = await admin.graphql(
-      `#graphql
-        query getProduct($id: ID!) {
-          product(id: $id) {
-            title
-            featuredImage { url }
-            variants(first: 1) {
-              edges { node { price } }
-            }
-          }
-        }`,
-      { variables: { id: bundle.productId } },
-    );
-    const prodJson = await res.json();
-    productTitle = prodJson.data?.product?.title || bundle.productId;
-    productImage = prodJson.data?.product?.featuredImage?.url || "";
-    productPrice = prodJson.data?.product?.variants?.edges?.[0]?.node?.price
-      ? Math.round(parseFloat(prodJson.data.product.variants.edges[0].node.price) * 100)
-      : 0;
-  } catch {
-    // Keep GID as fallback
+  // Parse productIds (supports legacy single GID and JSON array)
+  let productIds: string[] = [];
+  if (bundle.productId) {
+    try {
+      const parsed = JSON.parse(bundle.productId);
+      productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
+    } catch {
+      productIds = [bundle.productId];
+    }
   }
 
-  return json({ bundle, tiers, functionId, productTitle, productImage, productPrice });
+  // Fetch product info for each selected product
+  const products: Array<{ id: string; title: string; image: string; price: number }> = [];
+  for (const pid of productIds) {
+    try {
+      const res = await admin.graphql(
+        `#graphql
+          query getProduct($id: ID!) {
+            product(id: $id) {
+              title
+              featuredImage { url }
+              variants(first: 1) {
+                edges { node { price } }
+              }
+            }
+          }`,
+        { variables: { id: pid } },
+      );
+      const prodJson = await res.json();
+      products.push({
+        id: pid,
+        title: prodJson.data?.product?.title || pid,
+        image: prodJson.data?.product?.featuredImage?.url || "",
+        price: prodJson.data?.product?.variants?.edges?.[0]?.node?.price
+          ? Math.round(parseFloat(prodJson.data.product.variants.edges[0].node.price) * 100)
+          : 0,
+      });
+    } catch {
+      products.push({ id: pid, title: pid, image: "", price: 0 });
+    }
+  }
+
+  // Fetch trigger info for collection type
+  let triggerTitle = "";
+  let triggerImage = "";
+  if (bundle.triggerType === "collection" && bundle.triggerReference) {
+    try {
+      const res = await admin.graphql(
+        `#graphql
+          query getCollection($id: ID!) {
+            collection(id: $id) {
+              title
+              image { url }
+            }
+          }`,
+        { variables: { id: bundle.triggerReference } },
+      );
+      const colJson = await res.json();
+      triggerTitle = colJson.data?.collection?.title || bundle.triggerReference;
+      triggerImage = colJson.data?.collection?.image?.url || "";
+    } catch {}
+  }
+
+  return json({ bundle, tiers, functionId, products, triggerTitle, triggerImage });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -134,22 +170,49 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const formData = await request.formData();
 
   const name = formData.get("name") as string;
-  const productId = formData.get("productId") as string;
+  const triggerType = (formData.get("triggerType") as string) || "product";
+  const triggerReference = (formData.get("triggerReference") as string) || null;
+  const productIdsRaw = formData.get("productIds") as string;
   const tiersConfigRaw = formData.get("tiersConfig") as string;
   const designConfigRaw = formData.get("designConfig") as string | null;
   const designConfig = designConfigRaw ? JSON.parse(designConfigRaw) : null;
 
   const tiers: TierConfig[] = JSON.parse(tiersConfigRaw);
+  const productIds: string[] = productIdsRaw ? JSON.parse(productIdsRaw) : [];
 
-  // Function configuration with per-tier discount support
-  const functionConfig = {
-    buyType: "product",
-    buyProductId: productId,
-    buyCollectionIds: null,
+  // For collection trigger, resolve product IDs from collection for function config
+  let resolvedProductIds = productIds;
+  if (triggerType === "collection" && triggerReference) {
+    try {
+      const colRes = await admin.graphql(
+        `#graphql
+          query getCollectionProducts($id: ID!) {
+            collection(id: $id) {
+              products(first: 250) {
+                edges { node { id } }
+              }
+            }
+          }`,
+        { variables: { id: triggerReference } },
+      );
+      const colJson = await colRes.json();
+      resolvedProductIds = colJson.data?.collection?.products?.edges?.map(
+        (e: any) => e.node.id,
+      ) || [];
+    } catch {}
+  }
+
+  // Function configuration
+  const functionConfig: Record<string, unknown> = {
+    buyType: triggerType,
+    buyProductId: productIds[0] || null,
+    buyProductIds: triggerType === "product" ? productIds : resolvedProductIds,
+    buyCollectionIds: triggerType === "collection" && triggerReference ? [triggerReference] : null,
     minQuantity: tiers[0]?.buyQty || 1,
-    getProductId: productId, // same product
+    getProductId: productIds[0] || "gid://shopify/Product/0",
+    getProductIds: triggerType === "product" ? productIds : resolvedProductIds,
     discountType: "percentage",
-    discountValue: tiers[0]?.discountPct || 100, // fallback for non-tiered logic
+    discountValue: tiers[0]?.discountPct || 100,
     maxReward: Math.max(...tiers.map((t) => t.freeQty)),
     tiers: tiers.map((t) => ({
       minQuantity: t.buyQty,
@@ -158,13 +221,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     })),
   };
 
+  // Store productId as JSON array for multi-product
+  const productIdStored = JSON.stringify(productIds);
+
   const isNew = params.id === "new";
 
   if (isNew) {
     const bundle = await db.tieredBundle.create({
       data: {
         name,
-        productId,
+        triggerType,
+        triggerReference,
+        productId: productIdStored,
         tiersConfig: tiersConfigRaw,
         shopId: session.shop,
         designConfig: designConfigRaw || null,
@@ -223,12 +291,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
     }
 
-    await setTieredBundleMetafield(admin, {
-      productId,
-      bundleName: name,
-      tiers,
-      designConfig,
-    });
+    // Set metafields on products (product trigger only)
+    if (triggerType === "product" && productIds.length > 0) {
+      await setTieredBundleMetafield(admin, {
+        productIds,
+        bundleName: name,
+        tiers,
+        designConfig,
+      });
+    }
+
+    // Sync shop-level metafield for collection/all triggers
+    await setShopTieredBundleMetafield(admin, session.shop, db);
   } else {
     const bundleId = Number(params.id);
     const existing = await db.tieredBundle.findFirst({
@@ -243,23 +317,46 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       where: { id: bundleId },
       data: {
         name,
-        productId,
+        triggerType,
+        triggerReference,
+        productId: productIdStored,
         tiersConfig: tiersConfigRaw,
         designConfig: designConfigRaw || null,
       },
     });
 
-    // Update metafield on product
-    if (existing.productId !== productId) {
-      await removeTieredBundleMetafield(admin, existing.productId);
+    // Clean old metafields from previous products
+    let oldProductIds: string[] = [];
+    if (existing.productId) {
+      try {
+        const parsed = JSON.parse(existing.productId);
+        oldProductIds = Array.isArray(parsed) ? parsed : [existing.productId];
+      } catch {
+        oldProductIds = [existing.productId];
+      }
+    }
+    const removedProducts = oldProductIds.filter((id) => !productIds.includes(id));
+    if (removedProducts.length > 0) {
+      await removeTieredBundleMetafield(admin, removedProducts);
     }
 
-    await setTieredBundleMetafield(admin, {
-      productId,
-      bundleName: name,
-      tiers,
-      designConfig,
-    });
+    // Set metafields on products (product trigger only)
+    if (triggerType === "product" && productIds.length > 0) {
+      await setTieredBundleMetafield(admin, {
+        productIds,
+        bundleName: name,
+        tiers,
+        designConfig,
+      });
+    } else if (existing.triggerType === "product" || !existing.triggerType) {
+      // Switched away from product type - remove old product metafields
+      if (oldProductIds.length > 0) {
+        await removeTieredBundleMetafield(admin, oldProductIds);
+      }
+    }
+
+    // Sync shop-level metafield for collection/all triggers
+    await setShopTieredBundleMetafield(admin, session.shop, db);
 
     // Update the Shopify discount
     if (existing.discountId) {
@@ -314,7 +411,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function TieredBundleForm() {
-  const { bundle, tiers: loadedTiers, functionId, productTitle, productImage, productPrice } =
+  const { bundle, tiers: loadedTiers, functionId, products: loadedProducts, triggerTitle: loadedTriggerTitle, triggerImage: loadedTriggerImage } =
     useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -328,12 +425,11 @@ export default function TieredBundleForm() {
     : DEFAULT_DESIGN;
 
   const [name, setName] = useState(bundle?.name || "");
-  const [productId, setProductId] = useState(bundle?.productId || "");
-  const [productLabel, setProductLabel] = useState(
-    productTitle || bundle?.productId || "",
-  );
-  const [prodImage, setProdImage] = useState(productImage || "");
-  const [prodPriceCents, setProdPriceCents] = useState(productPrice || 0);
+  const [triggerType, setTriggerType] = useState(bundle?.triggerType || "product");
+  const [triggerReference, setTriggerReference] = useState(bundle?.triggerReference || "");
+  const [triggerLabel, setTriggerLabel] = useState(loadedTriggerTitle || "");
+  const [triggerImg, setTriggerImg] = useState(loadedTriggerImage || "");
+  const [products, setProducts] = useState<Array<{ id: string; title: string; image: string; price: number }>>(loadedProducts);
 
   const [tiers, setTiers] = useState<TierConfig[]>(loadedTiers);
 
@@ -371,23 +467,43 @@ export default function TieredBundleForm() {
 
   const formatPreviewPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-  const handleSelectProduct = useCallback(async () => {
+  const handleSelectProducts = useCallback(async () => {
     const selected = await shopify.resourcePicker({
       type: "product",
-      multiple: false,
+      multiple: true,
+      selectionIds: products.map((p) => ({ id: p.id })),
     });
 
     if (selected) {
-      const item = selected as any;
-      const items = Array.isArray(item) ? item : [item];
+      const items = Array.isArray(selected) ? selected : [selected];
+      setProducts(
+        items.map((item: any) => ({
+          id: item.id,
+          title: item.title || item.id,
+          image: item.images?.[0]?.originalSrc || "",
+          price: item.variants?.[0]?.price
+            ? Math.round(parseFloat(item.variants[0].price) * 100)
+            : 0,
+        })),
+      );
+    }
+  }, [shopify, products]);
+
+  const removeProduct = (id: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const handleSelectCollection = useCallback(async () => {
+    const selected = await shopify.resourcePicker({
+      type: "collection",
+      multiple: false,
+    });
+    if (selected) {
+      const items = Array.isArray(selected) ? selected : [selected];
       if (items.length > 0) {
-        setProductId(items[0].id);
-        setProductLabel(items[0].title || items[0].id);
-        setProdImage(items[0].images?.[0]?.originalSrc || "");
-        const firstVariant = items[0].variants?.[0];
-        if (firstVariant?.price) {
-          setProdPriceCents(Math.round(parseFloat(firstVariant.price) * 100));
-        }
+        setTriggerReference(items[0].id);
+        setTriggerLabel(items[0].title || items[0].id);
+        setTriggerImg((items[0] as any).image?.originalSrc || "");
       }
     }
   }, [shopify]);
@@ -395,7 +511,12 @@ export default function TieredBundleForm() {
   const handleSubmit = () => {
     const validationErrors: string[] = [];
     if (!name.trim()) validationErrors.push("Name is required");
-    if (!productId) validationErrors.push("Product is required");
+    if (triggerType === "product" && products.length === 0) {
+      validationErrors.push("At least one product is required");
+    }
+    if (triggerType === "collection" && !triggerReference) {
+      validationErrors.push("Collection is required");
+    }
     if (tiers.length === 0) validationErrors.push("At least one tier is required");
 
     if (validationErrors.length > 0) {
@@ -406,7 +527,9 @@ export default function TieredBundleForm() {
     setErrors([]);
     const formData = new FormData();
     formData.set("name", name);
-    formData.set("productId", productId);
+    formData.set("triggerType", triggerType);
+    formData.set("triggerReference", triggerReference);
+    formData.set("productIds", JSON.stringify(products.map((p) => p.id)));
     formData.set("functionId", functionId);
     formData.set("tiersConfig", JSON.stringify(tiers));
     formData.set("designConfig", JSON.stringify(design));
@@ -415,7 +538,7 @@ export default function TieredBundleForm() {
   };
 
   /* -- Preview data -- */
-  const unitPrice = prodPriceCents || 19900;
+  const unitPrice = products[0]?.price || 19900;
 
   return (
     <Page
@@ -448,25 +571,68 @@ export default function TieredBundleForm() {
                     autoComplete="off"
                     placeholder="e.g. Buy more save more"
                   />
-                  <InlineStack gap="300" blockAlign="center">
-                    {prodImage && (
-                      <Thumbnail
-                        source={prodImage}
-                        alt={productLabel}
-                        size="medium"
-                      />
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <TextField
-                        label="Product"
-                        value={productLabel}
-                        readOnly
-                        autoComplete="off"
-                        placeholder="Select a product..."
-                      />
-                    </div>
-                    <Button onClick={handleSelectProduct}>Browse</Button>
-                  </InlineStack>
+                  <Select
+                    label="Applies to"
+                    options={[
+                      { label: "Specific products", value: "product" },
+                      { label: "Collection", value: "collection" },
+                      { label: "All products", value: "all" },
+                    ]}
+                    value={triggerType}
+                    onChange={(v) => {
+                      setTriggerType(v);
+                      if (v !== "product") setProducts([]);
+                      if (v !== "collection") {
+                        setTriggerReference("");
+                        setTriggerLabel("");
+                        setTriggerImg("");
+                      }
+                    }}
+                  />
+                  {triggerType === "product" && (
+                    <BlockStack gap="200">
+                      {products.map((prod) => (
+                        <InlineStack key={prod.id} gap="300" blockAlign="center">
+                          {prod.image ? (
+                            <Thumbnail source={prod.image} alt={prod.title} size="small" />
+                          ) : (
+                            <div style={{ width: 40, height: 40, background: "#f0f0f0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#999" }}>N/A</div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">{prod.title}</Text>
+                          </div>
+                          <Button variant="plain" tone="critical" onClick={() => removeProduct(prod.id)}>
+                            Remove
+                          </Button>
+                        </InlineStack>
+                      ))}
+                      <Button onClick={handleSelectProducts}>
+                        {products.length > 0 ? "Add / change products" : "Browse products"}
+                      </Button>
+                    </BlockStack>
+                  )}
+                  {triggerType === "collection" && (
+                    <InlineStack gap="300" blockAlign="center">
+                      {triggerImg && (
+                        <Thumbnail source={triggerImg} alt={triggerLabel} size="medium" />
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Collection"
+                          value={triggerLabel}
+                          readOnly
+                          autoComplete="off"
+                          placeholder="Select a collection..."
+                        />
+                      </div>
+                      <Button onClick={handleSelectCollection}>Browse</Button>
+                    </InlineStack>
+                  )}
+                  {triggerType === "all" && (
+                    <Banner tone="info">
+                      <p>This combo will appear on all product pages in your store.</p>
+                    </Banner>
+                  )}
                 </FormLayout>
               </BlockStack>
             </Card>

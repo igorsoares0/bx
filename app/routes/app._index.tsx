@@ -13,6 +13,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   removeTieredBundleMetafield,
+  setShopTieredBundleMetafield,
   removeVolumeBundleMetafield,
   removeComplementBundleMetafield,
   setShopComplementBundleMetafield,
@@ -64,8 +65,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             { variables: { id: bundle.discountId } },
           );
         }
-        await removeTieredBundleMetafield(admin, bundle.productId);
+        // Parse product IDs (supports JSON array and legacy single GID)
+        let productIds: string[] = [];
+        try {
+          const parsed = JSON.parse(bundle.productId);
+          productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
+        } catch {
+          productIds = [bundle.productId];
+        }
+        if (productIds.length > 0) {
+          await removeTieredBundleMetafield(admin, productIds);
+        }
         await db.tieredBundle.delete({ where: { id: bundleId } });
+        await setShopTieredBundleMetafield(admin, session.shop, db);
       }
     }
 
@@ -101,8 +113,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         if (!newActive) {
-          await removeTieredBundleMetafield(admin, bundle.productId);
+          let productIds: string[] = [];
+          try {
+            const parsed = JSON.parse(bundle.productId);
+            productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
+          } catch {
+            productIds = [bundle.productId];
+          }
+          if (productIds.length > 0) {
+            await removeTieredBundleMetafield(admin, productIds);
+          }
         }
+        await setShopTieredBundleMetafield(admin, session.shop, db);
       }
     }
 
@@ -304,10 +326,14 @@ export default function BundleIndex() {
       </IndexTable.Cell>
       <IndexTable.Cell>
         {(() => {
+          const tt = (bundle as any).triggerType || "product";
+          if (tt === "all") return "All products";
+          if (tt === "collection") return "Collection";
           try {
-            const t = JSON.parse(bundle.tiersConfig || "[]");
-            return `${t.length} tier${t.length !== 1 ? "s" : ""}`;
-          } catch { return "—"; }
+            const ids = JSON.parse(bundle.productId || "[]");
+            if (Array.isArray(ids)) return `${ids.length} product${ids.length !== 1 ? "s" : ""}`;
+          } catch {}
+          return "Specific product";
         })()}
       </IndexTable.Cell>
       <IndexTable.Cell>

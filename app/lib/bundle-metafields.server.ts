@@ -1,21 +1,12 @@
 /**
- * Writes tiered bundle config metafield to the product so the theme extension can display tiers.
+ * Builds the tiered config metafield JSON value.
  */
-export async function setTieredBundleMetafield(
-  admin: any,
-  {
-    productId,
-    bundleName,
-    tiers,
-    designConfig,
-  }: {
-    productId: string;
-    bundleName: string;
-    tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }>;
-    designConfig?: Record<string, unknown>;
-  },
+function buildTieredMetafieldValue(
+  bundleName: string,
+  tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }>,
+  designConfig?: Record<string, unknown>,
 ) {
-  const metafieldValue = JSON.stringify({
+  return JSON.stringify({
     bundleName,
     tiers,
     designAccentColor: designConfig?.accentColor ?? null,
@@ -28,6 +19,100 @@ export async function setTieredBundleMetafield(
     designGiftText: designConfig?.giftText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
   });
+}
+
+/**
+ * Writes tiered bundle config metafield to one or more products.
+ */
+export async function setTieredBundleMetafield(
+  admin: any,
+  {
+    productIds,
+    bundleName,
+    tiers,
+    designConfig,
+  }: {
+    productIds: string[];
+    bundleName: string;
+    tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }>;
+    designConfig?: Record<string, unknown>;
+  },
+) {
+  const metafieldValue = buildTieredMetafieldValue(bundleName, tiers, designConfig);
+
+  for (const productId of productIds) {
+    await admin.graphql(
+      `#graphql
+        mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id }
+            userErrors { field message }
+          }
+        }`,
+      {
+        variables: {
+          metafields: [
+            {
+              ownerId: productId,
+              namespace: "bxgy_bundle",
+              key: "tiered_config",
+              type: "json",
+              value: metafieldValue,
+            },
+          ],
+        },
+      },
+    );
+  }
+}
+
+/**
+ * Writes tiered bundle configs to a shop-level metafield (for collection/all triggers).
+ */
+export async function setShopTieredBundleMetafield(
+  admin: any,
+  shopId: string,
+  db: any,
+) {
+  const bundles = await db.tieredBundle.findMany({
+    where: { shopId, active: true, triggerType: { not: "product" } },
+  });
+
+  const configs = [];
+  for (const bundle of bundles) {
+    let tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }> = [];
+    try {
+      tiers = JSON.parse(bundle.tiersConfig || "[]");
+    } catch {}
+
+    const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : {};
+
+    configs.push({
+      id: bundle.id,
+      name: bundle.name,
+      triggerType: bundle.triggerType,
+      triggerReference: bundle.triggerReference,
+      bundleName: bundle.name,
+      tiers,
+      designAccentColor: designConfig?.accentColor ?? null,
+      designBackgroundColor: designConfig?.backgroundColor ?? null,
+      designTextColor: designConfig?.textColor ?? null,
+      designButtonColor: designConfig?.buttonColor ?? null,
+      designButtonTextColor: designConfig?.buttonTextColor ?? null,
+      designBorderRadius: designConfig?.borderRadius ?? null,
+      designHeaderText: designConfig?.headerText ?? null,
+      designGiftText: designConfig?.giftText ?? null,
+      designCardLayout: designConfig?.cardLayout ?? "vertical",
+    });
+  }
+
+  const shopRes = await admin.graphql(
+    `#graphql
+      query { shop { id } }`,
+  );
+  const shopJson = await shopRes.json();
+  const shopGid = shopJson.data?.shop?.id;
+  if (!shopGid) return;
 
   await admin.graphql(
     `#graphql
@@ -41,11 +126,11 @@ export async function setTieredBundleMetafield(
       variables: {
         metafields: [
           {
-            ownerId: productId,
+            ownerId: shopGid,
             namespace: "bxgy_bundle",
-            key: "tiered_config",
+            key: "tiered_bundles",
             type: "json",
-            value: metafieldValue,
+            value: JSON.stringify(configs),
           },
         ],
       },
@@ -54,53 +139,57 @@ export async function setTieredBundleMetafield(
 }
 
 /**
- * Removes the tiered bundle metafield from the product.
+ * Removes the tiered bundle metafield from one or more products.
  */
 export async function removeTieredBundleMetafield(
   admin: any,
-  productId: string,
+  productIds: string | string[],
 ) {
-  const response = await admin.graphql(
-    `#graphql
-      query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
-        product(id: $ownerId) {
-          metafield(namespace: $namespace, key: $key) {
-            id
-          }
-        }
-      }`,
-    {
-      variables: {
-        ownerId: productId,
-        namespace: "bxgy_bundle",
-        key: "tiered_config",
-      },
-    },
-  );
-  const json = await response.json();
-  const metafieldId = json.data?.product?.metafield?.id;
+  const ids = Array.isArray(productIds) ? productIds : [productIds];
 
-  if (metafieldId) {
-    await admin.graphql(
+  for (const productId of ids) {
+    const response = await admin.graphql(
       `#graphql
-        mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
-          metafieldsDelete(metafields: $metafields) {
-            deletedMetafields { ownerId namespace key }
-            userErrors { field message }
+        query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
+          product(id: $ownerId) {
+            metafield(namespace: $namespace, key: $key) {
+              id
+            }
           }
         }`,
       {
         variables: {
-          metafields: [
-            {
-              ownerId: productId,
-              namespace: "bxgy_bundle",
-              key: "tiered_config",
-            },
-          ],
+          ownerId: productId,
+          namespace: "bxgy_bundle",
+          key: "tiered_config",
         },
       },
     );
+    const json = await response.json();
+    const metafieldId = json.data?.product?.metafield?.id;
+
+    if (metafieldId) {
+      await admin.graphql(
+        `#graphql
+          mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+            metafieldsDelete(metafields: $metafields) {
+              deletedMetafields { ownerId namespace key }
+              userErrors { field message }
+            }
+          }`,
+        {
+          variables: {
+            metafields: [
+              {
+                ownerId: productId,
+                namespace: "bxgy_bundle",
+                key: "tiered_config",
+              },
+            ],
+          },
+        },
+      );
+    }
   }
 }
 
