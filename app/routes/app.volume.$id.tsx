@@ -293,10 +293,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         volumeTiers,
         designConfig,
       });
-    } else {
-      // collection or all → shop-level metafield
-      await setShopVolumeBundleMetafield(admin, session.shop, db);
     }
+    // Always refresh shop-level metafield (cleans up when switching away from all/collection)
+    await setShopVolumeBundleMetafield(admin, session.shop, db);
   } else {
     const bundleId = Number(params.id);
     const existing = await db.volumeBundle.findFirst({
@@ -339,9 +338,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         volumeTiers,
         designConfig,
       });
-    } else {
-      await setShopVolumeBundleMetafield(admin, session.shop, db);
     }
+    // Always refresh shop-level metafield (cleans up when switching away from all/collection)
+    await setShopVolumeBundleMetafield(admin, session.shop, db);
 
     if (existing.discountId) {
       await admin.graphql(
