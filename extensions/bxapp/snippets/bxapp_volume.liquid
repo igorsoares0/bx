@@ -69,10 +69,12 @@
   }
   .bxgy-volume__list--horizontal .bxgy-volume__row {
     flex: 1;
-    flex-direction: column;
     text-align: center;
     padding: 14px 10px;
     min-width: 0;
+  }
+  .bxgy-volume__list--horizontal .bxgy-volume__row-top {
+    flex-direction: column;
   }
   .bxgy-volume__list--horizontal .bxgy-volume__info {
     text-align: center;
@@ -93,9 +95,8 @@
     .bxgy-volume__list--horizontal {
       flex-direction: column;
     }
-    .bxgy-volume__list--horizontal .bxgy-volume__row {
+    .bxgy-volume__list--horizontal .bxgy-volume__row-top {
       flex-direction: row;
-      text-align: left;
     }
     .bxgy-volume__list--horizontal .bxgy-volume__info {
       text-align: left;
@@ -110,8 +111,7 @@
   .bxgy-volume__row {
     position: relative;
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
     padding: 14px 16px;
     border-radius: 12px;
     border: 2px solid #e5e5e5;
@@ -119,6 +119,11 @@
     cursor: pointer;
     transition: all 0.15s ease;
     user-select: none;
+  }
+  .bxgy-volume__row-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
   .bxgy-volume__row:hover {
     border-color: {{ ds_accent }};
@@ -274,6 +279,61 @@
     color: #888;
     margin-top: 10px;
   }
+  /* Tier-embedded variant selectors */
+  .bxgy-volume__tv {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e5e5;
+  }
+  .bxgy-volume__tv-header {
+    font-size: 12px;
+    color: #777;
+    margin-bottom: 8px;
+  }
+  .bxgy-volume__tv-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .bxgy-volume__tv-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: #888;
+    min-width: 22px;
+    flex-shrink: 0;
+  }
+  .bxgy-volume__tv-opt {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 4px 6px;
+    position: relative;
+  }
+  .bxgy-volume__tv-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+    flex-shrink: 0;
+  }
+  .bxgy-volume__tv-sel {
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-family: inherit;
+    color: {{ ds_text }};
+    cursor: pointer;
+    padding: 2px 4px;
+    appearance: auto;
+    min-width: 50px;
+  }
+  .bxgy-volume__tv-sel:focus {
+    outline: none;
+  }
 </style>
 
 <div class="bxgy-volume" id="bxgy-volume-{{ bxapp_widget_id }}">
@@ -308,27 +368,32 @@
         {% if t_popular == true and badge_text != blank %}
           <div class="bxgy-volume__badge">{{ badge_text }}</div>
         {% endif %}
-        <div class="bxgy-volume__radio"><div class="bxgy-volume__radio-dot"></div></div>
-        <div class="bxgy-volume__info">
-          <div class="bxgy-volume__label-text">{{ t_label | default: t_qty | append: "x" }}</div>
-          <div class="bxgy-volume__subtitle">
+        <div class="bxgy-volume__row-top">
+          <div class="bxgy-volume__radio"><div class="bxgy-volume__radio-dot"></div></div>
+          <div class="bxgy-volume__info">
+            <div class="bxgy-volume__label-text">{{ t_label | default: t_qty | append: "x" }}</div>
+            <div class="bxgy-volume__subtitle">
+              {% if t_disc > 0 %}
+                You save {{ t_disc }}%
+              {% else %}
+                Standard price
+              {% endif %}
+            </div>
+          </div>
+          <div class="bxgy-volume__prices">
+            <div class="bxgy-volume__price-final" data-bxgy-vol-final="{{ tier_index }}">{{ t_final | money }}</div>
             {% if t_disc > 0 %}
-              You save {{ t_disc }}%
+              <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}">{{ t_original | money }}</div>
+              <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}">SAVE {{ t_save_amount | money }}</div>
             {% else %}
-              Standard price
+              <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}" style="display:none">{{ t_original | money }}</div>
+              <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}" style="display:none"></div>
             {% endif %}
           </div>
         </div>
-        <div class="bxgy-volume__prices">
-          <div class="bxgy-volume__price-final" data-bxgy-vol-final="{{ tier_index }}">{{ t_final | money }}</div>
-          {% if t_disc > 0 %}
-            <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}">{{ t_original | money }}</div>
-            <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}">SAVE {{ t_save_amount | money }}</div>
-          {% else %}
-            <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}" style="display:none">{{ t_original | money }}</div>
-            <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}" style="display:none"></div>
-          {% endif %}
-        </div>
+        {% if product.variants.size > 1 %}
+          <div class="bxgy-volume__tv" data-bxgy-vol-tv="{{ tier_index }}" style="display:none;"></div>
+        {% endif %}
       </div>
     {% endfor %}
   </div>
@@ -353,20 +418,73 @@
   if (!widget) return;
 
   var shopCurrency = {{ shop.currency | json }};
+  var hasMultipleVariants = {{ product.variants.size }} > 1;
 
-  var buyVariants = {};
-  {% for variant in product.variants %}
-    buyVariants['{{ variant.id }}'] = {
+  /* Product options */
+  var productOptions = [
+    {% for option in product.options_with_values %}
+    {
+      name: {{ option.name | json }},
+      values: [{% for val in option.values %}{{ val | json }}{% unless forloop.last %},{% endunless %}{% endfor %}]
+    }{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  ];
+
+  /* Full variant data */
+  var allVariants = [
+    {% for variant in product.variants %}
+    {
+      id: '{{ variant.id }}',
       price: {{ variant.price }},
-      available: {{ variant.available | json }}
-    };
-  {% endfor %}
+      available: {{ variant.available | json }},
+      title: {{ variant.title | json }},
+      options: [{{ variant.option1 | json }}, {{ variant.option2 | json }}, {{ variant.option3 | json }}]
+    }{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  ];
+
+  var defaultVariantId = '{{ product.selected_or_first_available_variant.id }}';
+  var defaultVariant = null;
+  var buyVariants = {};
+  allVariants.forEach(function(v) {
+    buyVariants[v.id] = v;
+    if (v.id === defaultVariantId) defaultVariant = v;
+  });
+  if (!defaultVariant) defaultVariant = allVariants[0];
+
+  /* Color name → hex map for dots */
+  var COLOR_MAP = {
+    'red':'#e53e3e','vermelho':'#e53e3e','blue':'#3182ce','azul':'#3182ce',
+    'green':'#38a169','verde':'#38a169','yellow':'#ecc94b','amarelo':'#ecc94b',
+    'black':'#1a202c','preto':'#1a202c','white':'#fff','branco':'#fff',
+    'pink':'#ed64a6','rosa':'#ed64a6','purple':'#805ad5','roxo':'#805ad5',
+    'orange':'#dd6b20','laranja':'#dd6b20','gray':'#a0aec0','grey':'#a0aec0',
+    'cinza':'#a0aec0','brown':'#8b6914','marrom':'#8b6914',
+    'navy':'#2a4365','marinho':'#2a4365','beige':'#f5f0e1','bege':'#f5f0e1',
+    'gold':'#d69e2e','dourado':'#d69e2e','silver':'#cbd5e0','prata':'#cbd5e0',
+    'coral':'#fc8181','turquoise':'#38b2ac','turquesa':'#38b2ac',
+    'wine':'#722f37','vinho':'#722f37','cream':'#fffdd0','creme':'#fffdd0',
+    'sky blue':'#63b3ed','azul claro':'#63b3ed','dark green':'#276749','verde escuro':'#276749',
+    'light blue':'#90cdf4','light green':'#9ae6b4','dark blue':'#2b6cb0','azul escuro':'#2b6cb0'
+  };
+
+  function getColorHex(name) {
+    if (!name) return null;
+    return COLOR_MAP[name.toLowerCase().trim()] || null;
+  }
+
+  function isColorOption(optName) {
+    var n = optName.toLowerCase();
+    return n === 'cor' || n === 'color' || n === 'colour' || n === 'cor/color';
+  }
 
   var rows = widget.querySelectorAll('[data-bxgy-vol-tier]');
   var addBtn = widget.querySelector('[data-bxgy-vol-add-btn]');
   var feedbackEl = widget.querySelector('[data-bxgy-vol-feedback]');
 
-  /* Find which tier is initially selected (popular or first) */
+  /* tierSelections[tierIndex] = [ { variantId, options: [opt0, opt1, ...] }, ... ] */
+  var tierSelections = {};
+
   var selectedTier = 0;
   for (var ri = 0; ri < rows.length; ri++) {
     if (rows[ri].classList.contains('bxgy-volume__row--selected')) {
@@ -382,41 +500,163 @@
     }).format(cents / 100);
   }
 
-  function getSelectedVariantId() {
-    var urlParams = new URLSearchParams(window.location.search);
-    var v = urlParams.get('variant');
-    if (v && buyVariants[v]) return v;
-
-    var input = document.querySelector('form[action*="/cart/add"] input[name="id"]');
-    if (input && input.value && buyVariants[input.value]) return input.value;
-
-    var sel = document.querySelector('form[action*="/cart/add"] select[name="id"]');
-    if (sel && sel.value && buyVariants[sel.value]) return sel.value;
-
-    var radio = document.querySelector('form[action*="/cart/add"] input[name="id"]:checked');
-    if (radio && radio.value && buyVariants[radio.value]) return radio.value;
-
-    var keys = Object.keys(buyVariants);
-    for (var i = 0; i < keys.length; i++) {
-      if (buyVariants[keys[i]].available) return keys[i];
+  function findVariantByOpts(opts) {
+    for (var i = 0; i < allVariants.length; i++) {
+      var v = allVariants[i];
+      var match = true;
+      for (var j = 0; j < opts.length; j++) {
+        if (opts[j] != null && v.options[j] !== opts[j]) { match = false; break; }
+      }
+      if (match) return v;
     }
-    return keys[0] || null;
+    return null;
   }
 
-  function getVariantPrice() {
-    var vid = getSelectedVariantId();
-    return vid && buyVariants[vid] ? buyVariants[vid].price : 0;
+  /* Build variant picker rows inside a tier container */
+  function buildTierVariants(tierIdx) {
+    var container = widget.querySelector('[data-bxgy-vol-tv="' + tierIdx + '"]');
+    if (!container) return;
+
+    var row = widget.querySelector('[data-bxgy-vol-tier="' + tierIdx + '"]');
+    var qty = parseInt(row.getAttribute('data-vol-qty'), 10);
+
+    /* Init selections for this tier */
+    if (!tierSelections[tierIdx]) {
+      tierSelections[tierIdx] = [];
+      for (var q = 0; q < qty; q++) {
+        var opts = [];
+        for (var o = 0; o < productOptions.length; o++) {
+          opts.push(defaultVariant ? defaultVariant.options[o] : productOptions[o].values[0]);
+        }
+        tierSelections[tierIdx].push({ options: opts, variantId: defaultVariantId });
+      }
+    }
+
+    var html = '';
+    /* Header: option names */
+    var optNames = [];
+    for (var oi = 0; oi < productOptions.length; oi++) optNames.push(productOptions[oi].name);
+    html += '<div class="bxgy-volume__tv-header">' + optNames.join(', ') + '</div>';
+
+    for (var item = 0; item < qty; item++) {
+      var sel = tierSelections[tierIdx][item];
+      html += '<div class="bxgy-volume__tv-row">';
+      html += '<span class="bxgy-volume__tv-num">#' + (item + 1) + '</span>';
+
+      for (var opt = 0; opt < productOptions.length; opt++) {
+        var po = productOptions[opt];
+        var isColor = isColorOption(po.name);
+        var currentVal = sel.options[opt];
+
+        html += '<div class="bxgy-volume__tv-opt">';
+        if (isColor) {
+          var hex = getColorHex(currentVal);
+          if (hex) {
+            html += '<span class="bxgy-volume__tv-dot" style="background:' + hex + '"></span>';
+          }
+        }
+        html += '<select class="bxgy-volume__tv-sel" data-tv-tier="' + tierIdx + '" data-tv-item="' + item + '" data-tv-opt="' + opt + '">';
+        for (var vi = 0; vi < po.values.length; vi++) {
+          var v = po.values[vi];
+          var selectedAttr = (v === currentVal) ? ' selected' : '';
+          html += '<option value="' + v.replace(/"/g, '&quot;') + '"' + selectedAttr + '>' + v + '</option>';
+        }
+        html += '</select>';
+        html += '</div>';
+      }
+
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+
+    /* Attach change listeners */
+    var selects = container.querySelectorAll('.bxgy-volume__tv-sel');
+    selects.forEach(function(sel) {
+      sel.addEventListener('click', function(e) { e.stopPropagation(); });
+      sel.addEventListener('change', function(e) {
+        e.stopPropagation();
+        var ti = parseInt(sel.getAttribute('data-tv-tier'), 10);
+        var ii = parseInt(sel.getAttribute('data-tv-item'), 10);
+        var oi = parseInt(sel.getAttribute('data-tv-opt'), 10);
+        tierSelections[ti][ii].options[oi] = sel.value;
+
+        /* Resolve variant */
+        var variant = findVariantByOpts(tierSelections[ti][ii].options);
+        tierSelections[ti][ii].variantId = variant ? variant.id : null;
+
+        /* Update color dot */
+        if (isColorOption(productOptions[oi].name)) {
+          var dot = sel.parentElement.querySelector('.bxgy-volume__tv-dot');
+          var hex = getColorHex(sel.value);
+          if (dot) {
+            dot.style.background = hex || 'transparent';
+            dot.style.display = hex ? '' : 'none';
+          } else if (hex) {
+            var newDot = document.createElement('span');
+            newDot.className = 'bxgy-volume__tv-dot';
+            newDot.style.background = hex;
+            sel.parentElement.insertBefore(newDot, sel);
+          }
+        }
+
+        updateVolumePrices();
+      });
+    });
+  }
+
+  /* Show/hide variant pickers based on selected tier */
+  function updateTierVariantsVisibility() {
+    if (!hasMultipleVariants) return;
+    rows.forEach(function(row) {
+      var idx = row.getAttribute('data-bxgy-vol-tier');
+      var tv = widget.querySelector('[data-bxgy-vol-tv="' + idx + '"]');
+      if (!tv) return;
+      var isSelected = row.classList.contains('bxgy-volume__row--selected');
+      if (isSelected) {
+        buildTierVariants(parseInt(idx, 10));
+        tv.style.display = '';
+      } else {
+        tv.style.display = 'none';
+      }
+    });
+  }
+
+  /* Price calculation: sum each item's variant price */
+  function getTierTotalPrice(tierIdx) {
+    var row = widget.querySelector('[data-bxgy-vol-tier="' + tierIdx + '"]');
+    var qty = parseInt(row.getAttribute('data-vol-qty'), 10);
+
+    if (!hasMultipleVariants || !tierSelections[tierIdx]) {
+      /* Fallback: single variant × qty */
+      var vid = defaultVariantId;
+      var urlParams = new URLSearchParams(window.location.search);
+      var uv = urlParams.get('variant');
+      if (uv && buyVariants[uv]) vid = uv;
+      var input = document.querySelector('form[action*="/cart/add"] input[name="id"]');
+      if (input && input.value && buyVariants[input.value]) vid = input.value;
+      return (buyVariants[vid] ? buyVariants[vid].price : 0) * qty;
+    }
+
+    var total = 0;
+    for (var i = 0; i < qty; i++) {
+      var s = tierSelections[tierIdx][i];
+      if (s && s.variantId && buyVariants[s.variantId]) {
+        total += buyVariants[s.variantId].price;
+      } else {
+        total += defaultVariant ? defaultVariant.price : 0;
+      }
+    }
+    return total;
   }
 
   function updateVolumePrices() {
-    var price = getVariantPrice();
     rows.forEach(function(row) {
-      var qty = parseInt(row.getAttribute('data-vol-qty'), 10);
+      var idx = parseInt(row.getAttribute('data-bxgy-vol-tier'), 10);
       var disc = parseInt(row.getAttribute('data-vol-disc'), 10) || 0;
-      var original = qty * price;
+      var original = getTierTotalPrice(idx);
       var saveAmount = Math.round(original * disc / 100);
       var finalVal = original - saveAmount;
-      var idx = row.getAttribute('data-bxgy-vol-tier');
 
       var finalEl = widget.querySelector('[data-bxgy-vol-final="' + idx + '"]');
       var origEl = widget.querySelector('[data-bxgy-vol-original="' + idx + '"]');
@@ -440,6 +680,8 @@
       var idx = parseInt(row.getAttribute('data-bxgy-vol-tier'), 10);
       row.classList.toggle('bxgy-volume__row--selected', idx === index);
     });
+    updateTierVariantsVisibility();
+    updateVolumePrices();
   }
 
   rows.forEach(function(row) {
@@ -448,7 +690,7 @@
     });
   });
 
-  /* Variant change listeners */
+  /* External variant change — update prices */
   var lastUrl = window.location.href;
   setInterval(function() {
     if (window.location.href !== lastUrl) {
@@ -458,18 +700,16 @@
   }, 500);
 
   var formSelector = 'form[action*="/cart/add"]';
-  var variantInput = document.querySelector(formSelector + ' input[name="id"]');
-  if (variantInput) {
+  var formVariantInput = document.querySelector(formSelector + ' input[name="id"]');
+  if (formVariantInput) {
     new MutationObserver(function() { updateVolumePrices(); })
-      .observe(variantInput, { attributes: true, attributeFilter: ['value'] });
+      .observe(formVariantInput, { attributes: true, attributeFilter: ['value'] });
   }
-  var variantSelect = document.querySelector(formSelector + ' select[name="id"]');
-  if (variantSelect) {
-    variantSelect.addEventListener('change', function() { updateVolumePrices(); });
+  var formVariantSelect = document.querySelector(formSelector + ' select[name="id"]');
+  if (formVariantSelect) {
+    formVariantSelect.addEventListener('change', function() { updateVolumePrices(); });
   }
-  document.addEventListener('variant:changed', function(e) {
-    if (e.detail && e.detail.variant) updateVolumePrices();
-  });
+  document.addEventListener('variant:changed', function() { updateVolumePrices(); });
 
   /* Feedback */
   function showFeedback(type, message) {
@@ -496,7 +736,7 @@
       .catch(function() {});
   }
 
-  /* Add to cart – adds qty items (NOT buyQty + freeQty like tiered) */
+  /* Add to cart — each item may be a different variant */
   addBtn.addEventListener('click', function() {
     if (addBtn.disabled) return;
 
@@ -504,11 +744,36 @@
     if (!selectedRow) return;
 
     var qty = parseInt(selectedRow.getAttribute('data-vol-qty'), 10);
-    var variantId = getSelectedVariantId();
+    var items = [];
 
-    if (!variantId) {
-      showFeedback('error', 'Please select a product variant.');
-      return;
+    if (hasMultipleVariants && tierSelections[selectedTier]) {
+      /* Group by variant ID to merge quantities */
+      var grouped = {};
+      for (var i = 0; i < qty; i++) {
+        var s = tierSelections[selectedTier][i];
+        var vid = s && s.variantId ? s.variantId : defaultVariantId;
+        if (!vid) {
+          showFeedback('error', 'Please select a valid option for item #' + (i + 1));
+          return;
+        }
+        grouped[vid] = (grouped[vid] || 0) + 1;
+      }
+      Object.keys(grouped).forEach(function(vid) {
+        items.push({ id: parseInt(vid, 10), quantity: grouped[vid] });
+      });
+    } else {
+      /* Single variant product — use form/URL variant */
+      var vid = defaultVariantId;
+      var urlParams = new URLSearchParams(window.location.search);
+      var uv = urlParams.get('variant');
+      if (uv && buyVariants[uv]) vid = uv;
+      var input = document.querySelector('form[action*="/cart/add"] input[name="id"]');
+      if (input && input.value && buyVariants[input.value]) vid = input.value;
+      if (!vid) {
+        showFeedback('error', 'Please select a product variant.');
+        return;
+      }
+      items.push({ id: parseInt(vid, 10), quantity: qty });
     }
 
     addBtn.disabled = true;
@@ -519,9 +784,7 @@
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        items: [{ id: parseInt(variantId, 10), quantity: qty }]
-      })
+      body: JSON.stringify({ items: items })
     })
     .then(function(response) {
       if (!response.ok) {
@@ -545,6 +808,7 @@
   });
 
   /* Init */
+  updateTierVariantsVisibility();
   updateVolumePrices();
 })();
 </script>
