@@ -32,6 +32,8 @@
   {% assign header_text = bundle_data.designHeaderText | default: "BUY MORE & SAVE" %}
   {% assign badge_text = bundle_data.designBadgeText | default: "Most Popular" %}
   {% assign ds_card_layout = bundle_data.designCardLayout | default: "vertical" %}
+  {% assign show_variants = bundle_data.showVariants %}
+  {% if show_variants == nil %}{% assign show_variants = true %}{% endif %}
 
   {% assign volume_tiers = bundle_data.volumeTiers %}
   {% assign buy_price = product.price %}
@@ -391,7 +393,7 @@
             {% endif %}
           </div>
         </div>
-        {% if product.variants.size > 1 %}
+        {% if product.variants.size > 1 and show_variants %}
           <div class="bxgy-volume__tv" data-bxgy-vol-tv="{{ tier_index }}" style="display:none;"></div>
         {% endif %}
       </div>
@@ -418,7 +420,7 @@
   if (!widget) return;
 
   var shopCurrency = {{ shop.currency | json }};
-  var hasMultipleVariants = {{ product.variants.size }} > 1;
+  var hasMultipleVariants = {{ product.variants.size }} > 1 && {{ show_variants | json }} === true;
 
   /* Product options */
   var productOptions = [

@@ -213,6 +213,7 @@ function buildVolumeMetafieldValue(
     designHeaderText: designConfig?.headerText ?? null,
     designBadgeText: designConfig?.badgeText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
+    showVariants: designConfig?.showVariants !== false,
   });
 }
 
