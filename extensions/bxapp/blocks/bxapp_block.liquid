@@ -1,0 +1,21 @@
+{% comment %}
+  BXApp Bundles — Draggable App Block
+  Drag this block into your product page template to position bundle widgets exactly where you want.
+  If this block is placed, the app embed will skip auto-injection to avoid duplicates.
+{% endcomment %}
+
+{% assign bxapp_widget_id = block.id %}
+
+<div class="bxapp-bundles-block" data-bxapp-placed="true" {{ block.shopify_attributes }}>
+  {% render 'bxapp_tiered', product: product, bxapp_widget_id: bxapp_widget_id %}
+  {% render 'bxapp_volume', product: product, bxapp_widget_id: bxapp_widget_id %}
+  {% render 'bxapp_complement', product: product, bxapp_widget_id: bxapp_widget_id %}
+</div>
+
+{% schema %}
+{
+  "name": "BXApp Bundles",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}

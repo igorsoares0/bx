@@ -24,15 +24,15 @@
 
 {% if bundle_data != blank %}
   {% comment %} Design from metafield with fallback {% endcomment %}
-  {% assign ds_accent = bundle_data.designAccentColor | default: block.settings.accent_color %}
-  {% assign ds_bg = bundle_data.designBackgroundColor | default: block.settings.background_color %}
-  {% assign ds_text = bundle_data.designTextColor | default: block.settings.text_color %}
+  {% assign ds_accent = bundle_data.designAccentColor | default: "#8cb600" %}
+  {% assign ds_bg = bundle_data.designBackgroundColor | default: "#fafff0" %}
+  {% assign ds_text = bundle_data.designTextColor | default: "#1a1a1a" %}
   {% assign ds_border_radius = bundle_data.designBorderRadius | default: 12 %}
-  {% assign ds_button_color = bundle_data.designButtonColor | default: block.settings.accent_color %}
+  {% assign ds_button_color = bundle_data.designButtonColor | default: "#8cb600" %}
   {% assign ds_button_text = bundle_data.designButtonTextColor | default: "#ffffff" %}
 
-  {% assign header_text = bundle_data.designHeaderText | default: block.settings.header_text %}
-  {% assign gift_text = bundle_data.designGiftText | default: block.settings.gift_text %}
+  {% assign header_text = bundle_data.designHeaderText | default: "BUILD YOUR COMBO & SAVE" %}
+  {% assign gift_text = bundle_data.designGiftText | default: "+ FREE special gift!" %}
   {% assign ds_card_layout = bundle_data.designCardLayout | default: "vertical" %}
 
   {% comment %} Dynamic tiers from metafield array {% endcomment %}
@@ -279,7 +279,7 @@
   }
 </style>
 
-<div class="bxgy-tiers" id="bxgy-tiers-{{ block.id }}">
+<div class="bxgy-tiers" id="bxgy-tiers-{{ bxapp_widget_id }}">
   {% comment %} Header {% endcomment %}
   <div class="bxgy-tiers__header">
     <span class="bxgy-tiers__header-text">{{ header_text }}</span>
@@ -348,7 +348,7 @@
 
 <script>
 (function() {
-  var WIDGET_ID = 'bxgy-tiers-{{ block.id }}';
+  var WIDGET_ID = 'bxgy-tiers-{{ bxapp_widget_id }}';
   var widget = document.getElementById(WIDGET_ID);
   if (!widget) return;
 
@@ -549,69 +549,4 @@
 })();
 </script>
 
-{% elsif bundle_data == blank %}
-  {% comment %} Fallback preview when no bundle configured {% endcomment %}
-  <div style="
-    background: {{ block.settings.background_color }};
-    border-radius: 12px;
-    padding: 20px;
-    margin: 16px 0;
-    border: 1px solid #e5e5e5;
-    font-family: inherit;
-  ">
-    <div style="border-bottom: 2px solid {{ block.settings.text_color }}; padding-bottom: 10px; margin-bottom: 14px; text-align: center;">
-      <span style="font-weight: 800; font-size: 15px; color: {{ block.settings.text_color }}; text-transform: uppercase; letter-spacing: 0.5px;">
-        {{ block.settings.header_text }}
-      </span>
-    </div>
-    <div style="padding: 14px 16px; border-radius: 28px; border: 2px solid {{ block.settings.accent_color }}; background: {{ block.settings.background_color }}; display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-      <div style="width: 22px; height: 22px; border-radius: 50%; border: 2px solid {{ block.settings.accent_color }}; display: flex; align-items: center; justify-content: center;">
-        <div style="width: 12px; height: 12px; border-radius: 50%; background: {{ block.settings.accent_color }};"></div>
-      </div>
-      <span style="font-weight: 600; font-size: 14px; color: {{ block.settings.text_color }}; flex: 1;">Buy 2, get 3 free</span>
-      <span style="font-weight: 700; font-size: 16px; color: {{ block.settings.accent_color }};">SAVE 60%</span>
-    </div>
-    <p style="font-size: 12px; margin: 12px 0 0 0; color: {{ block.settings.text_color }}; opacity: 0.7; text-align: center;">
-      Configure this bundle via the app to see live tiers
-    </p>
-  </div>
 {% endif %}
-
-{% schema %}
-{
-  "name": "BXGY Tiered Combo",
-  "target": "section",
-  "settings": [
-    {
-      "type": "text",
-      "id": "header_text",
-      "label": "Header text",
-      "default": "BUILD YOUR COMBO & SAVE"
-    },
-    {
-      "type": "text",
-      "id": "gift_text",
-      "label": "Gift text",
-      "default": "+ FREE special gift!"
-    },
-    {
-      "type": "color",
-      "id": "accent_color",
-      "label": "Accent color",
-      "default": "#8cb600"
-    },
-    {
-      "type": "color",
-      "id": "background_color",
-      "label": "Background color",
-      "default": "#fafff0"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#1a1a1a"
-    }
-  ]
-}
-{% endschema %}

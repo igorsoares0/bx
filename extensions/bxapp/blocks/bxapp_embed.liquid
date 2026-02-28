@@ -1,5 +1,92 @@
-{% assign bundles_data = shop.metafields.bxgy_bundle.active_bundles.value %}
+{% comment %}
+  BXApp Unified Bundle Embed
+  Renders bundle widgets on product pages + auto-add reward logic on all pages.
+  Merchants only need to enable this single embed in Theme Settings → App Embeds.
+{% endcomment %}
 
+{% comment %} ── Bundle widgets (product pages only) ── {% endcomment %}
+{% if request.page_type == 'product' %}
+  {% assign bxapp_widget_id = 'bxapp-embed' %}
+
+  <div id="bxapp-bundle-widgets" style="display:none;">
+    <div data-bxapp-widget="tiered">
+      {% render 'bxapp_tiered', product: product, bxapp_widget_id: bxapp_widget_id %}
+    </div>
+    <div data-bxapp-widget="volume">
+      {% render 'bxapp_volume', product: product, bxapp_widget_id: bxapp_widget_id %}
+    </div>
+    <div data-bxapp-widget="complement">
+      {% render 'bxapp_complement', product: product, bxapp_widget_id: bxapp_widget_id %}
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    // Skip auto-injection if the draggable app block is already placed
+    if (document.querySelector('[data-bxapp-placed]')) {
+      var c = document.getElementById('bxapp-bundle-widgets');
+      if (c) c.remove();
+      return;
+    }
+
+    var container = document.getElementById('bxapp-bundle-widgets');
+    if (!container) return;
+
+    // Remove empty widget wrappers
+    var widgets = container.querySelectorAll('[data-bxapp-widget]');
+    var hasContent = false;
+    for (var i = 0; i < widgets.length; i++) {
+      if (widgets[i].innerHTML.trim().length === 0) {
+        widgets[i].remove();
+      } else {
+        hasContent = true;
+      }
+    }
+    if (!hasContent) { container.remove(); return; }
+
+    // Find the best injection point near the product form
+    var selectors = [
+      'form[action*="/cart/add"] .product-form__buttons',
+      'form[action*="/cart/add"] [name="add"]',
+      'form[action*="/cart/add"] button[type="submit"]',
+      'form[action*="/cart/add"]',
+      '.product-form__submit',
+      '.product-form',
+      '.product__info-wrapper',
+      '[data-product-form]'
+    ];
+
+    var anchor = null;
+    for (var s = 0; s < selectors.length; s++) {
+      anchor = document.querySelector(selectors[s]);
+      if (anchor) break;
+    }
+
+    if (!anchor) {
+      container.style.display = '';
+      return;
+    }
+
+    // Insert after the form
+    var insertAfter = anchor;
+    if (anchor.tagName !== 'FORM') {
+      var form = anchor.closest('form[action*="/cart/add"]');
+      if (form) insertAfter = form;
+    }
+
+    container.style.display = '';
+    container.style.marginTop = '16px';
+    if (insertAfter.nextSibling) {
+      insertAfter.parentNode.insertBefore(container, insertAfter.nextSibling);
+    } else {
+      insertAfter.parentNode.appendChild(container);
+    }
+  })();
+  </script>
+{% endif %}
+
+{% comment %} ── BXGY Auto-Add Reward (runs on all pages) ── {% endcomment %}
+{% assign bundles_data = shop.metafields.bxgy_bundle.active_bundles.value %}
 {% if bundles_data != blank %}
 <script>
 (function() {
@@ -9,11 +96,7 @@
     console.error('[BXGY] Failed to parse bundles config', e);
     return;
   }
-  if (!BUNDLES || !Array.isArray(BUNDLES) || !BUNDLES.length) {
-    console.log('[BXGY] No active bundles found');
-    return;
-  }
-  console.log('[BXGY] Loaded', BUNDLES.length, 'bundle(s)');
+  if (!BUNDLES || !Array.isArray(BUNDLES) || !BUNDLES.length) return;
 
   var DEBOUNCE_MS = 800;
   var processing = false;
@@ -27,7 +110,6 @@
   }
 
   function addToCart(variantId, quantity) {
-    console.log('[BXGY] Adding reward variant', variantId, 'qty', quantity);
     return fetch('/cart/add.js', {
       method: 'POST',
       credentials: 'same-origin',
@@ -39,7 +121,6 @@
   }
 
   function changeCartItem(lineKey, quantity) {
-    console.log('[BXGY] Changing item', lineKey, 'to qty', quantity);
     return fetch('/cart/change.js', {
       method: 'POST',
       credentials: 'same-origin',
@@ -58,7 +139,6 @@
       var changed = false;
 
       BUNDLES.forEach(function(bundle) {
-        // Count buy quantity in cart
         var buyQty = 0;
         items.forEach(function(item) {
           if (bundle.buyType === 'product') {
@@ -67,14 +147,12 @@
             if (bundle.buyVariantIds && bundle.buyVariantIds.length > 0) {
               matchesVariant = bundle.buyVariantIds.indexOf(String(item.variant_id)) !== -1;
             }
-            // Don't count the reward product as a buy product
             if ((matchesProduct || matchesVariant) && String(item.variant_id) !== String(bundle.rewardVariantId)) {
               buyQty += item.quantity;
             }
           }
         });
 
-        // Check if reward product is already in cart
         var rewardItem = null;
         items.forEach(function(item) {
           if (String(item.variant_id) === String(bundle.rewardVariantId)) {
@@ -83,28 +161,19 @@
         });
 
         var conditionMet = buyQty >= bundle.minQuantity;
-        console.log('[BXGY] Bundle check: buyQty=' + buyQty + ' minQty=' + bundle.minQuantity + ' conditionMet=' + conditionMet + ' rewardInCart=' + !!rewardItem);
 
         if (conditionMet && !rewardItem && bundle.rewardVariantId) {
           changed = true;
-          chain = chain.then(function() {
-            return addToCart(bundle.rewardVariantId, 1);
-          });
+          chain = chain.then(function() { return addToCart(bundle.rewardVariantId, 1); });
         } else if (!conditionMet && rewardItem) {
           changed = true;
-          chain = chain.then(function() {
-            return changeCartItem(rewardItem.key, 0);
-          });
+          chain = chain.then(function() { return changeCartItem(rewardItem.key, 0); });
         }
       });
 
       return chain.then(function() { return changed; });
     }).then(function(changed) {
-      if (changed) {
-        console.log('[BXGY] Cart updated, refreshing page...');
-        // Reload the page to show updated cart
-        window.location.reload();
-      }
+      if (changed) window.location.reload();
     }).catch(function(err) {
       console.error('[BXGY Bundle] Error:', err);
     }).finally(function() {
@@ -112,10 +181,8 @@
     });
   }
 
-  // Check on page load (with small delay to let page settle)
   setTimeout(checkAndUpdateCart, 300);
 
-  // Intercept fetch to detect cart modifications
   var origFetch = window.fetch;
   window.fetch = function() {
     var url = typeof arguments[0] === 'string' ? arguments[0] : '';
@@ -123,12 +190,9 @@
                          url.indexOf('/cart/change') !== -1 ||
                          url.indexOf('/cart/update') !== -1 ||
                          url.indexOf('/cart/clear') !== -1;
-    // Don't intercept our own calls
     var body = arguments[1] && arguments[1].body ? arguments[1].body : '';
     var isOurCall = typeof body === 'string' && body.indexOf('_bxgy_reward') !== -1;
-
     var result = origFetch.apply(this, arguments);
-
     if (isCartMutation && !isOurCall) {
       result.then(function() {
         clearTimeout(timer);
@@ -138,7 +202,6 @@
     return result;
   };
 
-  // Listen for traditional form submissions to cart
   document.addEventListener('submit', function(e) {
     var form = e.target;
     if (form && form.action && form.action.indexOf('/cart') !== -1) {
@@ -152,7 +215,7 @@
 
 {% schema %}
 {
-  "name": "BXGY Auto-Add Reward",
+  "name": "BXApp Bundles",
   "target": "body",
   "settings": []
 }

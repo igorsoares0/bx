@@ -26,13 +26,13 @@
   {% assign complement_count = complements.size %}
 
   {% comment %} Design config {% endcomment %}
-  {% assign ds_accent = fbt_data.designAccentColor | default: block.settings.accent_color %}
-  {% assign ds_bg = fbt_data.designBackgroundColor | default: block.settings.background_color %}
-  {% assign ds_text = fbt_data.designTextColor | default: block.settings.text_color %}
-  {% assign ds_btn = fbt_data.designButtonColor | default: block.settings.button_color %}
-  {% assign ds_btn_text = fbt_data.designButtonTextColor | default: block.settings.button_text_color %}
+  {% assign ds_accent = fbt_data.designAccentColor | default: "#2563eb" %}
+  {% assign ds_bg = fbt_data.designBackgroundColor | default: "#f0f6ff" %}
+  {% assign ds_text = fbt_data.designTextColor | default: "#1a1a1a" %}
+  {% assign ds_btn = fbt_data.designButtonColor | default: "#2563eb" %}
+  {% assign ds_btn_text = fbt_data.designButtonTextColor | default: "#ffffff" %}
   {% assign ds_radius = fbt_data.designBorderRadius | default: 12 %}
-  {% assign ds_header = fbt_data.designHeaderText | default: block.settings.header_text %}
+  {% assign ds_header = fbt_data.designHeaderText | default: "FREQUENTLY BOUGHT TOGETHER" %}
   {% assign ds_layout = fbt_data.designCardLayout | default: "vertical" %}
 
   {% assign bundle_mode = fbt_data.mode | default: "fbt" %}
@@ -316,7 +316,7 @@
   }
 </style>
 
-<div class="bxgy-fbt" id="bxgy-fbt-{{ block.id }}"
+<div class="bxgy-fbt" id="bxgy-fbt-{{ bxapp_widget_id }}"
   data-fbt-mode="{{ bundle_mode }}"
   data-fbt-trigger-discount-pct="{{ trigger_discount_pct }}"
   data-fbt-group-count="{{ group_count }}">
@@ -525,7 +525,7 @@
 
 <script>
 (function() {
-  var W = document.getElementById('bxgy-fbt-{{ block.id }}');
+  var W = document.getElementById('bxgy-fbt-{{ bxapp_widget_id }}');
   if (!W) return;
 
   var shopCurrency = {{ shop.currency | json }};
@@ -747,30 +747,4 @@
 })();
 </script>
 
-{% else %}
-  {% if request.design_mode %}
-    <div style="border:1px solid #e5e5e5;border-radius:12px;padding:20px;margin:16px 0;background:{{ block.settings.background_color }};font-family:inherit;">
-      <div style="font-weight:800;font-size:13px;color:{{ block.settings.accent_color }};text-transform:uppercase;letter-spacing:0.5px;text-align:center;margin-bottom:8px;">
-        {{ block.settings.header_text }}
-      </div>
-      <p style="font-size:14px;margin:0;color:{{ block.settings.text_color }};text-align:center;">
-        Configure a Frequently Bought Together bundle for this product in the BXApp admin.
-      </p>
-    </div>
-  {% endif %}
 {% endif %}
-
-{% schema %}
-{
-  "name": "FBT Complement Bundle",
-  "target": "section",
-  "settings": [
-    { "type": "text", "id": "header_text", "label": "Header text", "default": "FREQUENTLY BOUGHT TOGETHER" },
-    { "type": "color", "id": "accent_color", "label": "Accent color", "default": "#2563eb" },
-    { "type": "color", "id": "background_color", "label": "Background color", "default": "#f0f6ff" },
-    { "type": "color", "id": "text_color", "label": "Text color", "default": "#1a1a1a" },
-    { "type": "color", "id": "button_color", "label": "Button color", "default": "#2563eb" },
-    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#ffffff" }
-  ]
-}
-{% endschema %}
