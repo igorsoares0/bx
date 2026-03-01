@@ -13,6 +13,7 @@ import {
   Text,
   Banner,
   Thumbnail,
+  Checkbox,
   Select,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -45,6 +46,7 @@ const DEFAULT_DESIGN = {
   borderRadius: 12,
   headerText: "FREQUENTLY BOUGHT TOGETHER",
   cardLayout: "vertical",
+  showVariants: true,
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -384,7 +386,7 @@ export default function ComplementBundleForm() {
   const [design, setDesign] = useState(savedDesign);
   const [errors, setErrors] = useState<string[]>([]);
 
-  const updateDesign = (key: string, value: string | number) => {
+  const updateDesign = (key: string, value: string | number | boolean) => {
     setDesign((prev: any) => ({ ...prev, [key]: value }));
   };
 
@@ -889,6 +891,12 @@ export default function ComplementBundleForm() {
                     value={design.cardLayout || "vertical"}
                     onChange={(v) => updateDesign("cardLayout", v)}
                   />
+                  <Checkbox
+                    label="Show variant selectors (color, size, etc.)"
+                    helpText="When enabled, customers can pick variants for each complement product"
+                    checked={design.showVariants !== false}
+                    onChange={(v) => updateDesign("showVariants", v)}
+                  />
                 </FormLayout>
               </BlockStack>
             </Card>
@@ -1053,6 +1061,17 @@ export default function ComplementBundleForm() {
                                         <span style={{ fontWeight: 600, color: design.textColor }}>{formatPreviewPrice(orig)}</span>
                                       )}
                                     </div>
+                                    {design.showVariants !== false && (
+                                      <div style={{ display: "flex", gap: "3px", marginTop: "3px", justifyContent: "center", flexWrap: "wrap" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "2px", background: "#fff", border: "1px solid #ddd", borderRadius: "3px", padding: "1px 3px" }}>
+                                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#38a169", border: "1px solid #ccc" }} />
+                                          <span style={{ fontSize: "8px", color: design.textColor }}>▾</span>
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "2px", background: "#fff", border: "1px solid #ddd", borderRadius: "3px", padding: "1px 3px" }}>
+                                          <span style={{ fontSize: "8px", color: design.textColor }}>M ▾</span>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -1113,6 +1132,17 @@ export default function ComplementBundleForm() {
                                   </div>
                                   {comp.discountPct > 0 && (
                                     <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 700, color: "#fff", background: design.accentColor, padding: "1px 6px", borderRadius: "4px", marginTop: "2px" }}>SAVE {comp.discountPct}%</span>
+                                  )}
+                                  {design.showVariants !== false && (
+                                    <div style={{ display: "flex", gap: "4px", marginTop: "4px", flexWrap: "wrap" }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: "2px", background: "#fff", border: "1px solid #ddd", borderRadius: "4px", padding: "1px 4px" }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#38a169", border: "1px solid #ccc" }} />
+                                        <span style={{ fontSize: "9px", color: design.textColor }}>Verde ▾</span>
+                                      </div>
+                                      <div style={{ display: "flex", alignItems: "center", gap: "2px", background: "#fff", border: "1px solid #ddd", borderRadius: "4px", padding: "1px 4px" }}>
+                                        <span style={{ fontSize: "9px", color: design.textColor }}>M ▾</span>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                                 <div style={{ textAlign: "right", flexShrink: 0 }}>

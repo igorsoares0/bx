@@ -34,6 +34,8 @@
   {% assign ds_radius = fbt_data.designBorderRadius | default: 12 %}
   {% assign ds_header = fbt_data.designHeaderText | default: "FREQUENTLY BOUGHT TOGETHER" %}
   {% assign ds_layout = fbt_data.designCardLayout | default: "vertical" %}
+  {% assign show_variants = fbt_data.showVariants %}
+  {% if show_variants == nil %}{% assign show_variants = true %}{% endif %}
 
   {% assign bundle_mode = fbt_data.mode | default: "fbt" %}
   {% assign trigger_discount_pct = fbt_data.triggerDiscountPct | default: 0 %}
@@ -309,6 +311,41 @@
   .bxgy-fbt__feedback--success { display: block; color: #166534; background: #dcfce7; }
   .bxgy-fbt__feedback--error { display: block; color: #991b1b; background: #fee2e2; }
   .bxgy-fbt__footer { text-align: center; font-size: 12px; color: #888; margin-top: 10px; }
+  /* Complement variant selectors */
+  .bxgy-fbt__cv {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .bxgy-fbt__cv-opt {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 3px 5px;
+  }
+  .bxgy-fbt__cv-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+    flex-shrink: 0;
+  }
+  .bxgy-fbt__cv-sel {
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-family: inherit;
+    color: {{ ds_text }};
+    cursor: pointer;
+    padding: 1px 2px;
+    appearance: auto;
+    min-width: 40px;
+  }
+  .bxgy-fbt__cv-sel:focus { outline: none; }
   @media (max-width: 749px) {
     .bxgy-fbt__cards--horizontal { flex-direction: column; align-items: center; }
     .bxgy-fbt__cards--horizontal .bxgy-fbt__plus { padding: 6px 0; transform: rotate(90deg); }
@@ -415,10 +452,11 @@
                 data-fbt-comp-variant-id="{{ comp.variantId }}"
                 data-fbt-comp-discount-pct="{{ comp_discount_pct }}"
                 data-fbt-comp-price="{{ comp_price }}"
-                data-fbt-comp-quantity="{{ comp_qty }}">
+                data-fbt-comp-quantity="{{ comp_qty }}"
+                data-fbt-comp-handle="{{ comp_handle }}">
                 <div class="bxgy-fbt__mini-plus">+</div>
                 {% if comp_image != blank %}
-                  <img class="bxgy-fbt__mini-img" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy">
+                  <img class="bxgy-fbt__mini-img" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy" width="56" height="56">
                 {% else %}
                   <div class="bxgy-fbt__mini-img-ph">No img</div>
                 {% endif %}
@@ -431,6 +469,9 @@
                   <span class="bxgy-fbt__mini-orig">{{ comp_total | money }}</span></div>
                 {% else %}
                   <div class="bxgy-fbt__mini-price" style="color:{{ ds_text }}">{{ comp_total | money }}</div>
+                {% endif %}
+                {% if show_variants and comp_product != blank and comp_product.variants.size > 1 %}
+                  <div class="bxgy-fbt__cv" data-fbt-cv="{{ comp_handle }}"></div>
                 {% endif %}
               </div>
             {% endif %}
@@ -478,9 +519,10 @@
           data-fbt-comp-variant-id="{{ comp.variantId }}"
           data-fbt-comp-discount-pct="{{ comp_discount_pct }}"
           data-fbt-comp-price="{{ comp_price }}"
-          data-fbt-comp-quantity="{{ comp_qty }}">
+          data-fbt-comp-quantity="{{ comp_qty }}"
+          data-fbt-comp-handle="{{ comp_handle }}">
           {% if comp_image != blank %}
-            <img class="bxgy-fbt__card-image" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy">
+            <img class="bxgy-fbt__card-image" src="{{ comp_image }}" alt="{{ comp.title | escape }}" loading="lazy" width="100" height="100">
           {% else %}
             <div class="bxgy-fbt__card-image-placeholder">No image</div>
           {% endif %}
@@ -492,6 +534,9 @@
               {% unless comp_qty > 1 %}<div class="bxgy-fbt__card-label">Add-on</div>{% endunless %}
             {% endif %}
             <div class="bxgy-fbt__card-title">{{ comp.title }}</div>
+            {% if show_variants and comp_product != blank and comp_product.variants.size > 1 %}
+              <div class="bxgy-fbt__cv" data-fbt-cv="{{ comp_handle }}"></div>
+            {% endif %}
           </div>
           <div class="bxgy-fbt__card-price bxgy-fbt__card-price-col">
             {% if comp_discount_pct > 0 and comp_final < comp_price %}
@@ -524,227 +569,20 @@
 </div>
 
 <script>
-(function() {
-  var W = document.getElementById('bxgy-fbt-{{ bxapp_widget_id }}');
-  if (!W) return;
-
-  var shopCurrency = {{ shop.currency | json }};
-  var bundleMode = W.getAttribute('data-fbt-mode') || 'fbt';
-  var triggerDiscountPct = parseFloat(W.getAttribute('data-fbt-trigger-discount-pct')) || 0;
-
-  var selectedGroup = null; // group index or null (standard)
-  var comboSelected = false;
-
-  function fmt(cents) {
-    return new Intl.NumberFormat(undefined, { style:'currency', currency: shopCurrency||'USD' }).format(cents/100);
+window.__bxappComp=window.__bxappComp||{};
+window.__bxappComp['{{ bxapp_widget_id }}']={
+  currency:{{ shop.currency | json }},
+  showVariants:{{ show_variants | json }},
+  mainPrice:{{ main_price | json }},
+  buyVariants:{
+    {% for v in product.variants %}'{{ v.id }}':{price:{{ v.price }},available:{{ v.available | json }}}{% unless forloop.last %},{% endunless %}{% endfor %}
+  },
+  compProducts:{
+    {% for comp in complements %}{% assign ch = comp.handle %}{% assign cp = all_products[ch] %}{% if cp != blank and cp.variants.size > 1 %}{{ ch | json }}:{options:[{% for option in cp.options_with_values %}{name:{{ option.name | json }},values:[{% for val in option.values %}{{ val | json }}{% unless forloop.last %},{% endunless %}{% endfor %}]}{% unless forloop.last %},{% endunless %}{% endfor %}],variants:[{% for v in cp.variants %}{id:'{{ v.id }}',price:{{ v.price }},available:{{ v.available | json }},options:[{{ v.option1 | json }},{{ v.option2 | json }},{{ v.option3 | json }}]}{% unless forloop.last %},{% endunless %}{% endfor %}]}{% unless forloop.last %},{% endunless %}{% endif %}{% endfor %}
   }
-
-  /* Buy variants */
-  var bv = {};
-  {% for v in product.variants %}
-    bv['{{ v.id }}'] = { price: {{ v.price }}, available: {{ v.available | json }} };
-  {% endfor %}
-
-  function detectBuyVariant() {
-    var p = new URLSearchParams(window.location.search);
-    var u = p.get('variant');
-    if (u && bv[u]) return u;
-    var inp = document.querySelector('form[action*="/cart/add"] input[name="id"]');
-    if (inp && inp.value && bv[inp.value]) return inp.value;
-    var sel = document.querySelector('form[action*="/cart/add"] select[name="id"]');
-    if (sel && sel.value && bv[sel.value]) return sel.value;
-    var keys = Object.keys(bv);
-    for (var i=0;i<keys.length;i++) { if (bv[keys[i]].available) return keys[i]; }
-    return keys[0]||null;
-  }
-
-  var curVid = detectBuyVariant();
-  var curPrice = curVid && bv[curVid] ? bv[curVid].price : {{ main_price | json }};
-
-  /* Complements by group */
-  var compCards = W.querySelectorAll('[data-fbt-comp-card]');
-  var byGroup = {};
-  var allComps = [];
-  for (var i=0;i<compCards.length;i++) {
-    var c = compCards[i];
-    var g = parseInt(c.getAttribute('data-fbt-comp-group'),10)||0;
-    var obj = {
-      variantId: c.getAttribute('data-fbt-comp-variant-id'),
-      discountPct: parseFloat(c.getAttribute('data-fbt-comp-discount-pct'))||0,
-      price: parseInt(c.getAttribute('data-fbt-comp-price'),10)||0,
-      quantity: parseInt(c.getAttribute('data-fbt-comp-quantity'),10)||1
-    };
-    if (!byGroup[g]) byGroup[g]=[];
-    byGroup[g].push(obj);
-    allComps.push(obj);
-  }
-  var groupKeys = Object.keys(byGroup).map(Number).sort(function(a,b){return a-b;});
-
-  /* DOM */
-  var totalOrigEl = W.querySelector('[data-fbt-total-original]');
-  var totalFinEl = W.querySelector('[data-fbt-total-final]');
-  var savingsEl = W.querySelector('[data-fbt-savings]');
-  var addBtn = W.querySelector('[data-fbt-add-btn]');
-  var feedbackEl = W.querySelector('[data-fbt-feedback]');
-  var stdPriceEl = W.querySelector('[data-fbt-standard-price]');
-  var allRadios = W.querySelectorAll('[data-fbt-radio]');
-
-  function calcGroup(gIdx) {
-    var comps = byGroup[gIdx]||[];
-    var tOrig = curPrice;
-    var tFin = Math.round(curPrice*(1-triggerDiscountPct/100));
-    for (var i=0;i<comps.length;i++) {
-      var q = comps[i].quantity||1;
-      tOrig += comps[i].price*q;
-      tFin += Math.round(comps[i].price*(1-comps[i].discountPct/100))*q;
-    }
-    return {orig:tOrig, fin:tFin, save:tOrig-tFin};
-  }
-
-  function updatePrices() {
-    if (curVid && bv[curVid]) curPrice = bv[curVid].price;
-
-    if (bundleMode==='combo') {
-      if (stdPriceEl) stdPriceEl.textContent = fmt(curPrice);
-
-      for (var i=0;i<groupKeys.length;i++) {
-        var g = groupKeys[i];
-        var t = calcGroup(g);
-        var sEl = W.querySelector('[data-fbt-combo-savings-'+g+']');
-        var oEl = W.querySelector('[data-fbt-combo-original-'+g+']');
-        var fEl = W.querySelector('[data-fbt-combo-final-'+g+']');
-        if (sEl) sEl.textContent = t.save>0 ? 'Save '+fmt(t.save)+'!' : '';
-        if (oEl) oEl.textContent = t.save>0 ? fmt(t.orig) : '';
-        if (fEl) fEl.textContent = fmt(t.fin);
-      }
-
-      if (comboSelected && selectedGroup!==null) {
-        var sel = calcGroup(selectedGroup);
-        if (totalOrigEl) totalOrigEl.textContent = sel.save>0 ? fmt(sel.orig) : '';
-        if (totalFinEl) totalFinEl.textContent = fmt(sel.fin);
-        if (savingsEl) savingsEl.textContent = sel.save>0 ? 'You save '+fmt(sel.save) : '';
-      } else {
-        if (totalOrigEl) totalOrigEl.textContent = '';
-        if (totalFinEl) totalFinEl.textContent = fmt(curPrice);
-        if (savingsEl) savingsEl.textContent = '';
-      }
-    } else {
-      var tO = curPrice, tF = curPrice;
-      for (var i=0;i<allComps.length;i++) {
-        var q = allComps[i].quantity||1;
-        tO += allComps[i].price*q;
-        tF += Math.round(allComps[i].price*(1-allComps[i].discountPct/100))*q;
-      }
-      var s = tO-tF;
-      if (totalOrigEl) totalOrigEl.textContent = s>0 ? fmt(tO) : '';
-      if (totalFinEl) totalFinEl.textContent = fmt(tF);
-      if (savingsEl) savingsEl.textContent = s>0 ? 'You save '+fmt(s) : '';
-    }
-  }
-
-  /* Variant change */
-  function onVarChange(vid) { if (vid && bv[vid]) { curVid=vid; updatePrices(); } }
-  function checkUrl() {
-    var v = new URLSearchParams(window.location.search).get('variant');
-    if (v && v!==curVid) onVarChange(v);
-  }
-  window.addEventListener('popstate', checkUrl);
-  document.addEventListener('variant:changed', function(e) {
-    if (e.detail && e.detail.variant && e.detail.variant.id) onVarChange(String(e.detail.variant.id));
-  });
-  var vi = document.querySelector('form[action*="/cart/add"] input[name="id"]');
-  if (vi) {
-    new MutationObserver(function(){onVarChange(vi.value);}).observe(vi,{attributes:true,attributeFilter:['value']});
-    var vs = document.querySelector('form[action*="/cart/add"] select[name="id"]');
-    if (vs) vs.addEventListener('change',function(){onVarChange(vs.value);});
-  }
-  var lastUrl = window.location.href;
-  setInterval(function(){if(window.location.href!==lastUrl){lastUrl=window.location.href;checkUrl();}},500);
-
-  /* Feedback */
-  function showFB(type,msg) {
-    feedbackEl.textContent=msg;
-    feedbackEl.className='bxgy-fbt__feedback bxgy-fbt__feedback--'+type;
-    if (type==='success') setTimeout(function(){feedbackEl.className='bxgy-fbt__feedback';},4000);
-  }
-
-  /* Cart count */
-  function updCart(n) {
-    var sels = ['.cart-count-bubble span[aria-hidden="true"]','.cart-count-bubble','.cart-count','[data-cart-count]','.site-header__cart-count','#cart-icon-bubble span','.header__cart-count'];
-    for (var i=0;i<sels.length;i++){var el=document.querySelector(sels[i]);if(el){el.textContent=String((parseInt(el.textContent,10)||0)+n);break;}}
-  }
-
-  /* Add to cart */
-  addBtn.addEventListener('click', function() {
-    if (addBtn.disabled) return;
-    addBtn.disabled=true;
-    addBtn.classList.add('bxgy-fbt__add-btn--loading');
-    feedbackEl.className='bxgy-fbt__feedback';
-
-    var items=[];
-    var vid = detectBuyVariant();
-
-    if (bundleMode==='combo' && !comboSelected) {
-      if (vid) items.push({id:Number(vid),quantity:1});
-    } else {
-      if (vid) items.push({id:Number(vid),quantity:1});
-      var list = (bundleMode==='combo' && selectedGroup!==null) ? (byGroup[selectedGroup]||[]) : allComps;
-      for (var i=0;i<list.length;i++) {
-        if (list[i].variantId) items.push({id:Number(list[i].variantId),quantity:list[i].quantity||1});
-      }
-    }
-
-    if (!items.length) { addBtn.disabled=false; addBtn.classList.remove('bxgy-fbt__add-btn--loading'); showFB('error','No products to add.'); return; }
-
-    fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
-    .then(function(r){if(!r.ok) return r.json().then(function(d){throw new Error(d.description||d.message||'Failed');}); return r.json();})
-    .then(function(){
-      addBtn.disabled=false; addBtn.classList.remove('bxgy-fbt__add-btn--loading');
-      showFB('success','Bundle added to cart!');
-      updCart(items.reduce(function(s,it){return s+it.quantity;},0));
-    })
-    .catch(function(err){
-      addBtn.disabled=false; addBtn.classList.remove('bxgy-fbt__add-btn--loading');
-      showFB('error', err.message||'Something went wrong.');
-    });
-  });
-
-  /* Combo radio selection */
-  if (bundleMode==='combo') {
-    function setSelection(type, gIdx) {
-      comboSelected = type==='combo';
-      selectedGroup = comboSelected ? gIdx : null;
-
-      for (var r=0;r<allRadios.length;r++) {
-        var radio = allRadios[r];
-        var rType = radio.getAttribute('data-fbt-radio');
-        var rGroup = parseInt(radio.getAttribute('data-fbt-radio-group'),10);
-        var active = false;
-        if (type==='standard' && rType==='standard') active=true;
-        if (type==='combo' && rType==='combo' && rGroup===gIdx) active=true;
-        radio.classList.toggle('bxgy-fbt__radio--active', active);
-      }
-
-      if (addBtn) addBtn.textContent = comboSelected ? 'Complete the Combo' : 'Add to Cart';
-      updatePrices();
-    }
-
-    for (var r=0;r<allRadios.length;r++) {
-      (function(radio){
-        radio.addEventListener('click', function(){
-          var type = radio.getAttribute('data-fbt-radio');
-          var gIdx = parseInt(radio.getAttribute('data-fbt-radio-group'),10)||0;
-          setSelection(type, gIdx);
-        });
-      })(allRadios[r]);
-    }
-
-    /* Default: last group selected */
-    if (groupKeys.length>0) setSelection('combo', groupKeys[groupKeys.length-1]);
-  }
-
-  updatePrices();
-})();
+};
 </script>
+<script src="{{ 'bxapp_complement.js' | asset_url }}" defer></script>
+
 
 {% endif %}

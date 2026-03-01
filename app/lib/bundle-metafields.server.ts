@@ -478,6 +478,7 @@ export async function setComplementBundleMetafield(
     designBorderRadius: designConfig?.borderRadius ?? null,
     designHeaderText: designConfig?.headerText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
+    showVariants: designConfig?.showVariants ?? true,
   });
 
   await admin.graphql(
@@ -550,6 +551,7 @@ export async function setShopComplementBundleMetafield(
       designBorderRadius: designConfig?.borderRadius ?? null,
       designHeaderText: designConfig?.headerText ?? null,
       designCardLayout: designConfig?.cardLayout ?? "vertical",
+      showVariants: designConfig?.showVariants ?? true,
     });
   }
 
