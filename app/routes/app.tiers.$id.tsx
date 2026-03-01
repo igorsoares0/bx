@@ -13,6 +13,7 @@ import {
   Text,
   Banner,
   Thumbnail,
+  Checkbox,
   Select,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -40,6 +41,7 @@ const DEFAULT_DESIGN = {
   headerText: "BUILD YOUR COMBO & SAVE",
   giftText: "+ FREE special gift!",
   cardLayout: "vertical",
+  showVariants: true,
 };
 
 type TierConfig = { buyQty: number; freeQty: number; discountPct: number };
@@ -456,7 +458,7 @@ export default function TieredBundleForm() {
   };
 
   const [design, setDesign] = useState(savedDesign);
-  const updateDesign = (key: string, value: string | number) => {
+  const updateDesign = (key: string, value: string | number | boolean) => {
     setDesign((prev: any) => ({ ...prev, [key]: value }));
   };
 
@@ -803,6 +805,12 @@ export default function TieredBundleForm() {
                     value={design.cardLayout || "vertical"}
                     onChange={(v) => updateDesign("cardLayout", v)}
                   />
+                  <Checkbox
+                    label="Show variant selectors (color, size, etc.)"
+                    helpText="When enabled, customers can pick different variants for each item in the bundle"
+                    checked={design.showVariants !== false}
+                    onChange={(v) => updateDesign("showVariants", v)}
+                  />
                 </FormLayout>
               </BlockStack>
             </Card>
@@ -851,9 +859,7 @@ export default function TieredBundleForm() {
                         onClick={() => setSelectedPreviewTier(i)}
                         style={{
                           display: "flex",
-                          flexDirection: isHorizontal ? "column" : "row",
-                          alignItems: "center",
-                          gap: isHorizontal ? "6px" : "10px",
+                          flexDirection: "column",
                           padding: isHorizontal ? "14px 10px" : "12px 14px",
                           borderRadius: isHorizontal ? "12px" : "28px",
                           border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #e5e5e5",
@@ -865,32 +871,55 @@ export default function TieredBundleForm() {
                           minWidth: 0,
                         }}
                       >
-                        {!isHorizontal && (
-                          <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: design.accentColor }} />}
+                        <div style={{ display: "flex", flexDirection: isHorizontal ? "column" : "row", alignItems: "center", gap: isHorizontal ? "6px" : "10px" }}>
+                          {!isHorizontal && (
+                            <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: design.accentColor }} />}
+                            </div>
+                          )}
+                          <div style={{ flex: isHorizontal ? undefined : 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: "12px", color: design.textColor }}>
+                              Buy {tier.buyQty}, get {tier.freeQty} {tier.discountPct >= 100 ? "free" : `${tier.discountPct}% off`}
+                            </div>
+                            <div style={{ marginTop: "4px" }}>
+                              <span style={{ fontSize: "9px", fontWeight: 700, color: design.accentColor, background: `${design.accentColor}18`, padding: "2px 6px", borderRadius: "4px", textTransform: "uppercase" as const }}>
+                                SAVE {savePct}%
+                              </span>
+                            </div>
                           </div>
-                        )}
-                        <div style={{ flex: isHorizontal ? undefined : 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: "12px", color: design.textColor }}>
-                            Buy {tier.buyQty}, get {tier.freeQty} {tier.discountPct >= 100 ? "free" : `${tier.discountPct}% off`}
+                          <div style={{ textAlign: isHorizontal ? "center" : "right", flexShrink: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: isHorizontal ? "13px" : "14px", color: isSelected ? design.accentColor : design.textColor }}>
+                              {formatPreviewPrice(finalCents)}
+                            </div>
+                            <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>
+                              {formatPreviewPrice(originalCents)}
+                            </div>
                           </div>
-                          <div style={{ marginTop: "4px" }}>
-                            <span style={{ fontSize: "9px", fontWeight: 700, color: design.accentColor, background: `${design.accentColor}18`, padding: "2px 6px", borderRadius: "4px", textTransform: "uppercase" as const }}>
-                              SAVE {savePct}%
-                            </span>
-                          </div>
+                          {isHorizontal && (
+                            <div style={{ width: 16, height: 16, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              {isSelected && <div style={{ width: 8, height: 8, borderRadius: "50%", background: design.accentColor }} />}
+                            </div>
+                          )}
                         </div>
-                        <div style={{ textAlign: isHorizontal ? "center" : "right", flexShrink: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: isHorizontal ? "13px" : "14px", color: isSelected ? design.accentColor : design.textColor }}>
-                            {formatPreviewPrice(finalCents)}
-                          </div>
-                          <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>
-                            {formatPreviewPrice(originalCents)}
-                          </div>
-                        </div>
-                        {isHorizontal && (
-                          <div style={{ width: 16, height: 16, borderRadius: "50%", border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            {isSelected && <div style={{ width: 8, height: 8, borderRadius: "50%", background: design.accentColor }} />}
+                        {/* Variant selectors preview */}
+                        {isSelected && design.showVariants !== false && totalQty > 1 && (
+                          <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e5e5e5" }}>
+                            <div style={{ fontSize: "10px", color: "#777", marginBottom: "6px" }}>Cor, Tamanho</div>
+                            {Array.from({ length: Math.min(totalQty, 4) }).map((_, qi) => (
+                              <div key={qi} style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                                <span style={{ fontSize: "10px", fontWeight: 700, color: "#888", minWidth: "18px" }}>#{qi + 1}</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: "3px", background: "#fff", border: "1px solid #ddd", borderRadius: "5px", padding: "3px 5px" }}>
+                                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#38a169", border: "1px solid #ccc" }} />
+                                  <span style={{ fontSize: "11px", color: design.textColor }}>Verde ▾</span>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "3px", background: "#fff", border: "1px solid #ddd", borderRadius: "5px", padding: "3px 5px" }}>
+                                  <span style={{ fontSize: "11px", color: design.textColor }}>M ▾</span>
+                                </div>
+                              </div>
+                            ))}
+                            {totalQty > 4 && (
+                              <div style={{ fontSize: "9px", color: "#999", textAlign: "center" }}>+{totalQty - 4} more…</div>
+                            )}
                           </div>
                         )}
                       </div>

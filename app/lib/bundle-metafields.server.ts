@@ -18,6 +18,7 @@ function buildTieredMetafieldValue(
     designHeaderText: designConfig?.headerText ?? null,
     designGiftText: designConfig?.giftText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
+    showVariants: designConfig?.showVariants ?? true,
   });
 }
 
