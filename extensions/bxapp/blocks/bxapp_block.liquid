@@ -6,6 +6,8 @@
 
 {% assign bxapp_widget_id = block.id %}
 
+<script>window.__bxappApiBase=window.__bxappApiBase||{{ shop.metafields.bxgy_bundle.app_url.value | default: '' | json }};</script>
+
 <div class="bxapp-bundles-block" data-bxapp-placed="true" {{ block.shopify_attributes }}>
   {% render 'bxapp_tiered', product: product, bxapp_widget_id: bxapp_widget_id %}
   {% render 'bxapp_volume', product: product, bxapp_widget_id: bxapp_widget_id %}

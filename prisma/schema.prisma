@@ -79,3 +79,32 @@ model ComplementBundle {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+// ── Analytics ──
+
+model BundleEvent {
+  id         Int      @id @default(autoincrement())
+  shopId     String
+  eventType  String   // "view" | "click" | "add_to_cart"
+  bundleType String   // "tiered" | "volume" | "complement"
+  bundleId   Int?
+  productId  String?  // Shopify product GID where the widget was shown
+  createdAt  DateTime @default(now())
+
+  @@index([shopId, eventType, createdAt])
+  @@index([shopId, createdAt])
+}
+
+model BundleOrder {
+  id              Int      @id @default(autoincrement())
+  shopId          String
+  orderId         String   @unique // Shopify order GID
+  orderName       String?  // e.g. "#1001"
+  bundleType      String   // "tiered" | "volume" | "complement"
+  bundleId        Int?
+  totalPrice      Int      @default(0) // order total in cents
+  bundleRevenue   Int      @default(0) // revenue from bundle items in cents
+  createdAt       DateTime @default(now())
+
+  @@index([shopId, createdAt])
+}

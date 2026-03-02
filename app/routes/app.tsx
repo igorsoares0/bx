@@ -10,7 +10,43 @@ import { authenticate } from "../shopify.server";
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
+
+  // Ensure shop has the app_url metafield for storefront analytics
+  const appUrl = process.env.SHOPIFY_APP_URL || "";
+  if (appUrl) {
+    try {
+      const shopRes = await admin.graphql(
+        `#graphql
+          query { shop { id } }`,
+      );
+      const shopData = await shopRes.json();
+      const shopGid = shopData?.data?.shop?.id;
+      if (shopGid) {
+        await admin.graphql(
+          `#graphql
+            mutation setAppUrl($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                userErrors { field message }
+              }
+            }`,
+          {
+            variables: {
+              metafields: [{
+                namespace: "bxgy_bundle",
+                key: "app_url",
+                type: "single_line_text_field",
+                value: appUrl,
+                ownerId: shopGid,
+              }],
+            },
+          },
+        );
+      }
+    } catch (e) {
+      console.error("Failed to set app_url metafield:", e);
+    }
+  }
 
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
@@ -25,6 +61,7 @@ export default function App() {
           Home
         </Link>
         <Link to="/app/bundles">Bundles</Link>
+        <Link to="/app/analytics">Analytics</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>

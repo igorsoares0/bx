@@ -430,7 +430,8 @@ window.__bxappVolume['{{ bxapp_widget_id }}']={
   hasMultipleVariants:{{ product.variants.size }}>1&&{{ show_variants | json }}===true,
   defaultVariantId:'{{ product.selected_or_first_available_variant.id }}',
   productOptions:[{% for option in product.options_with_values %}{name:{{ option.name | json }},values:[{% for val in option.values %}{{ val | json }}{% unless forloop.last %},{% endunless %}{% endfor %}]}{% unless forloop.last %},{% endunless %}{% endfor %}],
-  allVariants:[{% for variant in product.variants %}{id:'{{ variant.id }}',price:{{ variant.price }},available:{{ variant.available | json }},title:{{ variant.title | json }},options:[{{ variant.option1 | json }},{{ variant.option2 | json }},{{ variant.option3 | json }}]}{% unless forloop.last %},{% endunless %}{% endfor %}]
+  allVariants:[{% for variant in product.variants %}{id:'{{ variant.id }}',price:{{ variant.price }},available:{{ variant.available | json }},title:{{ variant.title | json }},options:[{{ variant.option1 | json }},{{ variant.option2 | json }},{{ variant.option3 | json }}]}{% unless forloop.last %},{% endunless %}{% endfor %}],
+  _track:{shop:{{ shop.permanent_domain | json }},bundleId:{{ bundle_data.bundleId | json }},productId:{{ product.id | prepend: 'gid://shopify/Product/' | json }}}
 };
 </script>
 <script src="{{ 'bxapp_volume.js' | asset_url }}" defer></script>

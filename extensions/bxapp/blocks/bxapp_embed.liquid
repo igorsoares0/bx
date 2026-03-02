@@ -4,6 +4,8 @@
   Merchants only need to enable this single embed in Theme Settings → App Embeds.
 {% endcomment %}
 
+<script>window.__bxappApiBase={{ shop.metafields.bxgy_bundle.app_url.value | default: '' | json }};</script>
+
 {% comment %} ── Bundle widgets (product pages only) ── {% endcomment %}
 {% if request.page_type == 'product' %}
   {% assign bxapp_widget_id = 'bxapp-embed' %}
