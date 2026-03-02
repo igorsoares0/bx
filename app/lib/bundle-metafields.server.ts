@@ -149,6 +149,20 @@ function buildTieredEntry(
     designGiftText: designConfig?.giftText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
     showVariants: designConfig?.showVariants ?? true,
+    designHeaderFontSize: designConfig?.headerFontSize ?? 18,
+    designHeaderAlignment: designConfig?.headerAlignment ?? "center",
+    designButtonText: designConfig?.buttonText ?? "Add Bundle to Cart",
+    designTierStyle: designConfig?.tierStyle ?? "card",
+    designPadding: designConfig?.padding ?? 20,
+    designShowBadge: designConfig?.showBadge ?? true,
+    designBadgeStyle: designConfig?.badgeStyle ?? "square",
+    designShowProductImage: designConfig?.showProductImage ?? true,
+    designImageSize: designConfig?.imageSize ?? 64,
+    designBorderStyle: designConfig?.borderStyle ?? "solid",
+    designBorderColor: designConfig?.borderColor ?? "#e5e5e5",
+    designSelectedTierBg: designConfig?.selectedTierBg ?? "",
+    designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
+    designShadowIntensity: designConfig?.shadowIntensity ?? "none",
   };
 }
 
@@ -216,6 +230,20 @@ export async function setShopTieredBundleMetafield(
       designGiftText: designConfig?.giftText ?? null,
       designCardLayout: designConfig?.cardLayout ?? "vertical",
       showVariants: designConfig?.showVariants ?? true,
+      designHeaderFontSize: designConfig?.headerFontSize ?? 18,
+      designHeaderAlignment: designConfig?.headerAlignment ?? "center",
+      designButtonText: designConfig?.buttonText ?? "Add Bundle to Cart",
+      designTierStyle: designConfig?.tierStyle ?? "card",
+      designPadding: designConfig?.padding ?? 20,
+      designShowBadge: designConfig?.showBadge ?? true,
+      designBadgeStyle: designConfig?.badgeStyle ?? "square",
+      designShowProductImage: designConfig?.showProductImage ?? true,
+      designImageSize: designConfig?.imageSize ?? 64,
+      designBorderStyle: designConfig?.borderStyle ?? "solid",
+      designBorderColor: designConfig?.borderColor ?? "#e5e5e5",
+      designSelectedTierBg: designConfig?.selectedTierBg ?? "",
+      designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
+      designShadowIntensity: designConfig?.shadowIntensity ?? "none",
     });
   }
 

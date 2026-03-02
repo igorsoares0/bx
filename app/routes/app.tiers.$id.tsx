@@ -42,6 +42,24 @@ const DEFAULT_DESIGN = {
   giftText: "+ FREE special gift!",
   cardLayout: "vertical",
   showVariants: true,
+  // Typography
+  headerFontSize: 18,
+  headerAlignment: "center",
+  buttonText: "Add Bundle to Cart",
+  // Layout & Spacing
+  tierStyle: "card",
+  padding: 20,
+  showBadge: true,
+  badgeStyle: "square",
+  // Image & Product
+  showProductImage: true,
+  imageSize: 64,
+  // Visual Effects
+  borderStyle: "solid",
+  borderColor: "#e5e5e5",
+  selectedTierBg: "",
+  buttonBorderRadius: 8,
+  shadowIntensity: "none",
 };
 
 type TierConfig = { buyQty: number; freeQty: number; discountPct: number };
@@ -859,6 +877,169 @@ export default function TieredBundleForm() {
                     onChange={(v) => updateDesign("showVariants", v)}
                   />
                 </FormLayout>
+
+                {/* Typography */}
+                <Text as="h3" variant="headingSm">Typography</Text>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <TextField
+                      label="Header font size"
+                      type="number"
+                      value={String(design.headerFontSize)}
+                      onChange={(v) => updateDesign("headerFontSize", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={14}
+                      max={32}
+                    />
+                    <Select
+                      label="Header alignment"
+                      options={[
+                        { label: "Left", value: "left" },
+                        { label: "Center", value: "center" },
+                        { label: "Right", value: "right" },
+                      ]}
+                      value={design.headerAlignment}
+                      onChange={(v) => updateDesign("headerAlignment", v)}
+                    />
+                  </FormLayout.Group>
+                  <TextField
+                    label="Button text"
+                    value={design.buttonText}
+                    onChange={(v) => updateDesign("buttonText", v)}
+                    autoComplete="off"
+                    placeholder="e.g. Add Bundle to Cart"
+                  />
+                </FormLayout>
+
+                {/* Layout & Spacing */}
+                <Text as="h3" variant="headingSm">Layout & Spacing</Text>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <Select
+                      label="Tier style"
+                      options={[
+                        { label: "Card (white bg + border)", value: "card" },
+                        { label: "Minimal (no bg/border)", value: "minimal" },
+                        { label: "Bordered (transparent + border)", value: "bordered" },
+                      ]}
+                      value={design.tierStyle}
+                      onChange={(v) => updateDesign("tierStyle", v)}
+                    />
+                    <TextField
+                      label="Container padding"
+                      type="number"
+                      value={String(design.padding)}
+                      onChange={(v) => updateDesign("padding", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={8}
+                      max={32}
+                    />
+                  </FormLayout.Group>
+                  <Checkbox
+                    label="Show SAVE % badge"
+                    checked={design.showBadge !== false}
+                    onChange={(v) => updateDesign("showBadge", v)}
+                  />
+                  {design.showBadge !== false && (
+                    <Select
+                      label="Badge style"
+                      options={[
+                        { label: "Square (4px radius)", value: "square" },
+                        { label: "Pill (rounded)", value: "pill" },
+                        { label: "Ribbon (angled)", value: "ribbon" },
+                      ]}
+                      value={design.badgeStyle}
+                      onChange={(v) => updateDesign("badgeStyle", v)}
+                    />
+                  )}
+                </FormLayout>
+
+                {/* Image & Product */}
+                <Text as="h3" variant="headingSm">Image & Product</Text>
+                <FormLayout>
+                  <Checkbox
+                    label="Show product image in tier rows"
+                    checked={design.showProductImage !== false}
+                    onChange={(v) => updateDesign("showProductImage", v)}
+                  />
+                  {design.showProductImage !== false && (
+                    <TextField
+                      label="Image size"
+                      type="number"
+                      value={String(design.imageSize)}
+                      onChange={(v) => updateDesign("imageSize", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={40}
+                      max={120}
+                    />
+                  )}
+                </FormLayout>
+
+                {/* Visual Effects */}
+                <Text as="h3" variant="headingSm">Visual Effects</Text>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <Select
+                      label="Border style"
+                      options={[
+                        { label: "Solid", value: "solid" },
+                        { label: "Dashed", value: "dashed" },
+                        { label: "None", value: "none" },
+                      ]}
+                      value={design.borderStyle}
+                      onChange={(v) => updateDesign("borderStyle", v)}
+                    />
+                    <div>
+                      <Text as="p" variant="bodySm">Border color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.borderColor || "#e5e5e5"}
+                          onChange={(e) => updateDesign("borderColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField label="" labelHidden value={design.borderColor} onChange={(v) => updateDesign("borderColor", v)} autoComplete="off" />
+                      </InlineStack>
+                    </div>
+                  </FormLayout.Group>
+                  <div>
+                    <Text as="p" variant="bodySm">Selected tier background</Text>
+                    <InlineStack gap="200" blockAlign="center">
+                      <input
+                        type="color"
+                        value={design.selectedTierBg || "#ffffff"}
+                        onChange={(e) => updateDesign("selectedTierBg", e.target.value)}
+                        style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                      />
+                      <TextField label="" labelHidden value={design.selectedTierBg} onChange={(v) => updateDesign("selectedTierBg", v)} autoComplete="off" helpText="Leave empty for auto (accent + opacity)" />
+                    </InlineStack>
+                  </div>
+                  <FormLayout.Group>
+                    <TextField
+                      label="Button border radius"
+                      type="number"
+                      value={String(design.buttonBorderRadius)}
+                      onChange={(v) => updateDesign("buttonBorderRadius", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={0}
+                      max={50}
+                    />
+                    <Select
+                      label="Shadow intensity"
+                      options={[
+                        { label: "None", value: "none" },
+                        { label: "Light", value: "light" },
+                        { label: "Medium", value: "medium" },
+                      ]}
+                      value={design.shadowIntensity}
+                      onChange={(v) => updateDesign("shadowIntensity", v)}
+                    />
+                  </FormLayout.Group>
+                </FormLayout>
               </BlockStack>
             </Card>
 
@@ -882,10 +1063,16 @@ export default function TieredBundleForm() {
                 Theme preview
               </Text>
 
-              <div style={{ background: design.backgroundColor, borderRadius: `${design.borderRadius}px`, padding: "16px", border: "1px solid #e5e5e5" }}>
+              <div style={{
+                background: design.backgroundColor,
+                borderRadius: `${design.borderRadius}px`,
+                padding: `${design.padding}px`,
+                border: design.borderStyle === "none" ? "none" : `1px ${design.borderStyle} ${design.borderColor}`,
+                boxShadow: design.shadowIntensity === "light" ? "0 1px 3px rgba(0,0,0,0.08)" : design.shadowIntensity === "medium" ? "0 4px 12px rgba(0,0,0,0.12)" : "none",
+              }}>
                 {/* Header */}
                 <div style={{ borderBottom: `2px solid ${design.textColor}`, paddingBottom: "8px", marginBottom: "12px" }}>
-                  <div style={{ fontWeight: 800, fontSize: "13px", color: design.textColor, textTransform: "uppercase" as const, letterSpacing: "0.5px", textAlign: "center" }}>
+                  <div style={{ fontWeight: 800, fontSize: `${design.headerFontSize}px`, color: design.textColor, textTransform: "uppercase" as const, letterSpacing: "0.5px", textAlign: design.headerAlignment as any }}>
                     {design.headerText}
                   </div>
                 </div>
@@ -908,9 +1095,16 @@ export default function TieredBundleForm() {
                           display: "flex",
                           flexDirection: "column",
                           padding: isHorizontal ? "14px 10px" : "12px 14px",
-                          borderRadius: isHorizontal ? "12px" : "28px",
-                          border: isSelected ? `2px solid ${design.accentColor}` : "2px solid #e5e5e5",
-                          background: isSelected ? `${design.accentColor}08` : "#fff",
+                          borderRadius: design.tierStyle === "minimal" ? 0 : isHorizontal ? "12px" : "28px",
+                          border: design.tierStyle === "minimal"
+                            ? "none"
+                            : isSelected
+                              ? `2px solid ${design.accentColor}`
+                              : "2px solid #e5e5e5",
+                          borderBottom: design.tierStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
+                          background: isSelected
+                            ? (design.selectedTierBg || `${design.accentColor}08`)
+                            : design.tierStyle === "card" ? "#fff" : "transparent",
                           cursor: "pointer",
                           transition: "all 0.15s",
                           flex: isHorizontal ? 1 : undefined,
@@ -924,15 +1118,28 @@ export default function TieredBundleForm() {
                               {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: design.accentColor }} />}
                             </div>
                           )}
+                          {design.showProductImage !== false && (
+                            <div style={{ width: `${Math.min(design.imageSize || 64, 40)}px`, height: `${Math.min(design.imageSize || 64, 40)}px`, borderRadius: "6px", background: "#e0e0e0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", color: "#999" }}>IMG</div>
+                          )}
                           <div style={{ flex: isHorizontal ? undefined : 1 }}>
                             <div style={{ fontWeight: 600, fontSize: "12px", color: design.textColor }}>
                               Buy {tier.buyQty}, get {tier.freeQty} {tier.discountPct >= 100 ? "free" : `${tier.discountPct}% off`}
                             </div>
-                            <div style={{ marginTop: "4px" }}>
-                              <span style={{ fontSize: "9px", fontWeight: 700, color: design.accentColor, background: `${design.accentColor}18`, padding: "2px 6px", borderRadius: "4px", textTransform: "uppercase" as const }}>
-                                SAVE {savePct}%
-                              </span>
-                            </div>
+                            {design.showBadge !== false && (
+                              <div style={{ marginTop: "4px" }}>
+                                <span style={{
+                                  fontSize: "9px",
+                                  fontWeight: 700,
+                                  color: design.accentColor,
+                                  background: `${design.accentColor}18`,
+                                  padding: "2px 6px",
+                                  borderRadius: design.badgeStyle === "pill" ? "999px" : design.badgeStyle === "ribbon" ? "0 4px 4px 0" : "4px",
+                                  textTransform: "uppercase" as const,
+                                }}>
+                                  SAVE {savePct}%
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <div style={{ textAlign: isHorizontal ? "center" : "right", flexShrink: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: isHorizontal ? "13px" : "14px", color: isSelected ? design.accentColor : design.textColor }}>
@@ -984,8 +1191,8 @@ export default function TieredBundleForm() {
                 )}
 
                 {/* Button */}
-                <div style={{ width: "100%", padding: "12px 16px", fontSize: "14px", fontWeight: 700, border: "none", borderRadius: "8px", background: design.buttonColor, color: design.buttonTextColor, textAlign: "center", cursor: "default" }}>
-                  Add Bundle to Cart
+                <div style={{ width: "100%", padding: "12px 16px", fontSize: "14px", fontWeight: 700, border: "none", borderRadius: `${design.buttonBorderRadius}px`, background: design.buttonColor, color: design.buttonTextColor, textAlign: "center", cursor: "default" }}>
+                  {design.buttonText}
                 </div>
                 <div style={{ textAlign: "center", fontSize: "10px", color: "#888", marginTop: "8px" }}>
                   Discount applied automatically at checkout
