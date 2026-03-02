@@ -26,7 +26,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const biProp = props.find((p: any) => p.name === "_bxapp_bundle_id");
         if (biProp) bundleId = Number(biProp.value) || null;
         const lineTotal = Math.round(parseFloat(item.price || "0") * 100 * (item.quantity || 1));
-        bundleRevenue += lineTotal;
+        const lineDiscount = Math.round(parseFloat(item.total_discount || "0") * 100);
+        bundleRevenue += lineTotal - lineDiscount;
       }
     }
 
