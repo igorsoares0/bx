@@ -221,6 +221,43 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const productIdField = triggerType === "product" ? JSON.stringify(productIds) : JSON.stringify(resolvedProductIds);
 
   const isNew = params.id === "new";
+  const editBundleId = isNew ? undefined : Number(params.id);
+
+  // ── Conflict validation: prevent duplicate triggers ──
+  if (triggerType === "product") {
+    for (const pid of productIds) {
+      const conflicting = await db.volumeBundle.findFirst({
+        where: {
+          shopId: session.shop,
+          active: true,
+          triggerType: "product",
+          productId: { contains: pid },
+          ...(editBundleId ? { id: { not: editBundleId } } : {}),
+        },
+      });
+      if (conflicting) {
+        return json(
+          { errors: [`Product already has an active volume bundle: "${conflicting.name}"`] },
+          { status: 400 },
+        );
+      }
+    }
+  } else if (triggerType === "all") {
+    const conflicting = await db.volumeBundle.findFirst({
+      where: {
+        shopId: session.shop,
+        active: true,
+        triggerType: "all",
+        ...(editBundleId ? { id: { not: editBundleId } } : {}),
+      },
+    });
+    if (conflicting) {
+      return json(
+        { errors: [`An "all products" volume bundle already exists: "${conflicting.name}"`] },
+        { status: 400 },
+      );
+    }
+  }
 
   if (isNew) {
     const bundle = await db.volumeBundle.create({
@@ -284,11 +321,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         where: { id: bundle.id },
         data: { discountId },
       });
+    } else {
+      await db.volumeBundle.delete({ where: { id: bundle.id } });
+      return json({ errors: ["Failed to create Shopify discount"] }, { status: 500 });
     }
 
     // Set metafields
     if (triggerType === "product") {
       await setVolumeBundleMetafield(admin, {
+        bundleId: bundle.id,
         productIds,
         bundleName: name,
         volumeTiers,
@@ -316,7 +357,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       oldProductIds = existing.productId ? [existing.productId] : [];
     }
     if (oldProductIds.length > 0) {
-      await removeVolumeBundleMetafield(admin, oldProductIds);
+      await removeVolumeBundleMetafield(admin, oldProductIds, bundleId);
     }
 
     await db.volumeBundle.update({
@@ -334,6 +375,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // Set new metafields
     if (triggerType === "product") {
       await setVolumeBundleMetafield(admin, {
+        bundleId,
         productIds,
         bundleName: name,
         volumeTiers,

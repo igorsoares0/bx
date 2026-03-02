@@ -13,10 +13,13 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   removeTieredBundleMetafield,
+  setTieredBundleMetafield,
   setShopTieredBundleMetafield,
   removeVolumeBundleMetafield,
+  setVolumeBundleMetafield,
   setShopVolumeBundleMetafield,
   removeComplementBundleMetafield,
+  setComplementBundleMetafield,
   setShopComplementBundleMetafield,
 } from "../lib/bundle-metafields.server";
 
@@ -75,7 +78,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           productIds = [bundle.productId];
         }
         if (productIds.length > 0) {
-          await removeTieredBundleMetafield(admin, productIds);
+          await removeTieredBundleMetafield(admin, productIds, bundle.id);
         }
         await db.tieredBundle.delete({ where: { id: bundleId } });
         await setShopTieredBundleMetafield(admin, session.shop, db);
@@ -122,7 +125,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             productIds = [bundle.productId];
           }
           if (productIds.length > 0) {
-            await removeTieredBundleMetafield(admin, productIds);
+            await removeTieredBundleMetafield(admin, productIds, bundle.id);
+          }
+        } else {
+          // Restore product metafields on reactivation
+          if (bundle.triggerType === "product" || !bundle.triggerType) {
+            let productIds: string[] = [];
+            try {
+              const parsed = JSON.parse(bundle.productId);
+              productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
+            } catch {
+              productIds = [bundle.productId];
+            }
+            if (productIds.length > 0) {
+              let tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }> = [];
+              try { tiers = JSON.parse(bundle.tiersConfig || "[]"); } catch {}
+              const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : null;
+              await setTieredBundleMetafield(admin, {
+                bundleId: bundle.id,
+                productIds,
+                bundleName: bundle.name,
+                tiers,
+                designConfig,
+              });
+            }
           }
         }
         await setShopTieredBundleMetafield(admin, session.shop, db);
@@ -159,7 +185,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           productIds = bundle.productId ? [bundle.productId] : [];
         }
         if (productIds.length > 0) {
-          await removeVolumeBundleMetafield(admin, productIds);
+          await removeVolumeBundleMetafield(admin, productIds, bundle.id);
         }
         await db.volumeBundle.delete({ where: { id: bundleId } });
         // Refresh shop-level metafield
@@ -207,7 +233,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             productIds = bundle.productId ? [bundle.productId] : [];
           }
           if (productIds.length > 0) {
-            await removeVolumeBundleMetafield(admin, productIds);
+            await removeVolumeBundleMetafield(admin, productIds, bundle.id);
+          }
+        } else {
+          // Restore product metafields on reactivation
+          if (bundle.triggerType === "product" || !bundle.triggerType) {
+            let productIds: string[] = [];
+            try {
+              const parsed = JSON.parse(bundle.productId);
+              productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
+            } catch {
+              productIds = bundle.productId ? [bundle.productId] : [];
+            }
+            if (productIds.length > 0) {
+              let volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }> = [];
+              try { volumeTiers = JSON.parse(bundle.volumeTiers || "[]"); } catch {}
+              const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : null;
+              await setVolumeBundleMetafield(admin, {
+                bundleId: bundle.id,
+                productIds,
+                bundleName: bundle.name,
+                volumeTiers,
+                designConfig,
+              });
+            }
           }
         }
         // Refresh shop-level metafield
@@ -237,7 +286,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           );
         }
         if (bundle.triggerType === "product" && bundle.triggerReference) {
-          await removeComplementBundleMetafield(admin, bundle.triggerReference);
+          await removeComplementBundleMetafield(admin, bundle.triggerReference, bundle.id);
         }
         await db.complementBundle.delete({ where: { id: bundleId } });
         await setShopComplementBundleMetafield(admin, session.shop, db);
@@ -276,7 +325,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         if (!newActive && bundle.triggerType === "product" && bundle.triggerReference) {
-          await removeComplementBundleMetafield(admin, bundle.triggerReference);
+          await removeComplementBundleMetafield(admin, bundle.triggerReference, bundle.id);
+        } else if (newActive && bundle.triggerType === "product" && bundle.triggerReference) {
+          // Restore product metafield on reactivation
+          let complements: Array<any> = [];
+          try { complements = JSON.parse(bundle.complements || "[]"); } catch {}
+          const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : null;
+          await setComplementBundleMetafield(admin, {
+            bundleId: bundle.id,
+            productId: bundle.triggerReference,
+            bundleName: bundle.name,
+            complements,
+            designConfig,
+            mode: (bundle as any).mode || "fbt",
+            triggerDiscountPct: (bundle as any).triggerDiscountPct || 0,
+          });
         }
         await setShopComplementBundleMetafield(admin, session.shop, db);
       }

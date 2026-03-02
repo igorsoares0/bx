@@ -1,12 +1,142 @@
-/**
- * Builds the tiered config metafield JSON value.
- */
-function buildTieredMetafieldValue(
+// ─── Shared metafield helpers ───
+
+async function readProductMetafieldValue(
+  admin: any,
+  productId: string,
+  namespace: string,
+  key: string,
+): Promise<any | null> {
+  const response = await admin.graphql(
+    `#graphql
+      query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
+        product(id: $ownerId) {
+          metafield(namespace: $namespace, key: $key) {
+            value
+          }
+        }
+      }`,
+    { variables: { ownerId: productId, namespace, key } },
+  );
+  const json = await response.json();
+  const raw = json.data?.product?.metafield?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function ensureArray(val: any): any[] {
+  if (Array.isArray(val)) return val;
+  if (val && typeof val === "object") return [val];
+  return [];
+}
+
+async function upsertMetafieldArrayEntry(
+  admin: any,
+  ownerId: string,
+  namespace: string,
+  key: string,
+  bundleId: number,
+  entry: Record<string, unknown>,
+): Promise<void> {
+  const existing = await readProductMetafieldValue(admin, ownerId, namespace, key);
+  const arr = ensureArray(existing).filter((e: any) => e.bundleId !== bundleId);
+  arr.push({ ...entry, bundleId });
+  await admin.graphql(
+    `#graphql
+      mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id }
+          userErrors { field message }
+        }
+      }`,
+    {
+      variables: {
+        metafields: [{
+          ownerId,
+          namespace,
+          key,
+          type: "json",
+          value: JSON.stringify(arr),
+        }],
+      },
+    },
+  );
+}
+
+async function removeMetafieldArrayEntry(
+  admin: any,
+  ownerId: string,
+  namespace: string,
+  key: string,
+  bundleId: number,
+): Promise<void> {
+  const existing = await readProductMetafieldValue(admin, ownerId, namespace, key);
+  const arr = ensureArray(existing).filter((e: any) => e.bundleId !== bundleId);
+  if (arr.length === 0) {
+    await admin.graphql(
+      `#graphql
+        mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId }
+            userErrors { field message }
+          }
+        }`,
+      {
+        variables: {
+          metafields: [{ ownerId, namespace, key }],
+        },
+      },
+    );
+  } else {
+    await admin.graphql(
+      `#graphql
+        mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id }
+            userErrors { field message }
+          }
+        }`,
+      {
+        variables: {
+          metafields: [{
+            ownerId,
+            namespace,
+            key,
+            type: "json",
+            value: JSON.stringify(arr),
+          }],
+        },
+      },
+    );
+  }
+}
+
+async function getShopGid(admin: any): Promise<string | null> {
+  const res = await admin.graphql(
+    `#graphql
+      query {
+        shop {
+          id
+        }
+      }`,
+  );
+  const json = await res.json();
+  return json.data?.shop?.id || null;
+}
+
+// ─── Tiered Bundle ───
+
+function buildTieredEntry(
+  bundleId: number,
   bundleName: string,
   tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }>,
   designConfig?: Record<string, unknown>,
 ) {
-  return JSON.stringify({
+  return {
+    bundleId,
     bundleName,
     tiers,
     designAccentColor: designConfig?.accentColor ?? null,
@@ -19,51 +149,31 @@ function buildTieredMetafieldValue(
     designGiftText: designConfig?.giftText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
     showVariants: designConfig?.showVariants ?? true,
-  });
+  };
 }
 
 /**
- * Writes tiered bundle config metafield to one or more products.
+ * Writes tiered bundle config metafield to one or more products (array-safe).
  */
 export async function setTieredBundleMetafield(
   admin: any,
   {
+    bundleId,
     productIds,
     bundleName,
     tiers,
     designConfig,
   }: {
+    bundleId: number;
     productIds: string[];
     bundleName: string;
     tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }>;
     designConfig?: Record<string, unknown>;
   },
 ) {
-  const metafieldValue = buildTieredMetafieldValue(bundleName, tiers, designConfig);
-
+  const entry = buildTieredEntry(bundleId, bundleName, tiers, designConfig);
   for (const productId of productIds) {
-    await admin.graphql(
-      `#graphql
-        mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
-          metafieldsSet(metafields: $metafields) {
-            metafields { id }
-            userErrors { field message }
-          }
-        }`,
-      {
-        variables: {
-          metafields: [
-            {
-              ownerId: productId,
-              namespace: "bxgy_bundle",
-              key: "tiered_config",
-              type: "json",
-              value: metafieldValue,
-            },
-          ],
-        },
-      },
-    );
+    await upsertMetafieldArrayEntry(admin, productId, "bxgy_bundle", "tiered_config", bundleId, entry);
   }
 }
 
@@ -77,6 +187,7 @@ export async function setShopTieredBundleMetafield(
 ) {
   const bundles = await db.tieredBundle.findMany({
     where: { shopId, active: true, triggerType: { not: "product" } },
+    orderBy: { id: "asc" },
   });
 
   const configs = [];
@@ -104,15 +215,11 @@ export async function setShopTieredBundleMetafield(
       designHeaderText: designConfig?.headerText ?? null,
       designGiftText: designConfig?.giftText ?? null,
       designCardLayout: designConfig?.cardLayout ?? "vertical",
+      showVariants: designConfig?.showVariants ?? true,
     });
   }
 
-  const shopRes = await admin.graphql(
-    `#graphql
-      query { shop { id } }`,
-  );
-  const shopJson = await shopRes.json();
-  const shopGid = shopJson.data?.shop?.id;
+  const shopGid = await getShopGid(admin);
   if (!shopGid) return;
 
   await admin.graphql(
@@ -140,69 +247,29 @@ export async function setShopTieredBundleMetafield(
 }
 
 /**
- * Removes the tiered bundle metafield from one or more products.
+ * Removes the tiered bundle metafield entry from one or more products (array-safe).
  */
 export async function removeTieredBundleMetafield(
   admin: any,
   productIds: string | string[],
+  bundleId: number,
 ) {
   const ids = Array.isArray(productIds) ? productIds : [productIds];
-
   for (const productId of ids) {
-    const response = await admin.graphql(
-      `#graphql
-        query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
-          product(id: $ownerId) {
-            metafield(namespace: $namespace, key: $key) {
-              id
-            }
-          }
-        }`,
-      {
-        variables: {
-          ownerId: productId,
-          namespace: "bxgy_bundle",
-          key: "tiered_config",
-        },
-      },
-    );
-    const json = await response.json();
-    const metafieldId = json.data?.product?.metafield?.id;
-
-    if (metafieldId) {
-      await admin.graphql(
-        `#graphql
-          mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
-            metafieldsDelete(metafields: $metafields) {
-              deletedMetafields { ownerId namespace key }
-              userErrors { field message }
-            }
-          }`,
-        {
-          variables: {
-            metafields: [
-              {
-                ownerId: productId,
-                namespace: "bxgy_bundle",
-                key: "tiered_config",
-              },
-            ],
-          },
-        },
-      );
-    }
+    await removeMetafieldArrayEntry(admin, productId, "bxgy_bundle", "tiered_config", bundleId);
   }
 }
 
-/**
- * Builds the volume config metafield JSON value.
- */
-function buildVolumeMetafieldValue(
+// ─── Volume Bundle ───
+
+function buildVolumeEntry(
+  bundleId: number,
   bundleName: string,
   volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }>,
   designConfig?: Record<string, unknown>,
 ) {
-  return JSON.stringify({
+  return {
+    bundleId,
     bundleName,
     volumeTiers,
     designAccentColor: designConfig?.accentColor ?? null,
@@ -214,52 +281,32 @@ function buildVolumeMetafieldValue(
     designHeaderText: designConfig?.headerText ?? null,
     designBadgeText: designConfig?.badgeText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
-    showVariants: designConfig?.showVariants !== false,
-  });
+    showVariants: designConfig?.showVariants ?? true,
+  };
 }
 
 /**
- * Writes volume bundle config metafield to one or more products.
+ * Writes volume bundle config metafield to one or more products (array-safe).
  */
 export async function setVolumeBundleMetafield(
   admin: any,
   {
+    bundleId,
     productIds,
     bundleName,
     volumeTiers,
     designConfig,
   }: {
+    bundleId: number;
     productIds: string[];
     bundleName: string;
     volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }>;
     designConfig?: Record<string, unknown>;
   },
 ) {
-  const metafieldValue = buildVolumeMetafieldValue(bundleName, volumeTiers, designConfig);
-
+  const entry = buildVolumeEntry(bundleId, bundleName, volumeTiers, designConfig);
   for (const productId of productIds) {
-    await admin.graphql(
-      `#graphql
-        mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
-          metafieldsSet(metafields: $metafields) {
-            metafields { id }
-            userErrors { field message }
-          }
-        }`,
-      {
-        variables: {
-          metafields: [
-            {
-              ownerId: productId,
-              namespace: "bxgy_bundle",
-              key: "volume_config",
-              type: "json",
-              value: metafieldValue,
-            },
-          ],
-        },
-      },
-    );
+    await upsertMetafieldArrayEntry(admin, productId, "bxgy_bundle", "volume_config", bundleId, entry);
   }
 }
 
@@ -273,6 +320,7 @@ export async function setShopVolumeBundleMetafield(
 ) {
   const bundles = await db.volumeBundle.findMany({
     where: { shopId, active: true, triggerType: { not: "product" } },
+    orderBy: { id: "asc" },
   });
 
   const configs = [];
@@ -300,15 +348,11 @@ export async function setShopVolumeBundleMetafield(
       designHeaderText: designConfig?.headerText ?? null,
       designBadgeText: designConfig?.badgeText ?? null,
       designCardLayout: designConfig?.cardLayout ?? "vertical",
+      showVariants: designConfig?.showVariants ?? true,
     });
   }
 
-  const shopRes = await admin.graphql(
-    `#graphql
-      query { shop { id } }`,
-  );
-  const shopJson = await shopRes.json();
-  const shopGid = shopJson.data?.shop?.id;
+  const shopGid = await getShopGid(admin);
   if (!shopGid) return;
 
   await admin.graphql(
@@ -336,67 +380,27 @@ export async function setShopVolumeBundleMetafield(
 }
 
 /**
- * Removes the volume bundle metafield from one or more products.
+ * Removes the volume bundle metafield entry from one or more products (array-safe).
  */
 export async function removeVolumeBundleMetafield(
   admin: any,
   productIds: string | string[],
+  bundleId: number,
 ) {
   const ids = Array.isArray(productIds) ? productIds : [productIds];
-
   for (const productId of ids) {
-    const response = await admin.graphql(
-      `#graphql
-        query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
-          product(id: $ownerId) {
-            metafield(namespace: $namespace, key: $key) {
-              id
-            }
-          }
-        }`,
-      {
-        variables: {
-          ownerId: productId,
-          namespace: "bxgy_bundle",
-          key: "volume_config",
-        },
-      },
-    );
-    const json = await response.json();
-    const metafieldId = json.data?.product?.metafield?.id;
-
-    if (metafieldId) {
-      await admin.graphql(
-        `#graphql
-          mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
-            metafieldsDelete(metafields: $metafields) {
-              deletedMetafields { ownerId namespace key }
-              userErrors { field message }
-            }
-          }`,
-        {
-          variables: {
-            metafields: [
-              {
-                ownerId: productId,
-                namespace: "bxgy_bundle",
-                key: "volume_config",
-              },
-            ],
-          },
-        },
-      );
-    }
+    await removeMetafieldArrayEntry(admin, productId, "bxgy_bundle", "volume_config", bundleId);
   }
 }
 
 /**
- * Writes complement/FBT bundle config metafield to the trigger product.
+ * Writes complement/FBT bundle config metafield to the trigger product (array-safe).
  * Fetches fresh variant IDs from the Shopify API to ensure correctness.
  */
 export async function setComplementBundleMetafield(
   admin: any,
   {
+    bundleId,
     productId,
     bundleName,
     complements,
@@ -404,6 +408,7 @@ export async function setComplementBundleMetafield(
     mode,
     triggerDiscountPct,
   }: {
+    bundleId: number;
     productId: string;
     bundleName: string;
     complements: Array<{
@@ -465,7 +470,8 @@ export async function setComplementBundleMetafield(
     }
   }
 
-  const metafieldValue = JSON.stringify({
+  const entry: Record<string, unknown> = {
+    bundleId,
     bundleName,
     complements: enrichedComplements,
     mode: mode || "fbt",
@@ -479,30 +485,9 @@ export async function setComplementBundleMetafield(
     designHeaderText: designConfig?.headerText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
     showVariants: designConfig?.showVariants ?? true,
-  });
+  };
 
-  await admin.graphql(
-    `#graphql
-      mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
-        metafieldsSet(metafields: $metafields) {
-          metafields { id }
-          userErrors { field message }
-        }
-      }`,
-    {
-      variables: {
-        metafields: [
-          {
-            ownerId: productId,
-            namespace: "bxgy_bundle",
-            key: "complement_config",
-            type: "json",
-            value: metafieldValue,
-          },
-        ],
-      },
-    },
-  );
+  await upsertMetafieldArrayEntry(admin, productId, "bxgy_bundle", "complement_config", bundleId, entry);
 }
 
 /**
@@ -515,6 +500,7 @@ export async function setShopComplementBundleMetafield(
 ) {
   const bundles = await db.complementBundle.findMany({
     where: { shopId, active: true, triggerType: { not: "product" } },
+    orderBy: { id: "asc" },
   });
 
   const configs = [];
@@ -555,12 +541,7 @@ export async function setShopComplementBundleMetafield(
     });
   }
 
-  const shopRes = await admin.graphql(
-    `#graphql
-      query { shop { id } }`,
-  );
-  const shopJson = await shopRes.json();
-  const shopGid = shopJson.data?.shop?.id;
+  const shopGid = await getShopGid(admin);
   if (!shopGid) return;
 
   await admin.graphql(
@@ -588,53 +569,13 @@ export async function setShopComplementBundleMetafield(
 }
 
 /**
- * Removes the complement bundle metafield from the trigger product.
+ * Removes the complement bundle metafield entry from the trigger product (array-safe).
  */
 export async function removeComplementBundleMetafield(
   admin: any,
   productId: string,
+  bundleId: number,
 ) {
-  const response = await admin.graphql(
-    `#graphql
-      query getMetafield($ownerId: ID!, $namespace: String!, $key: String!) {
-        product(id: $ownerId) {
-          metafield(namespace: $namespace, key: $key) {
-            id
-          }
-        }
-      }`,
-    {
-      variables: {
-        ownerId: productId,
-        namespace: "bxgy_bundle",
-        key: "complement_config",
-      },
-    },
-  );
-  const json = await response.json();
-  const metafieldId = json.data?.product?.metafield?.id;
-
-  if (metafieldId) {
-    await admin.graphql(
-      `#graphql
-        mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
-          metafieldsDelete(metafields: $metafields) {
-            deletedMetafields { ownerId namespace key }
-            userErrors { field message }
-          }
-        }`,
-      {
-        variables: {
-          metafields: [
-            {
-              ownerId: productId,
-              namespace: "bxgy_bundle",
-              key: "complement_config",
-            },
-          ],
-        },
-      },
-    );
-  }
+  await removeMetafieldArrayEntry(admin, productId, "bxgy_bundle", "complement_config", bundleId);
 }
 

@@ -1,4 +1,14 @@
-{% assign bundle_data = product.metafields.bxgy_bundle.tiered_config.value %}
+{% assign raw_tiered_data = product.metafields.bxgy_bundle.tiered_config.value %}
+
+{% comment %} Support array format (new) and single-object format (legacy) {% endcomment %}
+{% assign bundle_data = blank %}
+{% if raw_tiered_data != blank %}
+  {% if raw_tiered_data.first %}
+    {% assign bundle_data = raw_tiered_data.first %}
+  {% else %}
+    {% assign bundle_data = raw_tiered_data %}
+  {% endif %}
+{% endif %}
 
 {% comment %} If no product-level config, check shop-level tiered bundles for collection/all triggers {% endcomment %}
 {% if bundle_data == blank %}

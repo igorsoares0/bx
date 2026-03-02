@@ -227,6 +227,43 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const productIdStored = JSON.stringify(productIds);
 
   const isNew = params.id === "new";
+  const editBundleId = isNew ? undefined : Number(params.id);
+
+  // ── Conflict validation: prevent duplicate triggers ──
+  if (triggerType === "product") {
+    for (const pid of productIds) {
+      const conflicting = await db.tieredBundle.findFirst({
+        where: {
+          shopId: session.shop,
+          active: true,
+          triggerType: "product",
+          productId: { contains: pid },
+          ...(editBundleId ? { id: { not: editBundleId } } : {}),
+        },
+      });
+      if (conflicting) {
+        return json(
+          { errors: [`Product already has an active tiered bundle: "${conflicting.name}"`] },
+          { status: 400 },
+        );
+      }
+    }
+  } else if (triggerType === "all") {
+    const conflicting = await db.tieredBundle.findFirst({
+      where: {
+        shopId: session.shop,
+        active: true,
+        triggerType: "all",
+        ...(editBundleId ? { id: { not: editBundleId } } : {}),
+      },
+    });
+    if (conflicting) {
+      return json(
+        { errors: [`An "all products" tiered bundle already exists: "${conflicting.name}"`] },
+        { status: 400 },
+      );
+    }
+  }
 
   if (isNew) {
     const bundle = await db.tieredBundle.create({
@@ -291,11 +328,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         where: { id: bundle.id },
         data: { discountId },
       });
+    } else {
+      await db.tieredBundle.delete({ where: { id: bundle.id } });
+      return json({ errors: ["Failed to create Shopify discount"] }, { status: 500 });
+    }
+
+    if (!discountId) {
+      await db.tieredBundle.delete({ where: { id: bundle.id } });
+      return json({ errors: ["Failed to create Shopify discount"] }, { status: 500 });
     }
 
     // Set metafields on products (product trigger only)
     if (triggerType === "product" && productIds.length > 0) {
       await setTieredBundleMetafield(admin, {
+        bundleId: bundle.id,
         productIds,
         bundleName: name,
         tiers,
@@ -339,12 +385,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
     const removedProducts = oldProductIds.filter((id) => !productIds.includes(id));
     if (removedProducts.length > 0) {
-      await removeTieredBundleMetafield(admin, removedProducts);
+      await removeTieredBundleMetafield(admin, removedProducts, bundleId);
     }
 
     // Set metafields on products (product trigger only)
     if (triggerType === "product" && productIds.length > 0) {
       await setTieredBundleMetafield(admin, {
+        bundleId,
         productIds,
         bundleName: name,
         tiers,
@@ -353,7 +400,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     } else if (existing.triggerType === "product" || !existing.triggerType) {
       // Switched away from product type - remove old product metafields
       if (oldProductIds.length > 0) {
-        await removeTieredBundleMetafield(admin, oldProductIds);
+        await removeTieredBundleMetafield(admin, oldProductIds, bundleId);
       }
     }
 

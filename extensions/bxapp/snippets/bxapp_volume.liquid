@@ -1,4 +1,14 @@
-{% assign bundle_data = product.metafields.bxgy_bundle.volume_config.value %}
+{% assign raw_volume_data = product.metafields.bxgy_bundle.volume_config.value %}
+
+{% comment %} Support array format (new) and single-object format (legacy) {% endcomment %}
+{% assign bundle_data = blank %}
+{% if raw_volume_data != blank %}
+  {% if raw_volume_data.first %}
+    {% assign bundle_data = raw_volume_data.first %}
+  {% else %}
+    {% assign bundle_data = raw_volume_data %}
+  {% endif %}
+{% endif %}
 
 {% if bundle_data == blank %}
   {% assign shop_volume_bundles = shop.metafields.bxgy_bundle.volume_bundles.value %}

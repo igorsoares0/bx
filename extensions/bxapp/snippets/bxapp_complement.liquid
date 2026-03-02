@@ -1,4 +1,14 @@
-{% assign fbt_data = product.metafields.bxgy_bundle.complement_config.value %}
+{% assign raw_fbt_data = product.metafields.bxgy_bundle.complement_config.value %}
+
+{% comment %} Support array format (new) and single-object format (legacy) {% endcomment %}
+{% assign fbt_data = blank %}
+{% if raw_fbt_data != blank %}
+  {% if raw_fbt_data.first %}
+    {% assign fbt_data = raw_fbt_data.first %}
+  {% else %}
+    {% assign fbt_data = raw_fbt_data %}
+  {% endif %}
+{% endif %}
 
 {% if fbt_data == blank %}
   {% assign shop_complement_bundles = shop.metafields.bxgy_bundle.complement_bundles.value %}

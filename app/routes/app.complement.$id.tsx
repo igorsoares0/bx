@@ -158,13 +158,36 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const complements: ComplementItem[] = JSON.parse(complementsRaw);
 
+  // For collection trigger, resolve product IDs so the function can gate properly
+  let resolvedTriggerProductIds: string[] = [];
+  if (triggerType === "collection" && triggerReference) {
+    try {
+      const colRes = await admin.graphql(
+        `#graphql
+          query getCollectionProducts($id: ID!) {
+            collection(id: $id) {
+              products(first: 250) {
+                edges { node { id } }
+              }
+            }
+          }`,
+        { variables: { id: triggerReference } },
+      );
+      const colJson = await colRes.json();
+      resolvedTriggerProductIds = colJson.data?.collection?.products?.edges?.map(
+        (e: any) => e.node.id,
+      ) || [];
+    } catch {}
+  }
+
   // Build function config for the Rust discount function.
   // Use a dummy getProductId that will never match any real product so the
   // classic BXGY / tiered / volume paths are guaranteed to be no-ops.
   const functionConfig: Record<string, unknown> = {
-    buyType: "product",
+    buyType: triggerType === "product" ? "product" : triggerType,
     buyProductId: null,
-    buyCollectionIds: null,
+    buyProductIds: triggerType === "collection" ? resolvedTriggerProductIds : null,
+    buyCollectionIds: triggerType === "collection" && triggerReference ? [triggerReference] : null,
     minQuantity: 999999,
     getProductId: "gid://shopify/Product/0",
     discountType: "percentage",
@@ -183,6 +206,41 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   };
 
   const isNew = params.id === "new";
+  const editBundleId = isNew ? undefined : Number(params.id);
+
+  // ── Conflict validation: prevent duplicate triggers ──
+  if (triggerType === "product" && triggerReference) {
+    const conflicting = await db.complementBundle.findFirst({
+      where: {
+        shopId: session.shop,
+        active: true,
+        triggerType: "product",
+        triggerReference,
+        ...(editBundleId ? { id: { not: editBundleId } } : {}),
+      },
+    });
+    if (conflicting) {
+      return json(
+        { errors: [`Product already has an active complement bundle: "${conflicting.name}"`] },
+        { status: 400 },
+      );
+    }
+  } else if (triggerType === "all") {
+    const conflicting = await db.complementBundle.findFirst({
+      where: {
+        shopId: session.shop,
+        active: true,
+        triggerType: "all",
+        ...(editBundleId ? { id: { not: editBundleId } } : {}),
+      },
+    });
+    if (conflicting) {
+      return json(
+        { errors: [`An "all products" complement bundle already exists: "${conflicting.name}"`] },
+        { status: 400 },
+      );
+    }
+  }
 
   if (isNew) {
     const bundle = await db.complementBundle.create({
@@ -247,11 +305,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         where: { id: bundle.id },
         data: { discountId },
       });
+    } else {
+      await db.complementBundle.delete({ where: { id: bundle.id } });
+      return json({ errors: ["Failed to create Shopify discount"] }, { status: 500 });
     }
 
     // Set metafield on trigger product (product trigger only)
     if (triggerType === "product" && triggerReference) {
       await setComplementBundleMetafield(admin, {
+        bundleId: bundle.id,
         productId: triggerReference,
         bundleName: name,
         complements,
@@ -292,12 +354,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       existing.triggerReference &&
       existing.triggerReference !== triggerReference
     ) {
-      await removeComplementBundleMetafield(admin, existing.triggerReference);
+      await removeComplementBundleMetafield(admin, existing.triggerReference, bundleId);
     }
 
     // Set metafield on trigger product
     if (triggerType === "product" && triggerReference) {
       await setComplementBundleMetafield(admin, {
+        bundleId,
         productId: triggerReference,
         bundleName: name,
         complements,

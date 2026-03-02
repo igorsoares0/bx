@@ -105,6 +105,32 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
                     return Ok(empty);
                 }
             }
+        } else {
+            // No specific trigger product — gate on buy_type / buy_product_ids
+            let buy_all = config.buy_type.as_str() == "all";
+            if !buy_all {
+                // For collection or product-list triggers, require at least one qualifying product
+                let has_trigger = input.cart().lines().iter().any(|line| {
+                    if let Merchandise::ProductVariant(variant) = line.merchandise() {
+                        let pid = variant.product().id();
+                        // Don't count complement products as triggers
+                        if complement_map.contains_key(&pid.to_string()) {
+                            return false;
+                        }
+                        if let Some(ref ids) = config.buy_product_ids {
+                            ids.iter().any(|id| pid == id.as_str())
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                });
+                if !has_trigger {
+                    return Ok(empty);
+                }
+            }
+            // buy_type == "all": any product in cart qualifies, no gate needed
         }
 
         // Determine if combo mode with trigger discount
