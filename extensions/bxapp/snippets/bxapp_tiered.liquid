@@ -42,7 +42,8 @@
   {% assign ds_button_text = bundle_data.designButtonTextColor | default: "#ffffff" %}
 
   {% assign header_text = bundle_data.designHeaderText | default: "BUILD YOUR COMBO & SAVE" %}
-  {% assign gift_text = bundle_data.designGiftText | default: "+ FREE special gift!" %}
+  {% assign gift_text = bundle_data.designGiftText %}
+  {% if gift_text == nil %}{% assign gift_text = "+ FREE special gift!" %}{% endif %}
   {% assign ds_card_layout = bundle_data.designCardLayout | default: "vertical" %}
   {% assign show_variants = bundle_data.showVariants %}
   {% if show_variants == nil %}{% assign show_variants = true %}{% endif %}
