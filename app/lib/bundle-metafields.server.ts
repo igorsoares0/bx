@@ -324,6 +324,7 @@ function buildVolumeEntry(
     designSelectedTierBg: designConfig?.selectedTierBg ?? "",
     designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
+    designShowPriceSummary: designConfig?.showPriceSummary ?? true,
   };
 }
 
@@ -405,6 +406,7 @@ export async function setShopVolumeBundleMetafield(
       designSelectedTierBg: designConfig?.selectedTierBg ?? "",
       designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
+      designShowPriceSummary: designConfig?.showPriceSummary ?? true,
     });
   }
 
@@ -550,6 +552,7 @@ export async function setComplementBundleMetafield(
     designBorderColor: designConfig?.borderColor ?? "#e5e5e5",
     designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
+    designShowPriceSummary: designConfig?.showPriceSummary ?? true,
   };
 
   await upsertMetafieldArrayEntry(admin, productId, "bxgy_bundle", "complement_config", bundleId, entry);
@@ -612,6 +615,7 @@ export async function setShopComplementBundleMetafield(
       designBorderColor: designConfig?.borderColor ?? "#e5e5e5",
       designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
+      designShowPriceSummary: designConfig?.showPriceSummary ?? true,
     });
   }
 

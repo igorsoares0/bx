@@ -59,6 +59,8 @@ const DEFAULT_DESIGN = {
   borderColor: "#e5e5e5",
   buttonBorderRadius: 8,
   shadowIntensity: "none",
+  // Pricing
+  showPriceSummary: true,
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -1034,6 +1036,11 @@ export default function ComplementBundleForm() {
                       onChange={(v) => updateDesign("cardStyle", v)}
                     />
                   </FormLayout.Group>
+                  <Checkbox
+                    label="Show price summary (original + discounted + savings)"
+                    checked={design.showPriceSummary !== false}
+                    onChange={(v) => updateDesign("showPriceSummary", v)}
+                  />
                 </FormLayout>
 
                 {/* Visual Effects */}
@@ -1279,7 +1286,7 @@ export default function ComplementBundleForm() {
                       {/* Summary */}
                       {(() => {
                         const lastGt = calcGroupTotals(filled[filled.length - 1]);
-                        return (
+                        return design.showPriceSummary !== false ? (
                           <div style={{ textAlign: "center", padding: "10px", background: "#f9f9f9", borderRadius: 8, marginBottom: 10 }}>
                             <div style={{ fontSize: 14 }}>
                               {lastGt.totalSave > 0 && (
@@ -1293,7 +1300,7 @@ export default function ComplementBundleForm() {
                               </div>
                             )}
                           </div>
-                        );
+                        ) : null;
                       })()}
                     </div>
                   );
@@ -1363,19 +1370,21 @@ export default function ComplementBundleForm() {
                           );
                         })}
                         {/* FBT Summary */}
-                        <div style={{ textAlign: "center", padding: "10px", background: "#f9f9f9", borderRadius: "8px", marginBottom: "10px" }}>
-                          <div style={{ fontSize: "14px" }}>
-                            {totalSave > 0 && (
-                              <span style={{ textDecoration: "line-through", color: "#999", marginRight: 6 }}>{formatPreviewPrice(totalOriginal)}</span>
-                            )}
-                            <span style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(totalFinal)}</span>
-                          </div>
-                          {totalSave > 0 && (
-                            <div style={{ fontSize: "12px", fontWeight: 600, color: "#16a34a", marginTop: 2 }}>
-                              {`You save ${formatPreviewPrice(totalSave)}`}
+                        {design.showPriceSummary !== false && (
+                          <div style={{ textAlign: "center", padding: "10px", background: "#f9f9f9", borderRadius: "8px", marginBottom: "10px" }}>
+                            <div style={{ fontSize: "14px" }}>
+                              {totalSave > 0 && (
+                                <span style={{ textDecoration: "line-through", color: "#999", marginRight: 6 }}>{formatPreviewPrice(totalOriginal)}</span>
+                              )}
+                              <span style={{ fontWeight: 700, color: design.textColor }}>{formatPreviewPrice(totalFinal)}</span>
                             </div>
-                          )}
-                        </div>
+                            {totalSave > 0 && (
+                              <div style={{ fontSize: "12px", fontWeight: 600, color: "#16a34a", marginTop: 2 }}>
+                                {`You save ${formatPreviewPrice(totalSave)}`}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   </>

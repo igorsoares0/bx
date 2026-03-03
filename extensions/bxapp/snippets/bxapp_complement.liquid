@@ -56,6 +56,8 @@
   {% assign ds_border_color = fbt_data.designBorderColor | default: "#e5e5e5" %}
   {% assign ds_button_border_radius = fbt_data.designButtonBorderRadius | default: 8 %}
   {% assign ds_shadow_intensity = fbt_data.designShadowIntensity | default: "none" %}
+  {% assign ds_show_price_summary = fbt_data.designShowPriceSummary %}
+  {% if ds_show_price_summary == nil %}{% assign ds_show_price_summary = true %}{% endif %}
 
   {% assign bundle_mode = fbt_data.mode | default: "fbt" %}
   {% assign trigger_discount_pct = fbt_data.triggerDiscountPct | default: 0 %}
@@ -599,7 +601,7 @@
   {% endif %}
 
   {%- comment -%} Summary {%- endcomment -%}
-  <div class="bxgy-fbt__summary">
+  <div class="bxgy-fbt__summary"{% unless ds_show_price_summary %} style="display:none"{% endunless %}>
     <div class="bxgy-fbt__summary-prices">
       <span class="bxgy-fbt__summary-original" data-fbt-total-original></span>
       <span class="bxgy-fbt__summary-final" data-fbt-total-final></span>

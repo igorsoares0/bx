@@ -62,6 +62,8 @@
   {% assign ds_button_border_radius = bundle_data.designButtonBorderRadius | default: 8 %}
   {% assign ds_shadow_intensity = bundle_data.designShadowIntensity | default: "none" %}
   {% assign ds_image_size_2x = ds_image_size | times: 2 %}
+  {% assign ds_show_price_summary = bundle_data.designShowPriceSummary %}
+  {% if ds_show_price_summary == nil %}{% assign ds_show_price_summary = true %}{% endif %}
 
   {% assign volume_tiers = bundle_data.volumeTiers %}
   {% assign buy_price = product.price %}
@@ -455,17 +457,10 @@
           </div>
           <div class="bxgy-volume__prices">
             <div class="bxgy-volume__price-final" data-bxgy-vol-final="{{ tier_index }}">{{ t_final | money }}</div>
-            {% if t_disc > 0 %}
-              <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}">{{ t_original | money }}</div>
-              {% if ds_show_save_tag %}
-                <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}">SAVE {{ t_save_amount | money }}</div>
-              {% else %}
-                <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}" style="display:none">SAVE {{ t_save_amount | money }}</div>
-              {% endif %}
-            {% else %}
-              <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}" style="display:none">{{ t_original | money }}</div>
-              <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}" style="display:none"></div>
-            {% endif %}
+            {% assign _show_orig = false %}{% if t_disc > 0 and ds_show_price_summary %}{% assign _show_orig = true %}{% endif %}
+            <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}"{% unless _show_orig %} style="display:none"{% endunless %}>{{ t_original | money }}</div>
+            {% assign _show_save = false %}{% if ds_show_save_tag and t_disc > 0 and ds_show_price_summary %}{% assign _show_save = true %}{% endif %}
+            <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}"{% unless _show_save %} style="display:none"{% endunless %}>{% if t_disc > 0 %}SAVE {{ t_save_amount | money }}{% endif %}</div>
           </div>
         </div>
         {% if product.variants.size > 1 and show_variants %}

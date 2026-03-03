@@ -60,6 +60,8 @@ const DEFAULT_DESIGN = {
   selectedTierBg: "",
   buttonBorderRadius: 8,
   shadowIntensity: "none",
+  // Pricing
+  showPriceSummary: true,
 };
 
 type VolumeTier = { label: string; qty: number; discountPct: number; popular: boolean };
@@ -938,6 +940,11 @@ export default function VolumeBundleForm() {
                       onChange={(v) => updateDesign("saveTagStyle", v)}
                     />
                   )}
+                  <Checkbox
+                    label="Show price breakdown (original + discounted)"
+                    checked={design.showPriceSummary !== false}
+                    onChange={(v) => updateDesign("showPriceSummary", v)}
+                  />
                 </FormLayout>
 
                 {/* Image & Product */}
@@ -1135,7 +1142,7 @@ export default function VolumeBundleForm() {
                             <div style={{ fontWeight: 700, fontSize: isHorizontal ? "13px" : "14px", color: isSelected ? design.accentColor : design.textColor }}>
                               {formatPreviewPrice(totalFinal)}
                             </div>
-                            {tier.discountPct > 0 && (
+                            {tier.discountPct > 0 && design.showPriceSummary !== false && (
                               <>
                                 <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#999" }}>
                                   {formatPreviewPrice(totalOriginal)}
