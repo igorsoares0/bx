@@ -45,6 +45,24 @@
   {% assign show_variants = bundle_data.showVariants %}
   {% if show_variants == nil %}{% assign show_variants = true %}{% endif %}
 
+  {% assign ds_header_font_size = bundle_data.designHeaderFontSize | default: 18 %}
+  {% assign ds_header_align = bundle_data.designHeaderAlignment | default: "center" %}
+  {% assign ds_button_txt = bundle_data.designButtonText | default: "Add to Cart" %}
+  {% assign ds_tier_style = bundle_data.designTierStyle | default: "card" %}
+  {% assign ds_padding = bundle_data.designPadding | default: 20 %}
+  {% assign ds_show_save_tag = bundle_data.designShowSaveTag %}
+  {% if ds_show_save_tag == nil %}{% assign ds_show_save_tag = true %}{% endif %}
+  {% assign ds_save_tag_style = bundle_data.designSaveTagStyle | default: "square" %}
+  {% assign ds_show_product_image = bundle_data.designShowProductImage %}
+  {% if ds_show_product_image == nil %}{% assign ds_show_product_image = true %}{% endif %}
+  {% assign ds_image_size = bundle_data.designImageSize | default: 64 %}
+  {% assign ds_border_style = bundle_data.designBorderStyle | default: "solid" %}
+  {% assign ds_border_color = bundle_data.designBorderColor | default: "#e5e5e5" %}
+  {% assign ds_selected_tier_bg = bundle_data.designSelectedTierBg | default: "" %}
+  {% assign ds_button_border_radius = bundle_data.designButtonBorderRadius | default: 8 %}
+  {% assign ds_shadow_intensity = bundle_data.designShadowIntensity | default: "none" %}
+  {% assign ds_image_size_2x = ds_image_size | times: 2 %}
+
   {% assign volume_tiers = bundle_data.volumeTiers %}
   {% assign buy_price = product.price %}
 
@@ -52,20 +70,29 @@
   .bxgy-volume {
     background: {{ ds_bg }};
     border-radius: {{ ds_border_radius }}px;
-    padding: 20px;
+    padding: {{ ds_padding }}px;
     margin: 16px 0;
     font-family: inherit;
-    border: 1px solid #e5e5e5;
+    {% if ds_border_style == "none" %}
+      border: none;
+    {% else %}
+      border: 1px {{ ds_border_style }} {{ ds_border_color }};
+    {% endif %}
+    {% if ds_shadow_intensity == "light" %}
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    {% elsif ds_shadow_intensity == "medium" %}
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    {% endif %}
   }
   .bxgy-volume__header {
     border-bottom: 2px solid {{ ds_text }};
     padding-bottom: 10px;
     margin-bottom: 14px;
-    text-align: center;
+    text-align: {{ ds_header_align }};
   }
   .bxgy-volume__header-text {
     font-weight: 800;
-    font-size: 15px;
+    font-size: {{ ds_header_font_size }}px;
     color: {{ ds_text }};
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -125,12 +152,23 @@
     display: flex;
     flex-direction: column;
     padding: 14px 16px;
-    border-radius: 12px;
-    border: 2px solid #e5e5e5;
-    background: #fff;
     cursor: pointer;
     transition: all 0.15s ease;
     user-select: none;
+    {% if ds_tier_style == "minimal" %}
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid #e5e5e5;
+      border-radius: 0;
+    {% elsif ds_tier_style == "bordered" %}
+      background: transparent;
+      border: 2px solid #e5e5e5;
+      border-radius: 12px;
+    {% else %}
+      background: #fff;
+      border: 2px solid #e5e5e5;
+      border-radius: 12px;
+    {% endif %}
   }
   .bxgy-volume__row-top {
     display: flex;
@@ -142,7 +180,11 @@
   }
   .bxgy-volume__row--selected {
     border-color: {{ ds_accent }};
-    background: {{ ds_bg }};
+    {% if ds_selected_tier_bg != blank %}
+      background: {{ ds_selected_tier_bg }};
+    {% else %}
+      background: {{ ds_accent }}08;
+    {% endif %}
   }
   .bxgy-volume__badge {
     position: absolute;
@@ -222,9 +264,18 @@
     color: {{ ds_accent }};
     background: {{ ds_accent }}18;
     padding: 2px 8px;
-    border-radius: 4px;
     text-transform: uppercase;
     margin-top: 2px;
+    {% if ds_save_tag_style == "pill" %}
+      border-radius: 999px;
+    {% elsif ds_save_tag_style == "ribbon" %}
+      border-radius: 0 4px 4px 0;
+    {% else %}
+      border-radius: 4px;
+    {% endif %}
+    {% unless ds_show_save_tag %}
+      display: none;
+    {% endunless %}
   }
   .bxgy-volume__add-btn {
     width: 100%;
@@ -233,7 +284,7 @@
     font-weight: 700;
     font-family: inherit;
     border: none;
-    border-radius: 8px;
+    border-radius: {{ ds_button_border_radius }}px;
     cursor: pointer;
     background: {{ ds_button_color }};
     color: {{ ds_button_text }};
@@ -346,6 +397,13 @@
   .bxgy-volume__tv-sel:focus {
     outline: none;
   }
+  .bxgy-volume__tier-img {
+    width: {{ ds_image_size }}px;
+    height: {{ ds_image_size }}px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
 </style>
 
 <div class="bxgy-volume" id="bxgy-volume-{{ bxapp_widget_id }}">
@@ -382,6 +440,9 @@
         {% endif %}
         <div class="bxgy-volume__row-top">
           <div class="bxgy-volume__radio"><div class="bxgy-volume__radio-dot"></div></div>
+          {% if ds_show_product_image and product.featured_image %}
+            <img class="bxgy-volume__tier-img" src="{{ product.featured_image | image_url: width: ds_image_size_2x }}" alt="{{ product.title | escape }}" loading="lazy" />
+          {% endif %}
           <div class="bxgy-volume__info">
             <div class="bxgy-volume__label-text">{{ t_label | default: t_qty | append: "x" }}</div>
             <div class="bxgy-volume__subtitle">
@@ -396,7 +457,11 @@
             <div class="bxgy-volume__price-final" data-bxgy-vol-final="{{ tier_index }}">{{ t_final | money }}</div>
             {% if t_disc > 0 %}
               <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}">{{ t_original | money }}</div>
-              <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}">SAVE {{ t_save_amount | money }}</div>
+              {% if ds_show_save_tag %}
+                <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}">SAVE {{ t_save_amount | money }}</div>
+              {% else %}
+                <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}" style="display:none">SAVE {{ t_save_amount | money }}</div>
+              {% endif %}
             {% else %}
               <div class="bxgy-volume__price-original" data-bxgy-vol-original="{{ tier_index }}" style="display:none">{{ t_original | money }}</div>
               <div class="bxgy-volume__save-tag" data-bxgy-vol-save="{{ tier_index }}" style="display:none"></div>
@@ -416,7 +481,7 @@
     {% unless product.available %}disabled{% endunless %}
     type="button"
   >
-    Add to Cart
+    {{ ds_button_txt }}
   </button>
 
   <div class="bxgy-volume__feedback" data-bxgy-vol-feedback></div>
