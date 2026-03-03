@@ -47,6 +47,18 @@ const DEFAULT_DESIGN = {
   headerText: "FREQUENTLY BOUGHT TOGETHER",
   cardLayout: "vertical",
   showVariants: true,
+  // Typography
+  headerFontSize: 13,
+  headerAlignment: "center",
+  buttonText: "",
+  // Layout & Spacing
+  padding: 20,
+  cardStyle: "card",
+  // Visual Effects
+  borderStyle: "solid",
+  borderColor: "#e5e5e5",
+  buttonBorderRadius: 8,
+  shadowIntensity: "none",
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -961,6 +973,119 @@ export default function ComplementBundleForm() {
                     onChange={(v) => updateDesign("showVariants", v)}
                   />
                 </FormLayout>
+
+                {/* Typography */}
+                <Text as="h3" variant="headingSm">Typography</Text>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <TextField
+                      label="Header font size"
+                      type="number"
+                      value={String(design.headerFontSize)}
+                      onChange={(v) => updateDesign("headerFontSize", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={10}
+                      max={32}
+                    />
+                    <Select
+                      label="Header alignment"
+                      options={[
+                        { label: "Left", value: "left" },
+                        { label: "Center", value: "center" },
+                        { label: "Right", value: "right" },
+                      ]}
+                      value={design.headerAlignment}
+                      onChange={(v) => updateDesign("headerAlignment", v)}
+                    />
+                  </FormLayout.Group>
+                  <TextField
+                    label="Button text"
+                    value={design.buttonText}
+                    onChange={(v) => updateDesign("buttonText", v)}
+                    autoComplete="off"
+                    placeholder={mode === "combo" ? "Complete the Combo" : "Add All to Cart"}
+                    helpText="Leave empty for default"
+                  />
+                </FormLayout>
+
+                {/* Layout & Spacing */}
+                <Text as="h3" variant="headingSm">Layout & Spacing</Text>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <TextField
+                      label="Container padding"
+                      type="number"
+                      value={String(design.padding)}
+                      onChange={(v) => updateDesign("padding", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={8}
+                      max={32}
+                    />
+                    <Select
+                      label="Card style"
+                      options={[
+                        { label: "Card (white bg + border)", value: "card" },
+                        { label: "Minimal (no bg/border)", value: "minimal" },
+                        { label: "Bordered (transparent + border)", value: "bordered" },
+                      ]}
+                      value={design.cardStyle}
+                      onChange={(v) => updateDesign("cardStyle", v)}
+                    />
+                  </FormLayout.Group>
+                </FormLayout>
+
+                {/* Visual Effects */}
+                <Text as="h3" variant="headingSm">Visual Effects</Text>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <Select
+                      label="Border style"
+                      options={[
+                        { label: "Solid", value: "solid" },
+                        { label: "Dashed", value: "dashed" },
+                        { label: "None", value: "none" },
+                      ]}
+                      value={design.borderStyle}
+                      onChange={(v) => updateDesign("borderStyle", v)}
+                    />
+                    <div>
+                      <Text as="p" variant="bodySm">Border color</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <input
+                          type="color"
+                          value={design.borderColor || "#e5e5e5"}
+                          onChange={(e) => updateDesign("borderColor", e.target.value)}
+                          style={{ width: 36, height: 36, border: "1px solid #ccc", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                        />
+                        <TextField label="" labelHidden value={design.borderColor} onChange={(v) => updateDesign("borderColor", v)} autoComplete="off" />
+                      </InlineStack>
+                    </div>
+                  </FormLayout.Group>
+                  <FormLayout.Group>
+                    <TextField
+                      label="Button border radius"
+                      type="number"
+                      value={String(design.buttonBorderRadius)}
+                      onChange={(v) => updateDesign("buttonBorderRadius", Number(v))}
+                      autoComplete="off"
+                      suffix="px"
+                      min={0}
+                      max={50}
+                    />
+                    <Select
+                      label="Shadow intensity"
+                      options={[
+                        { label: "None", value: "none" },
+                        { label: "Light", value: "light" },
+                        { label: "Medium", value: "medium" },
+                      ]}
+                      value={design.shadowIntensity}
+                      onChange={(v) => updateDesign("shadowIntensity", v)}
+                    />
+                  </FormLayout.Group>
+                </FormLayout>
               </BlockStack>
             </Card>
 
@@ -988,20 +1113,21 @@ export default function ComplementBundleForm() {
                 style={{
                   background: design.backgroundColor,
                   borderRadius: `${design.borderRadius}px`,
-                  padding: "16px",
-                  border: "1px solid #e5e5e5",
+                  padding: `${design.padding}px`,
+                  border: design.borderStyle === "none" ? "none" : `1px ${design.borderStyle} ${design.borderColor}`,
+                  boxShadow: design.shadowIntensity === "light" ? "0 1px 3px rgba(0,0,0,0.08)" : design.shadowIntensity === "medium" ? "0 4px 12px rgba(0,0,0,0.12)" : "none",
                 }}
               >
                 {/* Header */}
                 <div
                   style={{
                     fontWeight: 800,
-                    fontSize: "12px",
+                    fontSize: `${design.headerFontSize}px`,
                     color: design.textColor,
                     textTransform: "uppercase" as const,
                     letterSpacing: "0.5px",
                     marginBottom: "12px",
-                    textAlign: "center",
+                    textAlign: design.headerAlignment as any,
                   }}
                 >
                   {mode === "combo" ? "COMPLETE THE COMBO" : design.headerText}
@@ -1023,8 +1149,11 @@ export default function ComplementBundleForm() {
                       {/* Standard price radio */}
                       <div style={{
                         display: "flex", alignItems: "center", gap: 8,
-                        padding: "12px 14px", border: "1px solid #e5e5e5", borderRadius: 10, marginBottom: 8,
-                        background: "#fff", cursor: "pointer",
+                        padding: "12px 14px", marginBottom: 8, cursor: "pointer",
+                        borderRadius: design.cardStyle === "minimal" ? 0 : 10,
+                        border: design.cardStyle === "minimal" ? "none" : "1px solid #e5e5e5",
+                        borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
+                        background: design.cardStyle === "card" ? "#fff" : "transparent",
                       }}>
                         <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid #ccc", flexShrink: 0 }} />
                         <div style={{ flex: 1 }}>
@@ -1043,9 +1172,13 @@ export default function ComplementBundleForm() {
                         const isSelected = radioIdx === filled.length - 1; // last selected in preview
                         return (
                           <div key={groupIdx} style={{
-                            border: isSelected ? `2px solid ${design.accentColor}` : "1px solid #e5e5e5",
-                            borderRadius: 10, marginBottom: 8, overflow: "hidden",
-                            background: "#fff",
+                            border: design.cardStyle === "minimal"
+                              ? "none"
+                              : isSelected ? `2px solid ${design.accentColor}` : "1px solid #e5e5e5",
+                            borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
+                            borderRadius: design.cardStyle === "minimal" ? 0 : 10,
+                            marginBottom: 8, overflow: "hidden",
+                            background: design.cardStyle === "card" ? "#fff" : "transparent",
                           }}>
                             {/* Radio header */}
                             <div style={{
@@ -1184,7 +1317,14 @@ export default function ComplementBundleForm() {
                               {i > 0 && (
                                 <div style={{ textAlign: "center", fontSize: "18px", fontWeight: 700, color: design.accentColor, margin: "4px 0" }}>+</div>
                               )}
-                              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: "#fff", borderRadius: "8px", border: "1px solid #e5e5e5", marginBottom: i < realComps.length - 1 ? "0" : "8px" }}>
+                              <div style={{
+                                display: "flex", alignItems: "center", gap: "10px", padding: "10px",
+                                marginBottom: i < realComps.length - 1 ? "0" : "8px",
+                                borderRadius: design.cardStyle === "minimal" ? 0 : "8px",
+                                border: design.cardStyle === "minimal" ? "none" : "1px solid #e5e5e5",
+                                borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
+                                background: design.cardStyle === "card" ? "#fff" : "transparent",
+                              }}>
                                 <div style={{ width: 50, height: 50, borderRadius: 6, background: comp.image ? undefined : "#f0f0f0", backgroundImage: comp.image ? `url(${comp.image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#999" }}>
                                   {!comp.image && "IMG"}
                                 </div>
@@ -1249,14 +1389,14 @@ export default function ComplementBundleForm() {
                     fontSize: "14px",
                     fontWeight: 700,
                     border: "none",
-                    borderRadius: "8px",
+                    borderRadius: `${design.buttonBorderRadius}px`,
                     background: design.buttonColor,
                     color: design.buttonTextColor,
                     textAlign: "center",
                     cursor: "default",
                   }}
                 >
-                  {mode === "combo" ? "Complete the Combo" : "Add All to Cart"}
+                  {design.buttonText || (mode === "combo" ? "Complete the Combo" : "Add All to Cart")}
                 </div>
                 <div style={{ textAlign: "center", fontSize: "10px", color: "#888", marginTop: "8px" }}>
                   Discount applied automatically at checkout

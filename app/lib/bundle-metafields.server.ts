@@ -541,6 +541,15 @@ export async function setComplementBundleMetafield(
     designHeaderText: designConfig?.headerText ?? null,
     designCardLayout: designConfig?.cardLayout ?? "vertical",
     showVariants: designConfig?.showVariants ?? true,
+    designHeaderFontSize: designConfig?.headerFontSize ?? 13,
+    designHeaderAlignment: designConfig?.headerAlignment ?? "center",
+    designButtonText: designConfig?.buttonText ?? "",
+    designPadding: designConfig?.padding ?? 20,
+    designCardStyle: designConfig?.cardStyle ?? "card",
+    designBorderStyle: designConfig?.borderStyle ?? "solid",
+    designBorderColor: designConfig?.borderColor ?? "#e5e5e5",
+    designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
+    designShadowIntensity: designConfig?.shadowIntensity ?? "none",
   };
 
   await upsertMetafieldArrayEntry(admin, productId, "bxgy_bundle", "complement_config", bundleId, entry);
@@ -594,6 +603,15 @@ export async function setShopComplementBundleMetafield(
       designHeaderText: designConfig?.headerText ?? null,
       designCardLayout: designConfig?.cardLayout ?? "vertical",
       showVariants: designConfig?.showVariants ?? true,
+      designHeaderFontSize: designConfig?.headerFontSize ?? 13,
+      designHeaderAlignment: designConfig?.headerAlignment ?? "center",
+      designButtonText: designConfig?.buttonText ?? "",
+      designPadding: designConfig?.padding ?? 20,
+      designCardStyle: designConfig?.cardStyle ?? "card",
+      designBorderStyle: designConfig?.borderStyle ?? "solid",
+      designBorderColor: designConfig?.borderColor ?? "#e5e5e5",
+      designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
+      designShadowIntensity: designConfig?.shadowIntensity ?? "none",
     });
   }
 
