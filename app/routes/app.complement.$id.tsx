@@ -462,6 +462,7 @@ export default function ComplementBundleForm() {
   const [triggerPriceState] = useState(loadedTriggerPrice || 0);
   const [design, setDesign] = useState(savedDesign);
   const [errors, setErrors] = useState<string[]>([]);
+  const [selectedPreviewRadio, setSelectedPreviewRadio] = useState<"standard" | number>(0);
 
   const updateDesign = (key: string, value: string | number | boolean) => {
     setDesign((prev: any) => ({ ...prev, [key]: value }));
@@ -1110,7 +1111,7 @@ export default function ComplementBundleForm() {
 
         {/* FBT Preview */}
         <div style={{ width: 360, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
-          <Card>
+          <div style={{ background: "var(--p-color-bg-surface)", borderRadius: "var(--p-border-radius-300)", boxShadow: "var(--p-shadow-100)", padding: "var(--p-space-400)", overflow: "visible" }}>
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">
                 Theme preview
@@ -1154,15 +1155,28 @@ export default function ComplementBundleForm() {
                   return (
                     <div>
                       {/* Standard price radio */}
-                      <div style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        padding: "12px 14px", marginBottom: 8, cursor: "pointer",
-                        borderRadius: design.cardStyle === "minimal" ? 0 : 10,
-                        border: design.cardStyle === "minimal" ? "none" : "1px solid #e5e5e5",
-                        borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
-                        background: design.cardStyle === "card" ? "#fff" : "transparent",
-                      }}>
-                        <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid #ccc", flexShrink: 0 }} />
+                      <div
+                        onClick={() => setSelectedPreviewRadio("standard")}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "12px 14px", marginBottom: 8, cursor: "pointer",
+                          borderRadius: design.cardStyle === "minimal" ? 0 : 10,
+                          border: "2px solid transparent",
+                          boxShadow: design.cardStyle === "minimal"
+                            ? "none"
+                            : selectedPreviewRadio === "standard"
+                              ? `0 0 0 2px ${design.accentColor}`
+                              : "0 0 0 1px #e5e5e5",
+                          borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
+                          background: design.cardStyle === "card" ? "#fff" : "transparent",
+                        }}
+                      >
+                        <div style={{
+                          width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                          border: `2px solid ${selectedPreviewRadio === "standard" ? design.accentColor : "#ccc"}`,
+                          background: selectedPreviewRadio === "standard" ? design.accentColor : "transparent",
+                          boxShadow: selectedPreviewRadio === "standard" ? "inset 0 0 0 3px #fff" : "none",
+                        }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: design.textColor }}>{triggerLabel || "Product"}</div>
                           <div style={{ fontSize: 11, color: "#888" }}>Standard price</div>
@@ -1176,17 +1190,22 @@ export default function ComplementBundleForm() {
                       {filled.map((groupIdx, radioIdx) => {
                         const gt = calcGroupTotals(groupIdx);
                         const groupComps = getGroupComplements(groupIdx);
-                        const isSelected = radioIdx === filled.length - 1; // last selected in preview
+                        const isSelected = selectedPreviewRadio === groupIdx;
                         return (
-                          <div key={groupIdx} style={{
-                            border: design.cardStyle === "minimal"
-                              ? "none"
-                              : isSelected ? `2px solid ${design.accentColor}` : "1px solid #e5e5e5",
-                            borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
-                            borderRadius: design.cardStyle === "minimal" ? 0 : 10,
-                            marginBottom: 8, overflow: "hidden",
-                            background: design.cardStyle === "card" ? "#fff" : "transparent",
-                          }}>
+                          <div key={groupIdx}
+                            onClick={() => setSelectedPreviewRadio(groupIdx)}
+                            style={{
+                              border: "2px solid transparent",
+                              boxShadow: design.cardStyle === "minimal"
+                                ? "none"
+                                : isSelected
+                                  ? `0 0 0 2px ${design.accentColor}`
+                                  : "0 0 0 1px #e5e5e5",
+                              borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
+                              borderRadius: design.cardStyle === "minimal" ? 0 : 10,
+                              marginBottom: 8, cursor: "pointer",
+                              background: design.cardStyle === "card" ? "#fff" : "transparent",
+                            }}>
                             {/* Radio header */}
                             <div style={{
                               display: "flex", alignItems: "center", gap: 8,
@@ -1285,7 +1304,8 @@ export default function ComplementBundleForm() {
 
                       {/* Summary */}
                       {(() => {
-                        const lastGt = calcGroupTotals(filled[filled.length - 1]);
+                        const activeGroup = typeof selectedPreviewRadio === "number" ? selectedPreviewRadio : filled[filled.length - 1];
+                        const lastGt = calcGroupTotals(activeGroup);
                         return design.showPriceSummary !== false ? (
                           <div style={{ textAlign: "center", padding: "10px", background: "#f9f9f9", borderRadius: 8, marginBottom: 10 }}>
                             <div style={{ fontSize: 14 }}>
@@ -1328,7 +1348,8 @@ export default function ComplementBundleForm() {
                                 display: "flex", alignItems: "center", gap: "10px", padding: "10px",
                                 marginBottom: i < realComps.length - 1 ? "0" : "8px",
                                 borderRadius: design.cardStyle === "minimal" ? 0 : "8px",
-                                border: design.cardStyle === "minimal" ? "none" : "1px solid #e5e5e5",
+                                border: "1px solid transparent",
+                                boxShadow: design.cardStyle === "minimal" ? "none" : "0 0 0 1px #e5e5e5",
                                 borderBottom: design.cardStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
                                 background: design.cardStyle === "card" ? "#fff" : "transparent",
                               }}>
@@ -1416,7 +1437,7 @@ export default function ComplementBundleForm() {
                 Prices based on first variant. Updates live on storefront.
               </Text>
             </BlockStack>
-          </Card>
+          </div>
         </div>
       </div>
     </Page>
