@@ -1,4 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
@@ -6,11 +7,15 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
 import { authenticate } from "../shopify.server";
+import { getShopBillingStatus } from "../lib/billing.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+
+  // Get billing status via GraphQL (no redirects — safe for embedded apps)
+  const billingStatus = await getShopBillingStatus(admin, session.shop);
 
   // Ensure shop has the app_url metafield for storefront analytics
   const appUrl = process.env.SHOPIFY_APP_URL || "";
@@ -48,11 +53,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return json({
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    billingStatus,
+  });
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, billingStatus } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
@@ -62,8 +70,9 @@ export default function App() {
         </Link>
         <Link to="/app/bundles">Bundles</Link>
         <Link to="/app/analytics">Analytics</Link>
+        <Link to="/app/billing">Billing</Link>
       </NavMenu>
-      <Outlet />
+      <Outlet context={{ billingStatus }} />
     </AppProvider>
   );
 }

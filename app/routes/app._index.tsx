@@ -1,16 +1,18 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
+import { useLoaderData, useNavigate, useSubmit, useOutletContext } from "@remix-run/react";
 import {
   Page,
   IndexTable,
   Text,
   Badge,
   EmptyState,
+  Banner,
   useBreakpoints,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import type { BillingStatus } from "../lib/billing.server";
 import {
   removeTieredBundleMetafield,
   setTieredBundleMetafield,
@@ -353,6 +355,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function BundleIndex() {
   const { tieredBundles, volumeBundles, complementBundles } = useLoaderData<typeof loader>();
+  const { billingStatus } = useOutletContext<{ billingStatus: BillingStatus }>();
   const navigate = useNavigate();
   const submit = useSubmit();
   const { smUp } = useBreakpoints();
@@ -621,24 +624,62 @@ export default function BundleIndex() {
 
   const totalCount = tieredBundles.length + volumeBundles.length + complementBundles.length;
 
+  const formatRevenue = (cents: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+
   return (
     <Page
       title="Bundles"
       primaryAction={{
         content: "Create FBT bundle",
+        disabled: billingStatus?.isOverLimit,
         onAction: () => navigate("/app/complement/new"),
       }}
       secondaryActions={[
         {
           content: "Create tiered combo",
+          disabled: billingStatus?.isOverLimit,
           onAction: () => navigate("/app/tiers/new"),
         },
         {
           content: "Create volume discount",
+          disabled: billingStatus?.isOverLimit,
           onAction: () => navigate("/app/volume/new"),
         },
       ]}
     >
+      {billingStatus?.isOverLimit && (
+        <div style={{ marginBottom: "16px" }}>
+          <Banner
+            title={billingStatus.currentPlan === "Free" ? "Free tier limit reached" : "Bundle revenue limit reached"}
+            tone="critical"
+            action={{ content: billingStatus.currentPlan === "Free" ? "Upgrade now" : "Upgrade plan", url: "/app/select-plan" }}
+          >
+            <p>
+              {billingStatus.currentPlan === "Free"
+                ? `Your bundle revenue this month (${formatRevenue(billingStatus.monthlyRevenue)}) has exceeded the free tier limit of $200. Upgrade to a paid plan to continue creating bundles.`
+                : `Your bundle revenue this month (${formatRevenue(billingStatus.monthlyRevenue)}) has exceeded your ${billingStatus.currentPlan} plan limit (${formatRevenue(billingStatus.revenueLimit)}). Upgrade your plan to continue creating bundles.`}
+            </p>
+          </Banner>
+        </div>
+      )}
+      {billingStatus?.isNearLimit && !billingStatus?.isOverLimit && (
+        <div style={{ marginBottom: "16px" }}>
+          <Banner
+            title="Approaching revenue limit"
+            tone="warning"
+            action={{ content: "View plans", url: "/app/billing" }}
+          >
+            <p>
+              You've used {billingStatus.usagePercent}% of your {billingStatus.currentPlan} plan
+              limit ({formatRevenue(billingStatus.monthlyRevenue)} / {formatRevenue(billingStatus.revenueLimit)}).
+              {billingStatus.currentPlan === "Free"
+                ? " Consider upgrading to a paid plan."
+                : " Consider upgrading to avoid interruptions."}
+            </p>
+          </Banner>
+        </div>
+      )}
       {hasNoBundles ? (
         emptyState
       ) : (

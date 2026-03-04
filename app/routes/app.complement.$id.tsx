@@ -161,6 +161,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
 
+  // Revenue limit enforcement — block creation of new bundles if over plan limit
+  if (params.id === "new") {
+    const { getShopBillingStatus } = await import("../lib/billing.server");
+    const status = await getShopBillingStatus(admin, session.shop);
+    if (status.isOverLimit) {
+      return json(
+        { errors: { form: "You have exceeded your plan's revenue limit. Please upgrade your plan to create new bundles." } },
+        { status: 403 },
+      );
+    }
+  }
+
   const name = formData.get("name") as string;
   const triggerType = formData.get("triggerType") as string;
   const triggerReference = (formData.get("triggerReference") as string) || null;
