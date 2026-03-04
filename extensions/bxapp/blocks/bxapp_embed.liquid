@@ -46,43 +46,83 @@
     }
     if (!hasContent) { container.remove(); return; }
 
-    // Find the best injection point near the product form
-    var selectors = [
-      'form[action*="/cart/add"] .product-form__buttons',
-      'form[action*="/cart/add"] [name="add"]',
-      'form[action*="/cart/add"] button[type="submit"]',
-      'form[action*="/cart/add"]',
-      '.product-form__submit',
-      '.product-form',
-      '.product__info-wrapper',
-      '[data-product-form]'
+    // Find the quantity/buttons area to inject ABOVE it.
+    // We look for the outermost wrapper first, then drill down to inner elements.
+    var anchorEl = null;
+    var qtyWrapperSelectors = [
+      'form[action*="/cart/add"] .product-form__quantity',
+      'form[action*="/cart/add"] .quantity-selector',
+      '.product-form__quantity'
     ];
-
-    var anchor = null;
-    for (var s = 0; s < selectors.length; s++) {
-      anchor = document.querySelector(selectors[s]);
-      if (anchor) break;
+    for (var q = 0; q < qtyWrapperSelectors.length; q++) {
+      anchorEl = document.querySelector(qtyWrapperSelectors[q]);
+      if (anchorEl) break;
     }
 
-    if (!anchor) {
+    // If no wrapper found, try inner quantity elements and walk up to their form-level parent
+    if (!anchorEl) {
+      var qtyInnerSelectors = [
+        'form[action*="/cart/add"] quantity-input',
+        'form[action*="/cart/add"] .quantity',
+        'form[action*="/cart/add"] [name="quantity"]'
+      ];
+      for (var qi = 0; qi < qtyInnerSelectors.length; qi++) {
+        var inner = document.querySelector(qtyInnerSelectors[qi]);
+        if (inner) {
+          // Walk up to the nearest .product-form__input or direct form child
+          var parent = inner.parentElement;
+          while (parent && parent.tagName !== 'FORM') {
+            if (parent.classList.contains('product-form__input') || parent.classList.contains('product-form__quantity')) {
+              anchorEl = parent;
+              break;
+            }
+            parent = parent.parentElement;
+          }
+          if (!anchorEl) anchorEl = inner;
+          break;
+        }
+      }
+    }
+
+    // Fallback: buttons
+    if (!anchorEl) {
+      var btnSelectors = [
+        'form[action*="/cart/add"] .product-form__buttons',
+        'form[action*="/cart/add"] .product-form__submit',
+        'form[action*="/cart/add"] [name="add"]',
+        'form[action*="/cart/add"] button[type="submit"]',
+        '.product-form__buttons',
+        '.product-form__submit'
+      ];
+      for (var b = 0; b < btnSelectors.length; b++) {
+        anchorEl = document.querySelector(btnSelectors[b]);
+        if (anchorEl) break;
+      }
+    }
+
+    // Last fallback: form or product wrapper
+    if (!anchorEl) {
+      var fallbackSelectors = [
+        'form[action*="/cart/add"]',
+        '.product-form',
+        '.product__info-wrapper',
+        '[data-product-form]'
+      ];
+      for (var f = 0; f < fallbackSelectors.length; f++) {
+        anchorEl = document.querySelector(fallbackSelectors[f]);
+        if (anchorEl) break;
+      }
+    }
+
+    if (!anchorEl) {
       container.style.display = '';
       return;
     }
 
-    // Insert after the form
-    var insertAfter = anchor;
-    if (anchor.tagName !== 'FORM') {
-      var form = anchor.closest('form[action*="/cart/add"]');
-      if (form) insertAfter = form;
-    }
-
+    // Insert before the anchor element (quantity selector or buttons)
     container.style.display = '';
-    container.style.marginTop = '16px';
-    if (insertAfter.nextSibling) {
-      insertAfter.parentNode.insertBefore(container, insertAfter.nextSibling);
-    } else {
-      insertAfter.parentNode.appendChild(container);
-    }
+    container.style.marginBottom = '16px';
+    anchorEl.parentNode.insertBefore(container, anchorEl);
   })();
   </script>
 {% endif %}
