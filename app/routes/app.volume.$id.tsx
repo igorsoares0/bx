@@ -1048,7 +1048,7 @@ export default function VolumeBundleForm() {
 
         {/* -- Volume Preview -- */}
         <div style={{ width: 340, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
-          <Card>
+          <div style={{ background: "var(--p-color-bg-surface)", borderRadius: "var(--p-border-radius-300)", boxShadow: "var(--p-shadow-100)", padding: "var(--p-space-400)", overflow: "visible" }}>
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">
                 Theme preview
@@ -1086,17 +1086,17 @@ export default function VolumeBundleForm() {
                           flexDirection: "column",
                           padding: isHorizontal ? "14px 10px" : "12px 14px",
                           borderRadius: design.tierStyle === "minimal" ? 0 : "12px",
-                          border: design.tierStyle === "minimal"
+                          border: "2px solid transparent",
+                          boxShadow: design.tierStyle === "minimal"
                             ? "none"
                             : isSelected
-                              ? `2px solid ${design.accentColor}`
-                              : "2px solid #e5e5e5",
+                              ? `0 0 0 2px ${design.accentColor}`
+                              : "0 0 0 2px #e5e5e5",
                           borderBottom: design.tierStyle === "minimal" ? "1px solid #e5e5e5" : undefined,
                           background: isSelected
                             ? (design.selectedTierBg || `${design.accentColor}08`)
                             : design.tierStyle === "card" ? "#fff" : "transparent",
                           cursor: "pointer",
-                          transition: "all 0.15s",
                           flex: isHorizontal ? 1 : undefined,
                           textAlign: isHorizontal ? "center" : undefined,
                           minWidth: 0,
@@ -1209,7 +1209,7 @@ export default function VolumeBundleForm() {
                 Prices based on first variant. Updates live on storefront.
               </Text>
             </BlockStack>
-          </Card>
+          </div>
         </div>
       </div>
     </Page>
