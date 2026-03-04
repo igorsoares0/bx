@@ -1128,7 +1128,11 @@ export default function VolumeBundleForm() {
                             </div>
                           )}
                           {design.showProductImage !== false && (
-                            <div style={{ width: `${Math.min(design.imageSize || 64, 40)}px`, height: `${Math.min(design.imageSize || 64, 40)}px`, borderRadius: "6px", background: "#e0e0e0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", color: "#999" }}>IMG</div>
+                            selectedProducts[0]?.image ? (
+                              <img src={selectedProducts[0].image} alt={selectedProducts[0].title || ""} style={{ width: `${Math.min(design.imageSize || 64, 40)}px`, height: `${Math.min(design.imageSize || 64, 40)}px`, borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />
+                            ) : (
+                              <div style={{ width: `${Math.min(design.imageSize || 64, 40)}px`, height: `${Math.min(design.imageSize || 64, 40)}px`, borderRadius: "6px", background: "#e0e0e0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", color: "#999" }}>IMG</div>
+                            )
                           )}
                           <div style={{ flex: isHorizontal ? undefined : 1 }}>
                             <div style={{ fontWeight: 600, fontSize: "13px", color: design.textColor }}>
