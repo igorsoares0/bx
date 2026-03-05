@@ -7,12 +7,16 @@ export async function registerWebhookDelivery(
 ): Promise<boolean> {
   if (!webhookId) return true;
 
-  const inserted = await db.$executeRaw`
-    INSERT OR IGNORE INTO "ProcessedWebhookDelivery" ("webhookId", "shopId", "topic", "createdAt")
-    VALUES (${webhookId}, ${shopId}, ${topic}, CURRENT_TIMESTAMP)
-  `;
-
-  return Number(inserted) > 0;
+  try {
+    await db.processedWebhookDelivery.create({
+      data: { webhookId, shopId, topic },
+    });
+    return true;
+  } catch (e: any) {
+    // Unique constraint violation = already processed
+    if (e?.code === "P2002") return false;
+    throw e;
+  }
 }
 
 export async function registerRefundProcessing(
@@ -22,10 +26,14 @@ export async function registerRefundProcessing(
 ): Promise<boolean> {
   if (!refundId) return true;
 
-  const inserted = await db.$executeRaw`
-    INSERT OR IGNORE INTO "ProcessedRefund" ("shopId", "refundId", "orderId", "createdAt")
-    VALUES (${shopId}, ${refundId}, ${orderId}, CURRENT_TIMESTAMP)
-  `;
-
-  return Number(inserted) > 0;
+  try {
+    await db.processedRefund.create({
+      data: { shopId, refundId, orderId },
+    });
+    return true;
+  } catch (e: any) {
+    // Unique constraint violation = already processed
+    if (e?.code === "P2002") return false;
+    throw e;
+  }
 }

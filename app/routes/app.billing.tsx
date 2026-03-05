@@ -25,7 +25,7 @@ import {
   PLAN_PRICES,
   PLAN_DESCRIPTIONS,
 } from "../lib/plans";
-import { getShopBillingStatus } from "../lib/billing.server";
+import { getShopBillingStatus, deactivateAllBundles } from "../lib/billing.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -34,7 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing } = await authenticate.admin(request);
+  const { billing, admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
@@ -60,6 +60,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       isTest: process.env.NODE_ENV !== "production",
       prorate: true,
     });
+    // Deactivate all bundles immediately — don't rely solely on the webhook
+    try {
+      await deactivateAllBundles(admin, session.shop);
+    } catch (e) {
+      console.error("Failed to deactivate bundles after cancellation:", e);
+    }
     return json({ ok: true });
   }
 

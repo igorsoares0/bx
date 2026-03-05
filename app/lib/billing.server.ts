@@ -88,6 +88,7 @@ export async function syncShopBilling(admin: any, shopId: string) {
               status
               test
               trialDays
+              createdAt
             }
           }
         }`,
@@ -101,7 +102,11 @@ export async function syncShopBilling(admin: any, shopId: string) {
         currentPlan = sub.name;
         subscriptionId = sub.id;
         subscriptionStatus = sub.status;
-        isTrialing = sub.status === "ACTIVE" && sub.trialDays > 0;
+        if (sub.trialDays > 0 && sub.createdAt) {
+          const trialEndsAt = new Date(sub.createdAt);
+          trialEndsAt.setDate(trialEndsAt.getDate() + sub.trialDays);
+          isTrialing = sub.status === "ACTIVE" && new Date() < trialEndsAt;
+        }
       }
     }
   } catch (e) {
@@ -140,101 +145,83 @@ export async function deactivateAllBundles(admin: any, shopId: string) {
     db.complementBundle.findMany({ where: { shopId, active: true } }),
   ]);
 
+  // Batch-deactivate all bundles in DB (3 queries instead of N)
+  await Promise.all([
+    db.tieredBundle.updateMany({ where: { shopId, active: true }, data: { active: false } }),
+    db.volumeBundle.updateMany({ where: { shopId, active: true }, data: { active: false } }),
+    db.complementBundle.updateMany({ where: { shopId, active: true }, data: { active: false } }),
+  ]);
+
   const now = new Date().toISOString();
+  const pauseDiscountMutation = `#graphql
+    mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+      discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+        userErrors { field message }
+      }
+    }`;
 
-  // Deactivate tiered bundles
+  // Collect all GraphQL operations to run in parallel
+  const ops: Promise<any>[] = [];
+
   for (const bundle of tieredBundles) {
-    await db.tieredBundle.update({ where: { id: bundle.id }, data: { active: false } });
     if (bundle.discountId) {
-      try {
-        await admin.graphql(
-          `#graphql
-            mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
-              discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
-                userErrors { field message }
-              }
-            }`,
-          { variables: { id: bundle.discountId, automaticAppDiscount: { endsAt: now } } },
-        );
-      } catch (e) {
-        console.error(`Failed to pause tiered discount ${bundle.discountId}:`, e);
-      }
+      ops.push(
+        admin.graphql(pauseDiscountMutation, {
+          variables: { id: bundle.discountId, automaticAppDiscount: { endsAt: now } },
+        }).catch((e: any) => console.error(`Failed to pause tiered discount ${bundle.discountId}:`, e)),
+      );
     }
     const productIds = parseProductIds(bundle.productId);
     if (productIds.length > 0) {
-      try {
-        await removeTieredBundleMetafield(admin, productIds, bundle.id);
-      } catch (e) {
-        console.error(`Failed to remove tiered metafield for bundle ${bundle.id}:`, e);
-      }
+      ops.push(
+        removeTieredBundleMetafield(admin, productIds, bundle.id)
+          .catch((e: any) => console.error(`Failed to remove tiered metafield for bundle ${bundle.id}:`, e)),
+      );
     }
   }
 
-  // Deactivate volume bundles
   for (const bundle of volumeBundles) {
-    await db.volumeBundle.update({ where: { id: bundle.id }, data: { active: false } });
     if (bundle.discountId) {
-      try {
-        await admin.graphql(
-          `#graphql
-            mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
-              discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
-                userErrors { field message }
-              }
-            }`,
-          { variables: { id: bundle.discountId, automaticAppDiscount: { endsAt: now } } },
-        );
-      } catch (e) {
-        console.error(`Failed to pause volume discount ${bundle.discountId}:`, e);
-      }
+      ops.push(
+        admin.graphql(pauseDiscountMutation, {
+          variables: { id: bundle.discountId, automaticAppDiscount: { endsAt: now } },
+        }).catch((e: any) => console.error(`Failed to pause volume discount ${bundle.discountId}:`, e)),
+      );
     }
     const productIds = parseProductIds(bundle.productId);
     if (productIds.length > 0) {
-      try {
-        await removeVolumeBundleMetafield(admin, productIds, bundle.id);
-      } catch (e) {
-        console.error(`Failed to remove volume metafield for bundle ${bundle.id}:`, e);
-      }
+      ops.push(
+        removeVolumeBundleMetafield(admin, productIds, bundle.id)
+          .catch((e: any) => console.error(`Failed to remove volume metafield for bundle ${bundle.id}:`, e)),
+      );
     }
   }
 
-  // Deactivate complement bundles
   for (const bundle of complementBundles) {
-    await db.complementBundle.update({ where: { id: bundle.id }, data: { active: false } });
     if (bundle.discountId) {
-      try {
-        await admin.graphql(
-          `#graphql
-            mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
-              discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
-                userErrors { field message }
-              }
-            }`,
-          { variables: { id: bundle.discountId, automaticAppDiscount: { endsAt: now } } },
-        );
-      } catch (e) {
-        console.error(`Failed to pause complement discount ${bundle.discountId}:`, e);
-      }
+      ops.push(
+        admin.graphql(pauseDiscountMutation, {
+          variables: { id: bundle.discountId, automaticAppDiscount: { endsAt: now } },
+        }).catch((e: any) => console.error(`Failed to pause complement discount ${bundle.discountId}:`, e)),
+      );
     }
     if (bundle.triggerType === "product" && bundle.triggerReference) {
-      try {
-        await removeComplementBundleMetafield(admin, bundle.triggerReference, bundle.id);
-      } catch (e) {
-        console.error(`Failed to remove complement metafield for bundle ${bundle.id}:`, e);
-      }
+      ops.push(
+        removeComplementBundleMetafield(admin, bundle.triggerReference, bundle.id)
+          .catch((e: any) => console.error(`Failed to remove complement metafield for bundle ${bundle.id}:`, e)),
+      );
     }
   }
 
-  // Refresh shop-level metafields (will be empty arrays since all are inactive now)
-  try {
-    await Promise.all([
-      setShopTieredBundleMetafield(admin, shopId, db),
-      setShopVolumeBundleMetafield(admin, shopId, db),
-      setShopComplementBundleMetafield(admin, shopId, db),
-    ]);
-  } catch (e) {
-    console.error("Failed to refresh shop-level metafields:", e);
-  }
+  // Run all GraphQL operations in parallel
+  await Promise.allSettled(ops);
+
+  // Refresh shop-level metafields
+  await Promise.all([
+    setShopTieredBundleMetafield(admin, shopId, db),
+    setShopVolumeBundleMetafield(admin, shopId, db),
+    setShopComplementBundleMetafield(admin, shopId, db),
+  ]).catch((e) => console.error("Failed to refresh shop-level metafields:", e));
 
   console.log(`Deactivated all bundles for shop ${shopId}: ${tieredBundles.length} tiered, ${volumeBundles.length} volume, ${complementBundles.length} complement`);
 }
@@ -279,6 +266,7 @@ export async function getShopBillingStatus(
               status
               test
               trialDays
+              createdAt
             }
           }
         }`,
@@ -291,7 +279,11 @@ export async function getShopBillingStatus(
       if (PAID_PLANS.includes(sub.name as any)) {
         currentPlan = sub.name;
         subscriptionId = sub.id;
-        isTrialing = sub.status === "ACTIVE" && sub.trialDays > 0;
+        if (sub.trialDays > 0 && sub.createdAt) {
+          const trialEndsAt = new Date(sub.createdAt);
+          trialEndsAt.setDate(trialEndsAt.getDate() + sub.trialDays);
+          isTrialing = sub.status === "ACTIVE" && new Date() < trialEndsAt;
+        }
       }
     }
   } catch (e) {
