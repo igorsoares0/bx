@@ -74,7 +74,7 @@ function parseTiersConfig(raw: string | null | undefined): TierConfig[] {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   // Fetch the function ID for our bxgy-discount extension
   const fnResponse = await admin.graphql(
@@ -109,8 +109,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     });
   }
 
-  const bundle = await db.tieredBundle.findUnique({
-    where: { id: Number(params.id) },
+  const bundleId = Number(params.id);
+  if (!Number.isInteger(bundleId)) {
+    throw new Response("Tiered bundle not found", { status: 404 });
+  }
+
+  const bundle = await db.tieredBundle.findFirst({
+    where: { id: bundleId, shopId: session.shop },
   });
 
   if (!bundle) {

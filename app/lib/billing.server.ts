@@ -244,11 +244,8 @@ export async function deactivateAllBundles(admin: any, shopId: string) {
  * Uses ShopBilling DB record for plan info.
  */
 export async function enforceRevenueLimits(admin: any, shopId: string) {
-  let billing = await db.shopBilling.findUnique({ where: { shopId } });
-  if (!billing) {
-    billing = await syncShopBilling(admin, shopId);
-    if (!billing) return;
-  }
+  const billing = await syncShopBilling(admin, shopId);
+  if (!billing) return;
 
   const monthlyRevenue = await getMonthlyBundleRevenue(shopId);
   const revenueLimit = getPlanRevenueLimit(billing.currentPlan);

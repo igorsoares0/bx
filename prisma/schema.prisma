@@ -94,6 +94,24 @@ model ShopBilling {
   updatedAt          DateTime @updatedAt
 }
 
+model ProcessedWebhookDelivery {
+  id        Int      @id @default(autoincrement())
+  webhookId String   @unique
+  shopId    String
+  topic     String
+  createdAt DateTime @default(now())
+}
+
+model ProcessedRefund {
+  id        Int      @id @default(autoincrement())
+  shopId    String
+  refundId  String
+  orderId   String?
+  createdAt DateTime @default(now())
+
+  @@unique([shopId, refundId])
+}
+
 // ── Analytics ──
 
 model BundleEvent {

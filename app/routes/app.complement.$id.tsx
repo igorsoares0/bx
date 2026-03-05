@@ -64,7 +64,7 @@ const DEFAULT_DESIGN = {
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   const fnResponse = await admin.graphql(
     `#graphql
@@ -98,8 +98,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     });
   }
 
-  const bundle = await db.complementBundle.findUnique({
-    where: { id: Number(params.id) },
+  const bundleId = Number(params.id);
+  if (!Number.isInteger(bundleId)) {
+    throw new Response("Complement bundle not found", { status: 404 });
+  }
+
+  const bundle = await db.complementBundle.findFirst({
+    where: { id: bundleId, shopId: session.shop },
   });
 
   if (!bundle) {

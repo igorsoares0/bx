@@ -1,10 +1,18 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { registerWebhookDelivery } from "../lib/webhook-idempotency.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
   console.log(`Received ${topic} webhook for ${shop}`);
+
+  const webhookId = request.headers.get("X-Shopify-Webhook-Id");
+  const shouldProcess = await registerWebhookDelivery(webhookId, shop, topic);
+  if (!shouldProcess) {
+    console.log(`Skipping duplicate webhook ${topic} for ${shop} (${webhookId})`);
+    return new Response();
+  }
 
   try {
     const order = payload as any;

@@ -2,10 +2,22 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate, unauthenticated } from "../shopify.server";
 import db from "../db.server";
 import { enforceRevenueLimits } from "../lib/billing.server";
+import {
+  buildTrustedDiscountCatalog,
+  calculateBundleRevenueFromOrderPayload,
+} from "../lib/billing-attribution.server";
+import { registerWebhookDelivery } from "../lib/webhook-idempotency.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
   console.log(`Received ${topic} webhook for ${shop}`);
+
+  const webhookId = request.headers.get("X-Shopify-Webhook-Id");
+  const shouldProcess = await registerWebhookDelivery(webhookId, shop, topic);
+  if (!shouldProcess) {
+    console.log(`Skipping duplicate webhook ${topic} for ${shop} (${webhookId})`);
+    return new Response();
+  }
 
   try {
     const order = payload as any;
@@ -13,40 +25,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const orderName = order.name || `#${order.order_number}`;
     const totalPrice = Math.round(parseFloat(order.total_price || "0") * 100);
 
-    // Check line items for bundle cart attributes (_bxapp_bundle_type)
-    const lineItems = order.line_items || [];
-    let bundleType: string | null = null;
-    let bundleId: number | null = null;
-    let bundleRevenue = 0;
+    const { admin } = await unauthenticated.admin(shop);
+    const trustedCatalog = await buildTrustedDiscountCatalog(admin, shop);
+    const {
+      bundleRevenue,
+      bundleType,
+      bundleId,
+    } = calculateBundleRevenueFromOrderPayload(order, trustedCatalog);
 
-    for (const item of lineItems) {
-      const props = item.properties || [];
-      const btProp = props.find((p: any) => p.name === "_bxapp_bundle_type");
-      if (btProp) {
-        bundleType = btProp.value;
-        const biProp = props.find((p: any) => p.name === "_bxapp_bundle_id");
-        if (biProp) bundleId = Number(biProp.value) || null;
-        const lineTotal = Math.round(parseFloat(item.price || "0") * 100 * (item.quantity || 1));
-        const lineDiscount = Math.round(parseFloat(item.total_discount || "0") * 100);
-        bundleRevenue += lineTotal - lineDiscount;
-      }
-    }
-
-    // Only record if the order contains bundle items
-    if (bundleType) {
+    // Only record if trusted Shopify discount data identifies bundle revenue
+    if (bundleRevenue > 0) {
       await db.bundleOrder.upsert({
         where: { orderId },
         create: {
           shopId: shop,
           orderId,
           orderName,
-          bundleType,
+          bundleType: bundleType || "unknown",
           bundleId,
           totalPrice,
           bundleRevenue,
         },
         update: {
-          bundleType,
+          bundleType: bundleType || "unknown",
           bundleId,
           totalPrice,
           bundleRevenue,
@@ -55,7 +56,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       // Enforce revenue limits after recording the order
       try {
-        const { admin } = await unauthenticated.admin(shop);
         await enforceRevenueLimits(admin, shop);
       } catch (e) {
         console.error(`Failed to enforce revenue limits for ${shop}:`, e);
