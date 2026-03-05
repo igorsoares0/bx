@@ -7,7 +7,8 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
 import { authenticate } from "../shopify.server";
-import { getShopBillingStatus } from "../lib/billing.server";
+import { getShopBillingStatus, deactivateAllBundles } from "../lib/billing.server";
+import db from "../db.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -16,6 +17,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Get billing status via GraphQL (no redirects — safe for embedded apps)
   const billingStatus = await getShopBillingStatus(admin, session.shop);
+
+  // Enforce revenue limits on page load — catches downgrades and missed webhooks
+  if (billingStatus.isOverLimit) {
+    const counts = await Promise.all([
+      db.tieredBundle.count({ where: { shopId: session.shop, active: true } }),
+      db.volumeBundle.count({ where: { shopId: session.shop, active: true } }),
+      db.complementBundle.count({ where: { shopId: session.shop, active: true } }),
+    ]);
+    if (counts.some((c) => c > 0)) {
+      try {
+        await deactivateAllBundles(admin, session.shop);
+      } catch (e) {
+        console.error("Failed to deactivate bundles on page load:", e);
+      }
+    }
+  }
 
   // Ensure shop has the app_url metafield for storefront analytics
   const appUrl = process.env.SHOPIFY_APP_URL || "";

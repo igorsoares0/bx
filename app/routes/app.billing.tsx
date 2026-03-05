@@ -258,7 +258,7 @@ export default function BillingPage() {
                         {isCurrent
                           ? "Current"
                           : isOnFreePlan
-                            ? "Start 14-day trial"
+                            ? "Subscribe"
                             : "Switch"}
                       </Button>
                     </InlineStack>

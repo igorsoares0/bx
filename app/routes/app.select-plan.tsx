@@ -223,7 +223,7 @@ export default function SelectPlanPage() {
                         {isCurrent
                           ? "Current plan"
                           : isOnFreePlan
-                            ? "Start 14-day free trial"
+                            ? "Subscribe"
                             : `Switch to ${plan}`}
                       </Button>
                     )}
