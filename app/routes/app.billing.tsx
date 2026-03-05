@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { useState } from "react";
 import { useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
 import {
   Page,
@@ -14,6 +15,7 @@ import {
   Box,
   ProgressBar,
   Banner,
+  Modal,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import {
@@ -76,6 +78,7 @@ export default function BillingPage() {
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const handleChangePlan = (plan: string) => {
     const formData = new FormData();
@@ -278,7 +281,7 @@ export default function BillingPage() {
                     tone="critical"
                     disabled={isSubmitting}
                     loading={isSubmitting}
-                    onClick={handleCancel}
+                    onClick={() => setCancelModalOpen(true)}
                   >
                     Cancel subscription
                   </Button>
@@ -288,6 +291,35 @@ export default function BillingPage() {
           </Layout.Section>
         )}
       </Layout>
+
+      <Modal
+        open={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        title="Cancel subscription?"
+        primaryAction={{
+          content: "Cancel subscription",
+          destructive: true,
+          loading: isSubmitting,
+          onAction: () => {
+            handleCancel();
+            setCancelModalOpen(false);
+          },
+        }}
+        secondaryActions={[
+          {
+            content: "Keep subscription",
+            onAction: () => setCancelModalOpen(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <Text as="p" variant="bodyMd">
+            Are you sure you want to cancel your {billingStatus.currentPlan} subscription?
+            All active bundles will be deactivated and their automatic discounts will stop working.
+            Your remaining balance will be prorated.
+          </Text>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }

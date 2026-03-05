@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 import db from "../db.server";
+import { enforceRevenueLimits } from "../lib/billing.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -51,6 +52,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           bundleRevenue,
         },
       });
+
+      // Enforce revenue limits after recording the order
+      try {
+        const { admin } = await unauthenticated.admin(shop);
+        await enforceRevenueLimits(admin, shop);
+      } catch (e) {
+        console.error(`Failed to enforce revenue limits for ${shop}:`, e);
+      }
     }
   } catch (e) {
     console.error("Analytics orders/create webhook error:", e);

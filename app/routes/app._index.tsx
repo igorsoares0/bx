@@ -13,6 +13,7 @@ import {
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import type { BillingStatus } from "../lib/billing.server";
+import { getShopBillingStatus, parseProductIds } from "../lib/billing.server";
 import {
   removeTieredBundleMetafield,
   setTieredBundleMetafield,
@@ -53,6 +54,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const bundleId = Number(formData.get("bundleId"));
   const bundleType = (formData.get("bundleType") as string) || "classic";
 
+  // Block reactivation when over billing limit
+  if (intent === "toggle") {
+    const billingStatus = await getShopBillingStatus(admin, session.shop);
+    // We need to check the bundle's current state — only block if activating (not deactivating)
+    let isCurrentlyActive = false;
+    if (bundleType === "tiered") {
+      const b = await db.tieredBundle.findFirst({ where: { id: bundleId, shopId: session.shop } });
+      isCurrentlyActive = b?.active ?? false;
+    } else if (bundleType === "volume") {
+      const b = await db.volumeBundle.findFirst({ where: { id: bundleId, shopId: session.shop } });
+      isCurrentlyActive = b?.active ?? false;
+    } else if (bundleType === "complement") {
+      const b = await db.complementBundle.findFirst({ where: { id: bundleId, shopId: session.shop } });
+      isCurrentlyActive = b?.active ?? false;
+    }
+    // If trying to activate (currently inactive) and over limit, block it
+    if (!isCurrentlyActive && billingStatus.isOverLimit) {
+      return json(
+        { error: "Cannot activate bundle: revenue limit exceeded. Please upgrade your plan." },
+        { status: 403 },
+      );
+    }
+  }
+
   if (bundleType === "tiered") {
     if (intent === "delete") {
       const bundle = await db.tieredBundle.findFirst({
@@ -71,14 +96,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             { variables: { id: bundle.discountId } },
           );
         }
-        // Parse product IDs (supports JSON array and legacy single GID)
-        let productIds: string[] = [];
-        try {
-          const parsed = JSON.parse(bundle.productId);
-          productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
-        } catch {
-          productIds = [bundle.productId];
-        }
+        const productIds = parseProductIds(bundle.productId);
         if (productIds.length > 0) {
           await removeTieredBundleMetafield(admin, productIds, bundle.id);
         }
@@ -119,26 +137,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         if (!newActive) {
-          let productIds: string[] = [];
-          try {
-            const parsed = JSON.parse(bundle.productId);
-            productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
-          } catch {
-            productIds = [bundle.productId];
-          }
+          const productIds = parseProductIds(bundle.productId);
           if (productIds.length > 0) {
             await removeTieredBundleMetafield(admin, productIds, bundle.id);
           }
         } else {
           // Restore product metafields on reactivation
           if (bundle.triggerType === "product" || !bundle.triggerType) {
-            let productIds: string[] = [];
-            try {
-              const parsed = JSON.parse(bundle.productId);
-              productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
-            } catch {
-              productIds = [bundle.productId];
-            }
+            const productIds = parseProductIds(bundle.productId);
             if (productIds.length > 0) {
               let tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }> = [];
               try { tiers = JSON.parse(bundle.tiersConfig || "[]"); } catch {}
@@ -178,14 +184,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             { variables: { id: bundle.discountId } },
           );
         }
-        // Parse productIds (backward compat)
-        let productIds: string[] = [];
-        try {
-          const parsed = JSON.parse(bundle.productId);
-          productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
-        } catch {
-          productIds = bundle.productId ? [bundle.productId] : [];
-        }
+        const productIds = parseProductIds(bundle.productId);
         if (productIds.length > 0) {
           await removeVolumeBundleMetafield(admin, productIds, bundle.id);
         }
@@ -227,26 +226,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         if (!newActive) {
-          let productIds: string[] = [];
-          try {
-            const parsed = JSON.parse(bundle.productId);
-            productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
-          } catch {
-            productIds = bundle.productId ? [bundle.productId] : [];
-          }
+          const productIds = parseProductIds(bundle.productId);
           if (productIds.length > 0) {
             await removeVolumeBundleMetafield(admin, productIds, bundle.id);
           }
         } else {
           // Restore product metafields on reactivation
           if (bundle.triggerType === "product" || !bundle.triggerType) {
-            let productIds: string[] = [];
-            try {
-              const parsed = JSON.parse(bundle.productId);
-              productIds = Array.isArray(parsed) ? parsed : [bundle.productId];
-            } catch {
-              productIds = bundle.productId ? [bundle.productId] : [];
-            }
+            const productIds = parseProductIds(bundle.productId);
             if (productIds.length > 0) {
               let volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }> = [];
               try { volumeTiers = JSON.parse(bundle.volumeTiers || "[]"); } catch {}
@@ -446,12 +433,14 @@ export default function BundleIndex() {
         >
           <button
             onClick={() => handleToggle(bundle.id, "tiered")}
+            disabled={!bundle.active && billingStatus?.isOverLimit}
             style={{
               background: "none",
               border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-emphasis)",
+              cursor: !bundle.active && billingStatus?.isOverLimit ? "not-allowed" : "pointer",
+              color: !bundle.active && billingStatus?.isOverLimit ? "var(--p-color-text-disabled)" : "var(--p-color-text-emphasis)",
               textDecoration: "underline",
+              opacity: !bundle.active && billingStatus?.isOverLimit ? 0.5 : 1,
             }}
           >
             {bundle.active ? "Deactivate" : "Activate"}
@@ -523,12 +512,14 @@ export default function BundleIndex() {
         >
           <button
             onClick={() => handleToggle(bundle.id, "volume")}
+            disabled={!bundle.active && billingStatus?.isOverLimit}
             style={{
               background: "none",
               border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-emphasis)",
+              cursor: !bundle.active && billingStatus?.isOverLimit ? "not-allowed" : "pointer",
+              color: !bundle.active && billingStatus?.isOverLimit ? "var(--p-color-text-disabled)" : "var(--p-color-text-emphasis)",
               textDecoration: "underline",
+              opacity: !bundle.active && billingStatus?.isOverLimit ? 0.5 : 1,
             }}
           >
             {bundle.active ? "Deactivate" : "Activate"}
@@ -595,12 +586,14 @@ export default function BundleIndex() {
         >
           <button
             onClick={() => handleToggle(bundle.id, "complement")}
+            disabled={!bundle.active && billingStatus?.isOverLimit}
             style={{
               background: "none",
               border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-emphasis)",
+              cursor: !bundle.active && billingStatus?.isOverLimit ? "not-allowed" : "pointer",
+              color: !bundle.active && billingStatus?.isOverLimit ? "var(--p-color-text-disabled)" : "var(--p-color-text-emphasis)",
               textDecoration: "underline",
+              opacity: !bundle.active && billingStatus?.isOverLimit ? 0.5 : 1,
             }}
           >
             {bundle.active ? "Deactivate" : "Activate"}
@@ -657,8 +650,8 @@ export default function BundleIndex() {
           >
             <p>
               {billingStatus.currentPlan === "Free"
-                ? `Your bundle revenue this month (${formatRevenue(billingStatus.monthlyRevenue)}) has exceeded the free tier limit of $200. Upgrade to a paid plan to continue creating bundles.`
-                : `Your bundle revenue this month (${formatRevenue(billingStatus.monthlyRevenue)}) has exceeded your ${billingStatus.currentPlan} plan limit (${formatRevenue(billingStatus.revenueLimit)}). Upgrade your plan to continue creating bundles.`}
+                ? `Your bundle revenue this month (${formatRevenue(billingStatus.monthlyRevenue)}) has exceeded the free tier limit of $200. All bundles have been deactivated. Upgrade to a paid plan to reactivate them.`
+                : `Your bundle revenue this month (${formatRevenue(billingStatus.monthlyRevenue)}) has exceeded your ${billingStatus.currentPlan} plan limit (${formatRevenue(billingStatus.revenueLimit)}). All bundles have been deactivated. Upgrade your plan to reactivate them.`}
             </p>
           </Banner>
         </div>

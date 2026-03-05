@@ -80,6 +80,20 @@ model ComplementBundle {
   updatedAt        DateTime @updatedAt
 }
 
+// ── Billing ──
+
+model ShopBilling {
+  id                 Int      @id @default(autoincrement())
+  shopId             String   @unique
+  currentPlan        String   @default("Free")
+  subscriptionId     String?
+  subscriptionStatus String?
+  isTrialing         Boolean  @default(false)
+  lastSyncedAt       DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 // ── Analytics ──
 
 model BundleEvent {
