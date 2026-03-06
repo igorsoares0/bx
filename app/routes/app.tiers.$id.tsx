@@ -32,10 +32,10 @@ const DEFAULT_TIERS = [
 ];
 
 const DEFAULT_DESIGN = {
-  accentColor: "#8cb600",
-  backgroundColor: "#fafff0",
+  accentColor: "#2563eb",
+  backgroundColor: "#f0f6ff",
   textColor: "#1a1a1a",
-  buttonColor: "#8cb600",
+  buttonColor: "#2563eb",
   buttonTextColor: "#ffffff",
   borderRadius: 12,
   headerText: "BUILD YOUR COMBO & SAVE",

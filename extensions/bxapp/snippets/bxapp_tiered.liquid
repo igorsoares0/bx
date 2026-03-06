@@ -34,11 +34,11 @@
 
 {% if bundle_data != blank %}
   {% comment %} Design from metafield with fallback {% endcomment %}
-  {% assign ds_accent = bundle_data.designAccentColor | default: "#8cb600" %}
-  {% assign ds_bg = bundle_data.designBackgroundColor | default: "#fafff0" %}
+  {% assign ds_accent = bundle_data.designAccentColor | default: "#2563eb" %}
+  {% assign ds_bg = bundle_data.designBackgroundColor | default: "#f0f6ff" %}
   {% assign ds_text = bundle_data.designTextColor | default: "#1a1a1a" %}
   {% assign ds_border_radius = bundle_data.designBorderRadius | default: 12 %}
-  {% assign ds_button_color = bundle_data.designButtonColor | default: "#8cb600" %}
+  {% assign ds_button_color = bundle_data.designButtonColor | default: "#2563eb" %}
   {% assign ds_button_text = bundle_data.designButtonTextColor | default: "#ffffff" %}
 
   {% assign header_text = bundle_data.designHeaderText | default: "BUILD YOUR COMBO & SAVE" %}
