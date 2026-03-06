@@ -39,7 +39,7 @@ const DEFAULT_DESIGN = {
   buttonTextColor: "#ffffff",
   borderRadius: 12,
   headerText: "BUILD YOUR COMBO & SAVE",
-  giftText: "+ FREE special gift!",
+  giftText: "",
   cardLayout: "vertical",
   showVariants: true,
   // Typography
@@ -870,14 +870,6 @@ export default function TieredBundleForm() {
                     autoComplete="off"
                     placeholder="e.g. BUILD YOUR COMBO & SAVE"
                   />
-                  <TextField
-                    label="Gift text"
-                    value={design.giftText}
-                    onChange={(v) => updateDesign("giftText", v)}
-                    autoComplete="off"
-                    placeholder="e.g. + FREE special gift!"
-                    helpText="Leave empty to hide"
-                  />
                   <Select
                     label="Card layout"
                     options={[
@@ -1202,14 +1194,6 @@ export default function TieredBundleForm() {
                   })}
                 </div>
 
-                {/* Gift footer */}
-                {design.giftText && (
-                  <div style={{ background: `${design.accentColor}12`, borderRadius: "8px", padding: "10px 14px", textAlign: "center", marginBottom: "12px" }}>
-                    <span style={{ fontWeight: 700, fontSize: "13px", color: design.textColor }}>
-                      {design.giftText}
-                    </span>
-                  </div>
-                )}
 
                 {/* Button */}
                 <div style={{ width: "100%", padding: "12px 16px", fontSize: "14px", fontWeight: 700, border: "none", borderRadius: `${design.buttonBorderRadius}px`, background: design.buttonColor, color: design.buttonTextColor, textAlign: "center", cursor: "default" }}>

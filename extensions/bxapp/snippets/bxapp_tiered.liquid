@@ -42,8 +42,7 @@
   {% assign ds_button_text = bundle_data.designButtonTextColor | default: "#ffffff" %}
 
   {% assign header_text = bundle_data.designHeaderText | default: "BUILD YOUR COMBO & SAVE" %}
-  {% assign gift_text = bundle_data.designGiftText %}
-  {% if gift_text == nil %}{% assign gift_text = "+ FREE special gift!" %}{% endif %}
+  {% assign gift_text = bundle_data.designGiftText | default: "" %}
   {% assign ds_card_layout = bundle_data.designCardLayout | default: "vertical" %}
   {% assign show_variants = bundle_data.showVariants %}
   {% if show_variants == nil %}{% assign show_variants = true %}{% endif %}
@@ -277,18 +276,6 @@
     text-decoration: line-through;
     line-height: 1.2;
   }
-  .bxgy-tiers__gift {
-    background: {{ ds_accent }}12;
-    border-radius: 8px;
-    padding: 12px 16px;
-    text-align: center;
-    margin-bottom: 14px;
-  }
-  .bxgy-tiers__gift-text {
-    font-weight: 700;
-    font-size: 14px;
-    color: {{ ds_text }};
-  }
   .bxgy-tiers__add-btn {
     width: 100%;
     padding: 14px 20px;
@@ -471,12 +458,6 @@
     {% endfor %}
   </div>
 
-  {% comment %} Gift footer {% endcomment %}
-  {% if gift_text != blank %}
-    <div class="bxgy-tiers__gift">
-      <span class="bxgy-tiers__gift-text">{{ gift_text }}</span>
-    </div>
-  {% endif %}
 
   {% comment %} Add to cart button {% endcomment %}
   <button
