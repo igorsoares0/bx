@@ -52,7 +52,7 @@ const DEFAULT_DESIGN = {
   showBadge: true,
   badgeStyle: "square",
   // Image & Product
-  showProductImage: true,
+  showProductImage: false,
   imageSize: 64,
   // Visual Effects
   borderStyle: "solid",

@@ -52,7 +52,7 @@ const DEFAULT_DESIGN = {
   showSaveTag: true,
   saveTagStyle: "square",
   // Image & Product
-  showProductImage: true,
+  showProductImage: false,
   imageSize: 64,
   // Visual Effects
   borderStyle: "solid",
