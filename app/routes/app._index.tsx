@@ -3,13 +3,27 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSubmit, useOutletContext } from "@remix-run/react";
 import {
   Page,
-  IndexTable,
   Text,
   Badge,
-  EmptyState,
   Banner,
-  useBreakpoints,
+  Card,
+  BlockStack,
+  InlineStack,
+  InlineGrid,
+  Button,
+  ButtonGroup,
+  Divider,
+  Box,
+  Icon,
 } from "@shopify/polaris";
+import {
+  ProductIcon,
+  DiscountIcon,
+  OrderIcon,
+  DeleteIcon,
+  PlayCircleIcon,
+  PauseCircleIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import type { BillingStatus } from "../lib/billing.server";
@@ -340,14 +354,202 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return json({ ok: true });
 };
 
+function BundleTypeCard({
+  icon,
+  title,
+  description,
+  badge,
+  badgeTone,
+  actionLabel,
+  onAction,
+  disabled,
+}: {
+  icon: typeof ProductIcon;
+  title: string;
+  description: string;
+  badge: string;
+  badgeTone: "info" | "warning" | "success";
+  actionLabel: string;
+  onAction: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center">
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background:
+                  badgeTone === "info"
+                    ? "var(--p-color-bg-fill-info-secondary)"
+                    : badgeTone === "warning"
+                      ? "var(--p-color-bg-fill-caution-secondary)"
+                      : "var(--p-color-bg-fill-success-secondary)",
+              }}
+            >
+              <Icon source={icon} />
+            </div>
+            <Text variant="headingSm" as="h3">
+              {title}
+            </Text>
+          </InlineStack>
+          <Badge tone={badgeTone}>{badge}</Badge>
+        </InlineStack>
+        <Text variant="bodySm" as="p" tone="subdued">
+          {description}
+        </Text>
+        <Button onClick={onAction} disabled={disabled} size="slim">
+          {actionLabel}
+        </Button>
+      </BlockStack>
+    </Card>
+  );
+}
+
+function BundleRow({
+  name,
+  active,
+  badge,
+  badgeTone,
+  detail,
+  condition,
+  onEdit,
+  onToggle,
+  onDelete,
+  toggleDisabled,
+}: {
+  name: string;
+  active: boolean;
+  badge: string;
+  badgeTone: "info" | "warning" | "success" | "magic";
+  detail: string;
+  condition: string;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+  toggleDisabled?: boolean;
+}) {
+  return (
+    <Box paddingBlockStart="300" paddingBlockEnd="300">
+      <InlineStack align="space-between" blockAlign="center" wrap={false}>
+        <div
+          style={{ flex: 1, cursor: "pointer", minWidth: 0 }}
+          onClick={onEdit}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && onEdit()}
+        >
+          <InlineStack gap="300" blockAlign="center" wrap={false}>
+            <div style={{ minWidth: 0 }}>
+              <InlineStack gap="200" blockAlign="center">
+                <Text variant="bodyMd" fontWeight="semibold" as="span" truncate>
+                  {name}
+                </Text>
+                <Badge tone={badgeTone}>{badge}</Badge>
+                <Badge tone={active ? "success" : undefined}>
+                  {active ? "Active" : "Inactive"}
+                </Badge>
+              </InlineStack>
+              <Box paddingBlockStart="050">
+                <Text variant="bodySm" as="span" tone="subdued">
+                  {condition} · {detail}
+                </Text>
+              </Box>
+            </div>
+          </InlineStack>
+        </div>
+        <ButtonGroup>
+          <Button
+            onClick={onToggle}
+            disabled={toggleDisabled}
+            size="slim"
+            icon={active ? PauseCircleIcon : PlayCircleIcon}
+            accessibilityLabel={active ? "Deactivate" : "Activate"}
+          />
+          <Button
+            onClick={onDelete}
+            size="slim"
+            tone="critical"
+            icon={DeleteIcon}
+            accessibilityLabel="Delete"
+          />
+        </ButtonGroup>
+      </InlineStack>
+    </Box>
+  );
+}
+
+function getTieredCondition(bundle: { triggerType?: string; productId: string }) {
+  const tt = bundle.triggerType || "product";
+  if (tt === "all") return "All products";
+  if (tt === "collection") return "Collection";
+  try {
+    const ids = JSON.parse(bundle.productId || "[]");
+    if (Array.isArray(ids)) return `${ids.length} product${ids.length !== 1 ? "s" : ""}`;
+  } catch {}
+  return "1 product";
+}
+
+function getTieredDetail(tiersConfig: string) {
+  try {
+    const t = JSON.parse(tiersConfig || "[]") as Array<{ buyQty: number; freeQty: number }>;
+    return t.map((tier) => `Buy ${tier.buyQty} Get ${tier.freeQty}`).join(", ");
+  } catch {
+    return "—";
+  }
+}
+
+function getVolumeCondition(bundle: { triggerType?: string; productId: string }) {
+  const tt = bundle.triggerType || "product";
+  if (tt === "all") return "All products";
+  if (tt === "collection") return "Collection";
+  try {
+    const parsed = JSON.parse(bundle.productId || "[]");
+    const ids = Array.isArray(parsed) ? parsed : [bundle.productId];
+    return `${ids.length} product${ids.length !== 1 ? "s" : ""}`;
+  } catch {
+    return "1 product";
+  }
+}
+
+function getVolumeDetail(volumeTiers: string) {
+  try {
+    const t = JSON.parse(volumeTiers || "[]") as Array<{ label: string; qty: number; discountPct: number }>;
+    return t.map((tier) => `${tier.label || tier.qty + "x"} (${tier.discountPct}% off)`).join(", ");
+  } catch {
+    return "—";
+  }
+}
+
+function getComplementCondition(bundle: { triggerType: string }) {
+  if (bundle.triggerType === "product") return "Specific product";
+  if (bundle.triggerType === "collection") return "Collection";
+  return "All products";
+}
+
+function getComplementDetail(complements: string) {
+  try {
+    const c = JSON.parse(complements || "[]");
+    return `${c.length} complement${c.length !== 1 ? "s" : ""}`;
+  } catch {
+    return "—";
+  }
+}
+
 export default function BundleIndex() {
   const { tieredBundles, volumeBundles, complementBundles } = useLoaderData<typeof loader>();
   const { billingStatus } = useOutletContext<{ billingStatus: BillingStatus }>();
   const navigate = useNavigate();
   const submit = useSubmit();
-  const { smUp } = useBreakpoints();
 
-  const handleDelete = (id: number, type: "tiered" | "volume" | "complement" = "tiered") => {
+  const handleDelete = (id: number, type: "tiered" | "volume" | "complement") => {
     const formData = new FormData();
     formData.set("intent", "delete");
     formData.set("bundleId", String(id));
@@ -355,7 +557,7 @@ export default function BundleIndex() {
     submit(formData, { method: "post" });
   };
 
-  const handleToggle = (id: number, type: "tiered" | "volume" | "complement" = "tiered") => {
+  const handleToggle = (id: number, type: "tiered" | "volume" | "complement") => {
     const formData = new FormData();
     formData.set("intent", "toggle");
     formData.set("bundleId", String(id));
@@ -363,290 +565,30 @@ export default function BundleIndex() {
     submit(formData, { method: "post" });
   };
 
-  const hasNoBundles = tieredBundles.length === 0 && volumeBundles.length === 0 && complementBundles.length === 0;
-
-  const emptyState = (
-    <EmptyState
-      heading="Create your first bundle"
-      action={{
-        content: "Create FBT bundle",
-        onAction: () => navigate("/app/complement/new"),
-      }}
-      secondaryAction={{
-        content: "Create tiered combo",
-        onAction: () => navigate("/app/tiers/new"),
-      }}
-      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-    >
-      <p>
-        Set up FBT/Combo bundles, tiered combo deals, or volume discounts
-        to offer automatic discounts when customers add qualifying products to their cart.
-      </p>
-    </EmptyState>
-  );
-
-  const tieredRows = tieredBundles.map((bundle, index) => (
-    <IndexTable.Row
-      id={`tiered-${bundle.id}`}
-      key={`tiered-${bundle.id}`}
-      selected={false}
-      position={index}
-      onClick={() => navigate(`/app/tiers/${bundle.id}`)}
-    >
-      <IndexTable.Cell>
-        <Text variant="bodyMd" fontWeight="bold" as="span">
-          {bundle.name}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone="info">Tiered</Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {(() => {
-          const tt = (bundle as any).triggerType || "product";
-          if (tt === "all") return "All products";
-          if (tt === "collection") return "Collection";
-          try {
-            const ids = JSON.parse(bundle.productId || "[]");
-            if (Array.isArray(ids)) return `${ids.length} product${ids.length !== 1 ? "s" : ""}`;
-          } catch {}
-          return "Specific product";
-        })()}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {(() => {
-          try {
-            const t = JSON.parse(bundle.tiersConfig || "[]") as Array<{ buyQty: number; freeQty: number }>;
-            return t.map((tier: { buyQty: number; freeQty: number }) => `${tier.buyQty}+${tier.freeQty}`).join(", ");
-          } catch { return "—"; }
-        })()}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone={bundle.active ? "success" : undefined}>
-          {bundle.active ? "Active" : "Inactive"}
-        </Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <div
-          style={{ display: "flex", gap: "8px" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => handleToggle(bundle.id, "tiered")}
-            disabled={!bundle.active && billingStatus?.isOverLimit}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: !bundle.active && billingStatus?.isOverLimit ? "not-allowed" : "pointer",
-              color: !bundle.active && billingStatus?.isOverLimit ? "var(--p-color-text-disabled)" : "var(--p-color-text-emphasis)",
-              textDecoration: "underline",
-              opacity: !bundle.active && billingStatus?.isOverLimit ? 0.5 : 1,
-            }}
-          >
-            {bundle.active ? "Deactivate" : "Activate"}
-          </button>
-          <button
-            onClick={() => handleDelete(bundle.id, "tiered")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-critical)",
-              textDecoration: "underline",
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
-
-  const volumeRows = volumeBundles.map((bundle, index) => (
-    <IndexTable.Row
-      id={`volume-${bundle.id}`}
-      key={`volume-${bundle.id}`}
-      selected={false}
-      position={tieredBundles.length + index}
-      onClick={() => navigate(`/app/volume/${bundle.id}`)}
-    >
-      <IndexTable.Cell>
-        <Text variant="bodyMd" fontWeight="bold" as="span">
-          {bundle.name}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone="warning">Volume</Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {(() => {
-          const tt = (bundle as any).triggerType || "product";
-          if (tt === "all") return "All products";
-          if (tt === "collection") return "Collection";
-          try {
-            const parsed = JSON.parse(bundle.productId || "[]");
-            const ids = Array.isArray(parsed) ? parsed : [bundle.productId];
-            return `${ids.length} product${ids.length !== 1 ? "s" : ""}`;
-          } catch {
-            return "1 product";
-          }
-        })()}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {(() => {
-          try {
-            const t = JSON.parse(bundle.volumeTiers || "[]") as Array<{ label: string; qty: number }>;
-            return t.map((tier) => tier.label || `${tier.qty}x`).join(", ");
-          } catch { return "—"; }
-        })()}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone={bundle.active ? "success" : undefined}>
-          {bundle.active ? "Active" : "Inactive"}
-        </Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <div
-          style={{ display: "flex", gap: "8px" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => handleToggle(bundle.id, "volume")}
-            disabled={!bundle.active && billingStatus?.isOverLimit}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: !bundle.active && billingStatus?.isOverLimit ? "not-allowed" : "pointer",
-              color: !bundle.active && billingStatus?.isOverLimit ? "var(--p-color-text-disabled)" : "var(--p-color-text-emphasis)",
-              textDecoration: "underline",
-              opacity: !bundle.active && billingStatus?.isOverLimit ? 0.5 : 1,
-            }}
-          >
-            {bundle.active ? "Deactivate" : "Activate"}
-          </button>
-          <button
-            onClick={() => handleDelete(bundle.id, "volume")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-critical)",
-              textDecoration: "underline",
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
-
-  const complementRows = complementBundles.map((bundle, index) => (
-    <IndexTable.Row
-      id={`complement-${bundle.id}`}
-      key={`complement-${bundle.id}`}
-      selected={false}
-      position={tieredBundles.length + volumeBundles.length + index}
-      onClick={() => navigate(`/app/complement/${bundle.id}`)}
-    >
-      <IndexTable.Cell>
-        <Text variant="bodyMd" fontWeight="bold" as="span">
-          {bundle.name}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {(bundle as any).mode === "combo"
-          ? <Badge tone="success">Combo</Badge>
-          : <Badge tone="magic">FBT</Badge>}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {bundle.triggerType === "product"
-          ? "Specific product"
-          : bundle.triggerType === "collection"
-            ? "Collection"
-            : "All products"}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {(() => {
-          try {
-            const c = JSON.parse(bundle.complements || "[]");
-            return `${c.length} complement${c.length !== 1 ? "s" : ""}`;
-          } catch { return "—"; }
-        })()}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone={bundle.active ? "success" : undefined}>
-          {bundle.active ? "Active" : "Inactive"}
-        </Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <div
-          style={{ display: "flex", gap: "8px" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => handleToggle(bundle.id, "complement")}
-            disabled={!bundle.active && billingStatus?.isOverLimit}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: !bundle.active && billingStatus?.isOverLimit ? "not-allowed" : "pointer",
-              color: !bundle.active && billingStatus?.isOverLimit ? "var(--p-color-text-disabled)" : "var(--p-color-text-emphasis)",
-              textDecoration: "underline",
-              opacity: !bundle.active && billingStatus?.isOverLimit ? 0.5 : 1,
-            }}
-          >
-            {bundle.active ? "Deactivate" : "Activate"}
-          </button>
-          <button
-            onClick={() => handleDelete(bundle.id, "complement")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--p-color-text-critical)",
-              textDecoration: "underline",
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
-
-  const totalCount = tieredBundles.length + volumeBundles.length + complementBundles.length;
+  const hasNoBundles =
+    tieredBundles.length === 0 && volumeBundles.length === 0 && complementBundles.length === 0;
 
   const formatRevenue = (cents: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 
+  const isOverLimit = billingStatus?.isOverLimit;
+
   return (
-    <Page
-      title="Bundles"
-      primaryAction={{
-        content: "Create FBT bundle",
-        disabled: billingStatus?.isOverLimit,
-        onAction: () => navigate("/app/complement/new"),
-      }}
-      secondaryActions={[
-        {
-          content: "Create tiered combo",
-          disabled: billingStatus?.isOverLimit,
-          onAction: () => navigate("/app/tiers/new"),
-        },
-        {
-          content: "Create volume discount",
-          disabled: billingStatus?.isOverLimit,
-          onAction: () => navigate("/app/volume/new"),
-        },
-      ]}
-    >
-      {billingStatus?.isOverLimit && (
-        <div style={{ marginBottom: "16px" }}>
+    <Page title="Bundles">
+      <BlockStack gap="400">
+        {/* Billing banners */}
+        {billingStatus?.isOverLimit && (
           <Banner
-            title={billingStatus.currentPlan === "Free" ? "Free tier limit reached" : "Bundle revenue limit reached"}
+            title={
+              billingStatus.currentPlan === "Free"
+                ? "Free tier limit reached"
+                : "Bundle revenue limit reached"
+            }
             tone="critical"
-            action={{ content: billingStatus.currentPlan === "Free" ? "Upgrade now" : "Upgrade plan", url: "/app/select-plan" }}
+            action={{
+              content: billingStatus.currentPlan === "Free" ? "Upgrade now" : "Upgrade plan",
+              url: "/app/select-plan",
+            }}
           >
             <p>
               {billingStatus.currentPlan === "Free"
@@ -654,10 +596,8 @@ export default function BundleIndex() {
                 : `Your bundle revenue this month (${formatRevenue(billingStatus.monthlyRevenue)}) has exceeded your ${billingStatus.currentPlan} plan limit (${formatRevenue(billingStatus.revenueLimit)}). All bundles have been deactivated. Upgrade your plan to reactivate them.`}
             </p>
           </Banner>
-        </div>
-      )}
-      {billingStatus?.isNearLimit && !billingStatus?.isOverLimit && (
-        <div style={{ marginBottom: "16px" }}>
+        )}
+        {billingStatus?.isNearLimit && !billingStatus?.isOverLimit && (
           <Banner
             title="Approaching revenue limit"
             tone="warning"
@@ -665,38 +605,196 @@ export default function BundleIndex() {
           >
             <p>
               You've used {billingStatus.usagePercent}% of your {billingStatus.currentPlan} plan
-              limit ({formatRevenue(billingStatus.monthlyRevenue)} / {formatRevenue(billingStatus.revenueLimit)}).
+              limit ({formatRevenue(billingStatus.monthlyRevenue)} /{" "}
+              {formatRevenue(billingStatus.revenueLimit)}).
               {billingStatus.currentPlan === "Free"
                 ? " Consider upgrading to a paid plan."
                 : " Consider upgrading to avoid interruptions."}
             </p>
           </Banner>
-        </div>
-      )}
-      {hasNoBundles ? (
-        emptyState
-      ) : (
-        <IndexTable
-          condensed={!smUp}
-          resourceName={{ singular: "bundle", plural: "bundles" }}
-          itemCount={totalCount}
-          selectedItemsCount={0}
-          onSelectionChange={() => {}}
-          headings={[
-            { title: "Name" },
-            { title: "Type" },
-            { title: "Condition" },
-            { title: "Details" },
-            { title: "Status" },
-            { title: "Actions" },
-          ]}
-          selectable={false}
-        >
-          {tieredRows}
-          {volumeRows}
-          {complementRows}
-        </IndexTable>
-      )}
+        )}
+
+        {/* Bundle type cards — always visible as creation shortcuts */}
+        <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+          <BundleTypeCard
+            icon={ProductIcon}
+            title="FBT / Combo"
+            badge="Popular"
+            badgeTone="success"
+            description="Recommend complementary products on the product page. Show a 'Frequently Bought Together' widget or combo deals with discounts on each item."
+            actionLabel="Create FBT bundle"
+            onAction={() => navigate("/app/complement/new")}
+            disabled={isOverLimit}
+          />
+          <BundleTypeCard
+            icon={OrderIcon}
+            title="Tiered Combo"
+            badge="BOGO"
+            badgeTone="info"
+            description="Set up 'Buy X Get Y' deals with multiple tiers. For example: Buy 1 Get 1, Buy 2 Get 3, Buy 3 Get 6 — great for increasing average order value."
+            actionLabel="Create tiered combo"
+            onAction={() => navigate("/app/tiers/new")}
+            disabled={isOverLimit}
+          />
+          <BundleTypeCard
+            icon={DiscountIcon}
+            title="Volume Discount"
+            badge="Qty"
+            badgeTone="warning"
+            description="Offer increasing discounts based on quantity. For example: 1 unit at full price, 2 units at 15% off, 3 units at 25% off — encourages bulk purchases."
+            actionLabel="Create volume discount"
+            onAction={() => navigate("/app/volume/new")}
+            disabled={isOverLimit}
+          />
+        </InlineGrid>
+
+        {/* Bundle lists */}
+        {hasNoBundles ? (
+          <Card>
+            <Box paddingBlock="800">
+              <BlockStack gap="200" inlineAlign="center">
+                <Text variant="headingMd" as="h2" alignment="center">
+                  No bundles yet
+                </Text>
+                <Text variant="bodySm" as="p" tone="subdued" alignment="center">
+                  Choose a bundle type above to create your first offer and start boosting sales.
+                </Text>
+              </BlockStack>
+            </Box>
+          </Card>
+        ) : (
+          <>
+            {/* FBT / Complement bundles */}
+            {complementBundles.length > 0 && (
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="200" blockAlign="center">
+                      <Text variant="headingSm" as="h2">
+                        FBT / Combo bundles
+                      </Text>
+                      <Badge tone="success">{String(complementBundles.length)}</Badge>
+                    </InlineStack>
+                    <Button
+                      onClick={() => navigate("/app/complement/new")}
+                      disabled={isOverLimit}
+                      size="slim"
+                    >
+                      Add
+                    </Button>
+                  </InlineStack>
+                  <Divider />
+                  <BlockStack gap="0">
+                    {complementBundles.map((bundle, i) => (
+                      <div key={`complement-${bundle.id}`}>
+                        <BundleRow
+                          name={bundle.name}
+                          active={bundle.active}
+                          badge={(bundle as any).mode === "combo" ? "Combo" : "FBT"}
+                          badgeTone={(bundle as any).mode === "combo" ? "success" : "magic"}
+                          condition={getComplementCondition(bundle)}
+                          detail={getComplementDetail(bundle.complements)}
+                          onEdit={() => navigate(`/app/complement/${bundle.id}`)}
+                          onToggle={() => handleToggle(bundle.id, "complement")}
+                          onDelete={() => handleDelete(bundle.id, "complement")}
+                          toggleDisabled={!bundle.active && isOverLimit}
+                        />
+                        {i < complementBundles.length - 1 && <Divider />}
+                      </div>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            )}
+
+            {/* Tiered bundles */}
+            {tieredBundles.length > 0 && (
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="200" blockAlign="center">
+                      <Text variant="headingSm" as="h2">
+                        Tiered combos
+                      </Text>
+                      <Badge tone="info">{String(tieredBundles.length)}</Badge>
+                    </InlineStack>
+                    <Button
+                      onClick={() => navigate("/app/tiers/new")}
+                      disabled={isOverLimit}
+                      size="slim"
+                    >
+                      Add
+                    </Button>
+                  </InlineStack>
+                  <Divider />
+                  <BlockStack gap="0">
+                    {tieredBundles.map((bundle, i) => (
+                      <div key={`tiered-${bundle.id}`}>
+                        <BundleRow
+                          name={bundle.name}
+                          active={bundle.active}
+                          badge="Tiered"
+                          badgeTone="info"
+                          condition={getTieredCondition(bundle)}
+                          detail={getTieredDetail(bundle.tiersConfig)}
+                          onEdit={() => navigate(`/app/tiers/${bundle.id}`)}
+                          onToggle={() => handleToggle(bundle.id, "tiered")}
+                          onDelete={() => handleDelete(bundle.id, "tiered")}
+                          toggleDisabled={!bundle.active && isOverLimit}
+                        />
+                        {i < tieredBundles.length - 1 && <Divider />}
+                      </div>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            )}
+
+            {/* Volume bundles */}
+            {volumeBundles.length > 0 && (
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="200" blockAlign="center">
+                      <Text variant="headingSm" as="h2">
+                        Volume discounts
+                      </Text>
+                      <Badge tone="warning">{String(volumeBundles.length)}</Badge>
+                    </InlineStack>
+                    <Button
+                      onClick={() => navigate("/app/volume/new")}
+                      disabled={isOverLimit}
+                      size="slim"
+                    >
+                      Add
+                    </Button>
+                  </InlineStack>
+                  <Divider />
+                  <BlockStack gap="0">
+                    {volumeBundles.map((bundle, i) => (
+                      <div key={`volume-${bundle.id}`}>
+                        <BundleRow
+                          name={bundle.name}
+                          active={bundle.active}
+                          badge="Volume"
+                          badgeTone="warning"
+                          condition={getVolumeCondition(bundle)}
+                          detail={getVolumeDetail(bundle.volumeTiers)}
+                          onEdit={() => navigate(`/app/volume/${bundle.id}`)}
+                          onToggle={() => handleToggle(bundle.id, "volume")}
+                          onDelete={() => handleDelete(bundle.id, "volume")}
+                          toggleDisabled={!bundle.active && isOverLimit}
+                        />
+                        {i < volumeBundles.length - 1 && <Divider />}
+                      </div>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            )}
+          </>
+        )}
+      </BlockStack>
     </Page>
   );
 }
