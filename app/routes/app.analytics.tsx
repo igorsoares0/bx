@@ -3,17 +3,26 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
-  Layout,
   Card,
   Text,
   BlockStack,
   InlineStack,
+  InlineGrid,
   ButtonGroup,
   Button,
-  EmptyState,
   Divider,
   Box,
+  Icon,
+  Badge,
 } from "@shopify/polaris";
+import {
+  ViewIcon,
+  CursorIcon,
+  CartIcon,
+  OrderIcon,
+  CashDollarIcon,
+  ChartVerticalIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
@@ -90,22 +99,84 @@ function formatCurrency(cents: number) {
   }).format(cents / 100);
 }
 
-function TypeBreakdown({ data }: { data: Record<string, number> }) {
-  const types = ["tiered", "volume", "complement"];
-  const labels: Record<string, string> = {
-    tiered: "Tiered",
-    volume: "Volume",
-    complement: "FBT/Combo",
-  };
+function calcRate(numerator: number, denominator: number): string {
+  if (denominator === 0) return "0%";
+  return `${((numerator / denominator) * 100).toFixed(1)}%`;
+}
 
+const TYPE_LABELS: Record<string, string> = {
+  tiered: "Tiered",
+  volume: "Volume",
+  complement: "FBT/Combo",
+};
+const TYPE_TONES: Record<string, "info" | "warning" | "success"> = {
+  tiered: "info",
+  volume: "warning",
+  complement: "success",
+};
+
+function TypeBreakdown({ data }: { data: Record<string, number> }) {
+  const types = ["tiered", "volume", "complement"] as const;
   return (
-    <InlineStack gap="400">
+    <InlineStack gap="200" wrap>
       {types.map((t) => (
-        <Text key={t} as="span" variant="bodySm" tone="subdued">
-          {labels[t]}: {data[t] || 0}
-        </Text>
+        <Badge key={t} tone={TYPE_TONES[t]} size="small">
+          {TYPE_LABELS[t]}: {data[t] || 0}
+        </Badge>
       ))}
     </InlineStack>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  icon,
+  breakdown,
+  rate,
+  rateLabel,
+}: {
+  title: string;
+  value: string;
+  icon: typeof ViewIcon;
+  breakdown?: Record<string, number>;
+  rate?: string;
+  rateLabel?: string;
+}) {
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center">
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "var(--p-color-bg-fill-secondary)",
+              }}
+            >
+              <Icon source={icon} tone="subdued" />
+            </div>
+            <Text as="h3" variant="headingSm" tone="subdued">
+              {title}
+            </Text>
+          </InlineStack>
+          {rate && (
+            <Text as="span" variant="bodySm" tone="subdued">
+              {rateLabel}: {rate}
+            </Text>
+          )}
+        </InlineStack>
+        <Text as="p" variant="headingXl">
+          {value}
+        </Text>
+        {breakdown && <TypeBreakdown data={breakdown} />}
+      </BlockStack>
+    </Card>
   );
 }
 
@@ -123,139 +194,120 @@ export default function AnalyticsPage() {
 
   const hasData = data.views > 0 || data.clicks > 0 || data.addToCarts > 0 || data.orders > 0;
 
+  const clickRate = calcRate(data.clicks, data.views);
+  const addToCartRate = calcRate(data.addToCarts, data.views);
+  const conversionRate = calcRate(data.orders, data.views);
+
   return (
     <Page title="Analytics">
-      <Layout>
-        <Layout.Section>
-          <InlineStack align="end">
-            <ButtonGroup>
-              <Button
-                pressed={currentDays === 7}
-                onClick={() => setDays(7)}
-              >
-                7 days
-              </Button>
-              <Button
-                pressed={currentDays === 30}
-                onClick={() => setDays(30)}
-              >
-                30 days
-              </Button>
-              <Button
-                pressed={currentDays === 90}
-                onClick={() => setDays(90)}
-              >
-                90 days
-              </Button>
-            </ButtonGroup>
-          </InlineStack>
-        </Layout.Section>
+      <BlockStack gap="400">
+        {/* Period selector */}
+        <InlineStack align="end">
+          <ButtonGroup variant="segmented">
+            <Button pressed={currentDays === 7} onClick={() => setDays(7)}>
+              7 days
+            </Button>
+            <Button pressed={currentDays === 30} onClick={() => setDays(30)}>
+              30 days
+            </Button>
+            <Button pressed={currentDays === 90} onClick={() => setDays(90)}>
+              90 days
+            </Button>
+          </ButtonGroup>
+        </InlineStack>
 
         {!hasData ? (
-          <Layout.Section>
-            <EmptyState
-              heading="No analytics data yet"
-              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-            >
-              <p>
-                Analytics data will appear here once customers start
-                viewing and interacting with your bundle widgets.
-              </p>
-            </EmptyState>
-          </Layout.Section>
+          <Card>
+            <Box paddingBlock="1000">
+              <BlockStack gap="300" inlineAlign="center">
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "var(--p-color-bg-fill-secondary)",
+                  }}
+                >
+                  <Icon source={ChartVerticalIcon} tone="subdued" />
+                </div>
+                <Text variant="headingMd" as="h2" alignment="center">
+                  No analytics data yet
+                </Text>
+                <Text variant="bodySm" as="p" tone="subdued" alignment="center">
+                  Data will appear here once customers start viewing and interacting
+                  with your bundle widgets on the storefront.
+                </Text>
+              </BlockStack>
+            </Box>
+          </Card>
         ) : (
           <>
-            <Layout.Section>
-              <InlineStack gap="400" wrap>
-                {/* 1. Views */}
-                <Box minWidth="180px" padding="0">
-                  <Card>
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm" tone="subdued">
-                        Bundle Views
-                      </Text>
-                      <Text as="p" variant="headingXl">
-                        {data.views.toLocaleString()}
-                      </Text>
-                      <TypeBreakdown data={data.viewsByType} />
-                    </BlockStack>
-                  </Card>
-                </Box>
+            {/* Engagement metrics */}
+            <BlockStack gap="200">
+              <Text variant="headingSm" as="h2" tone="subdued">
+                Engagement
+              </Text>
+              <InlineGrid columns={{ xs: 1, sm: 2, lg: 3 }} gap="400">
+                <MetricCard
+                  title="Views"
+                  value={data.views.toLocaleString()}
+                  icon={ViewIcon}
+                  breakdown={data.viewsByType}
+                />
+                <MetricCard
+                  title="Clicks"
+                  value={data.clicks.toLocaleString()}
+                  icon={CursorIcon}
+                  breakdown={data.clicksByType}
+                  rate={clickRate}
+                  rateLabel="CTR"
+                />
+                <MetricCard
+                  title="Added to Cart"
+                  value={data.addToCarts.toLocaleString()}
+                  icon={CartIcon}
+                  breakdown={data.addsByType}
+                  rate={addToCartRate}
+                  rateLabel="ATC rate"
+                />
+              </InlineGrid>
+            </BlockStack>
 
-                {/* 2. Clicks */}
-                <Box minWidth="180px" padding="0">
-                  <Card>
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm" tone="subdued">
-                        Bundle Clicks
-                      </Text>
-                      <Text as="p" variant="headingXl">
-                        {data.clicks.toLocaleString()}
-                      </Text>
-                      <TypeBreakdown data={data.clicksByType} />
-                    </BlockStack>
-                  </Card>
-                </Box>
+            {/* Conversion metrics */}
+            <BlockStack gap="200">
+              <Text variant="headingSm" as="h2" tone="subdued">
+                Conversions
+              </Text>
+              <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                <MetricCard
+                  title="Orders"
+                  value={data.orders.toLocaleString()}
+                  icon={OrderIcon}
+                  breakdown={data.ordersByType}
+                  rate={conversionRate}
+                  rateLabel="Conv. rate"
+                />
+                <MetricCard
+                  title="Revenue"
+                  value={formatCurrency(data.revenue)}
+                  icon={CashDollarIcon}
+                />
+              </InlineGrid>
+            </BlockStack>
 
-                {/* 3. Add to Cart */}
-                <Box minWidth="180px" padding="0">
-                  <Card>
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm" tone="subdued">
-                        Bundles Added to Cart
-                      </Text>
-                      <Text as="p" variant="headingXl">
-                        {data.addToCarts.toLocaleString()}
-                      </Text>
-                      <TypeBreakdown data={data.addsByType} />
-                    </BlockStack>
-                  </Card>
-                </Box>
-
-                {/* 4. Orders with Bundle */}
-                <Box minWidth="180px" padding="0">
-                  <Card>
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm" tone="subdued">
-                        Orders with Bundle
-                      </Text>
-                      <Text as="p" variant="headingXl">
-                        {data.orders.toLocaleString()}
-                      </Text>
-                      <TypeBreakdown data={data.ordersByType} />
-                    </BlockStack>
-                  </Card>
-                </Box>
-
-                {/* 5. Revenue */}
-                <Box minWidth="180px" padding="0">
-                  <Card>
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm" tone="subdued">
-                        Bundle Revenue
-                      </Text>
-                      <Text as="p" variant="headingXl">
-                        {formatCurrency(data.revenue)}
-                      </Text>
-                    </BlockStack>
-                  </Card>
-                </Box>
-              </InlineStack>
-            </Layout.Section>
-
-            <Layout.Section>
-              <Divider />
-              <Box paddingBlockStart="400">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Showing data for the last {currentDays} days. Views, clicks,
-                  and add-to-cart events are tracked from storefront widgets.
-                  Orders and revenue are tracked via Shopify webhooks.
-                </Text>
-              </Box>
-            </Layout.Section>
+            {/* Footer note */}
+            <Divider />
+            <Text as="p" variant="bodySm" tone="subdued">
+              Showing data for the last {currentDays} days. Views, clicks, and
+              add-to-cart events are tracked from storefront widgets. Orders and
+              revenue are tracked via Shopify webhooks.
+            </Text>
           </>
         )}
-      </Layout>
+      </BlockStack>
     </Page>
   );
 }
