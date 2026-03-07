@@ -7,7 +7,7 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
 import { authenticate } from "../shopify.server";
-import { getShopBillingStatus, deactivateAllBundles } from "../lib/billing.server";
+import { getShopBillingStatus, deactivateAllBundles, reactivateAllBundles } from "../lib/billing.server";
 import db from "../db.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
@@ -30,6 +30,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         await deactivateAllBundles(admin, session.shop);
       } catch (e) {
         console.error("Failed to deactivate bundles on page load:", e);
+      }
+    }
+  } else if (!billingStatus.isOverLimit && billingStatus.currentPlan !== "Free") {
+    // Reactivate bundles if user has a paid plan and is within limits (catches missed upgrade webhooks)
+    const inactiveCounts = await Promise.all([
+      db.tieredBundle.count({ where: { shopId: session.shop, active: false } }),
+      db.volumeBundle.count({ where: { shopId: session.shop, active: false } }),
+      db.complementBundle.count({ where: { shopId: session.shop, active: false } }),
+    ]);
+    if (inactiveCounts.some((c) => c > 0)) {
+      try {
+        await reactivateAllBundles(admin, session.shop);
+      } catch (e) {
+        console.error("Failed to reactivate bundles on page load:", e);
       }
     }
   }

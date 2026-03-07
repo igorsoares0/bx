@@ -3,8 +3,10 @@ import { authenticate, unauthenticated } from "../shopify.server";
 import { PAID_PLANS, FREE_PLAN, FREE_TIER_LIMIT } from "../lib/plans";
 import {
   deactivateAllBundles,
+  reactivateAllBundles,
   enforceRevenueLimits,
   getMonthlyBundleRevenue,
+  getPlanRevenueLimit,
   syncShopBilling,
 } from "../lib/billing.server";
 import { registerWebhookDelivery } from "../lib/webhook-idempotency.server";
@@ -71,6 +73,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } catch (e) {
         console.error(`Failed to handle ${status} for ${shop}:`, e);
       }
+    }
+  }
+
+  // After an upgrade, reactivate bundles if revenue is now within the new plan limit.
+  if (status === "ACTIVE" && hasActivePaidSubscription) {
+    try {
+      const monthlyRevenue = await getMonthlyBundleRevenue(shop);
+      const revenueLimit = getPlanRevenueLimit(syncedBilling.currentPlan);
+      if (revenueLimit === Infinity || monthlyRevenue < revenueLimit) {
+        console.log(`Subscription ACTIVE for ${shop} — revenue ${monthlyRevenue} within ${syncedBilling.currentPlan} limit, reactivating bundles`);
+        await reactivateAllBundles(admin, shop);
+      }
+    } catch (e) {
+      console.error(`Failed to reactivate bundles after upgrade for ${shop}:`, e);
     }
   }
 

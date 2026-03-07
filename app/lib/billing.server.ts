@@ -12,6 +12,9 @@ import {
   removeTieredBundleMetafield,
   removeVolumeBundleMetafield,
   removeComplementBundleMetafield,
+  setTieredBundleMetafield,
+  setVolumeBundleMetafield,
+  setComplementBundleMetafield,
   setShopTieredBundleMetafield,
   setShopVolumeBundleMetafield,
   setShopComplementBundleMetafield,
@@ -224,6 +227,120 @@ export async function deactivateAllBundles(admin: any, shopId: string) {
   ]).catch((e) => console.error("Failed to refresh shop-level metafields:", e));
 
   console.log(`Deactivated all bundles for shop ${shopId}: ${tieredBundles.length} tiered, ${volumeBundles.length} volume, ${complementBundles.length} complement`);
+}
+
+/**
+ * Reactivate all inactive bundles for a shop: set active=true, resume discounts,
+ * restore product metafields, refresh shop-level metafields.
+ */
+export async function reactivateAllBundles(admin: any, shopId: string) {
+  const [tieredBundles, volumeBundles, complementBundles] = await Promise.all([
+    db.tieredBundle.findMany({ where: { shopId, active: false } }),
+    db.volumeBundle.findMany({ where: { shopId, active: false } }),
+    db.complementBundle.findMany({ where: { shopId, active: false } }),
+  ]);
+
+  if (tieredBundles.length === 0 && volumeBundles.length === 0 && complementBundles.length === 0) {
+    return;
+  }
+
+  // Batch-activate all bundles in DB
+  await Promise.all([
+    db.tieredBundle.updateMany({ where: { shopId, active: false }, data: { active: true } }),
+    db.volumeBundle.updateMany({ where: { shopId, active: false }, data: { active: true } }),
+    db.complementBundle.updateMany({ where: { shopId, active: false }, data: { active: true } }),
+  ]);
+
+  const resumeDiscountMutation = `#graphql
+    mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+      discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+        userErrors { field message }
+      }
+    }`;
+
+  const ops: Promise<any>[] = [];
+  const now = new Date().toISOString();
+
+  for (const bundle of tieredBundles) {
+    if (bundle.discountId) {
+      ops.push(
+        admin.graphql(resumeDiscountMutation, {
+          variables: { id: bundle.discountId, automaticAppDiscount: { startsAt: now, endsAt: null } },
+        }).catch((e: any) => console.error(`Failed to resume tiered discount ${bundle.discountId}:`, e)),
+      );
+    }
+    if (bundle.triggerType === "product" || !bundle.triggerType) {
+      const productIds = parseProductIds(bundle.productId);
+      if (productIds.length > 0) {
+        let tiers: Array<{ buyQty: number; freeQty: number; discountPct: number }> = [];
+        try { tiers = JSON.parse(bundle.tiersConfig || "[]"); } catch {}
+        const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : null;
+        ops.push(
+          setTieredBundleMetafield(admin, { bundleId: bundle.id, productIds, bundleName: bundle.name, tiers, designConfig })
+            .catch((e: any) => console.error(`Failed to restore tiered metafield for bundle ${bundle.id}:`, e)),
+        );
+      }
+    }
+  }
+
+  for (const bundle of volumeBundles) {
+    if (bundle.discountId) {
+      ops.push(
+        admin.graphql(resumeDiscountMutation, {
+          variables: { id: bundle.discountId, automaticAppDiscount: { startsAt: now, endsAt: null } },
+        }).catch((e: any) => console.error(`Failed to resume volume discount ${bundle.discountId}:`, e)),
+      );
+    }
+    if (bundle.triggerType === "product" || !bundle.triggerType) {
+      const productIds = parseProductIds(bundle.productId);
+      if (productIds.length > 0) {
+        let volumeTiers: Array<{ label: string; qty: number; discountPct: number; popular: boolean }> = [];
+        try { volumeTiers = JSON.parse(bundle.volumeTiers || "[]"); } catch {}
+        const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : null;
+        ops.push(
+          setVolumeBundleMetafield(admin, { bundleId: bundle.id, productIds, bundleName: bundle.name, volumeTiers, designConfig })
+            .catch((e: any) => console.error(`Failed to restore volume metafield for bundle ${bundle.id}:`, e)),
+        );
+      }
+    }
+  }
+
+  for (const bundle of complementBundles) {
+    if (bundle.discountId) {
+      ops.push(
+        admin.graphql(resumeDiscountMutation, {
+          variables: { id: bundle.discountId, automaticAppDiscount: { startsAt: now, endsAt: null } },
+        }).catch((e: any) => console.error(`Failed to resume complement discount ${bundle.discountId}:`, e)),
+      );
+    }
+    if (bundle.triggerType === "product" && bundle.triggerReference) {
+      let complements: Array<any> = [];
+      try { complements = JSON.parse(bundle.complements || "[]"); } catch {}
+      const designConfig = bundle.designConfig ? JSON.parse(bundle.designConfig) : null;
+      ops.push(
+        setComplementBundleMetafield(admin, {
+          bundleId: bundle.id,
+          productId: bundle.triggerReference,
+          bundleName: bundle.name,
+          complements,
+          designConfig,
+          mode: bundle.mode || "fbt",
+          triggerDiscountPct: bundle.triggerDiscountPct || 0,
+        }).catch((e: any) => console.error(`Failed to restore complement metafield for bundle ${bundle.id}:`, e)),
+      );
+    }
+  }
+
+  await Promise.allSettled(ops);
+
+  // Refresh shop-level metafields
+  await Promise.all([
+    setShopTieredBundleMetafield(admin, shopId, db),
+    setShopVolumeBundleMetafield(admin, shopId, db),
+    setShopComplementBundleMetafield(admin, shopId, db),
+  ]).catch((e) => console.error("Failed to refresh shop-level metafields:", e));
+
+  console.log(`Reactivated all bundles for shop ${shopId}: ${tieredBundles.length} tiered, ${volumeBundles.length} volume, ${complementBundles.length} complement`);
 }
 
 /**
