@@ -215,6 +215,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // Use a dummy getProductId that will never match any real product so the
   // classic BXGY / tiered / volume paths are guaranteed to be no-ops.
   const functionConfig: Record<string, unknown> = {
+    title: name,
     buyType: triggerType === "product" ? "product" : triggerType,
     buyProductId: null,
     buyProductIds: triggerType === "collection" ? resolvedTriggerProductIds : null,

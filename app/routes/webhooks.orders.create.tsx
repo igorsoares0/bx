@@ -27,11 +27,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const { admin } = await unauthenticated.admin(shop);
     const trustedCatalog = await buildTrustedDiscountCatalog(admin, shop);
+    const discountApps = order?.discount_applications || [];
+    console.log(
+      `Order ${orderName} for ${shop}: catalog=${trustedCatalog.bundleByDiscountId.size} discounts, ` +
+      `${trustedCatalog.bundleByTitle.size} titles, order has ${discountApps.length} discount_applications, ` +
+      `${(order?.line_items || []).length} line_items`,
+    );
+    if (discountApps.length > 0) {
+      console.log(`Discount applications: ${JSON.stringify(discountApps.map((d: any) => ({ type: d.type, title: d.title })))}`);
+    }
+    if (trustedCatalog.bundleByTitle.size > 0) {
+      console.log(`Trusted titles: ${JSON.stringify([...trustedCatalog.bundleByTitle.keys()])}`);
+    }
+
     const {
       bundleRevenue,
       bundleType,
       bundleId,
     } = calculateBundleRevenueFromOrderPayload(order, trustedCatalog);
+
+    console.log(`Order ${orderName} bundle revenue: ${bundleRevenue} cents (type: ${bundleType}, id: ${bundleId})`);
 
     // Only record if trusted Shopify discount data identifies bundle revenue
     if (bundleRevenue > 0) {

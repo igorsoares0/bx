@@ -42,6 +42,7 @@ fn default_quantity() -> i32 { 1 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FunctionConfig {
+    title: Option<String>,
     buy_type: String,
     buy_product_id: Option<String>,
     buy_product_ids: Option<Vec<String>>,
@@ -202,11 +203,13 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
                     quantity: Some(*qty),
                 }));
             }
-            let msg = if is_combo {
-                format!("Combo {}% off", pct)
-            } else {
-                format!("FBT {}% off", pct)
-            };
+            let msg = config.title.clone().unwrap_or_else(|| {
+                if is_combo {
+                    format!("Combo {}% off", pct)
+                } else {
+                    format!("FBT {}% off", pct)
+                }
+            });
             discounts.push(schema::Discount {
                 message: Some(msg),
                 targets,
@@ -292,7 +295,7 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         }
 
         let discount = schema::Discount {
-            message: Some("Volume Discount".to_string()),
+            message: Some(config.title.clone().unwrap_or_else(|| "Volume Discount".to_string())),
             targets,
             value: schema::Value::Percentage(schema::Percentage {
                 value: shopify_function::scalars::Decimal(tier.discount_pct),
@@ -474,7 +477,7 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
     };
 
     let discount = schema::Discount {
-        message: Some("BXGY Bundle Discount".to_string()),
+        message: Some(config.title.clone().unwrap_or_else(|| "BXGY Bundle Discount".to_string())),
         targets,
         value,
     };

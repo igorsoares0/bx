@@ -145,9 +145,25 @@ function findTrustedBundleForLineItem(
     if (appTitle) {
       const bundleByTitle = catalog.bundleByTitle.get(appTitle);
       if (bundleByTitle) return bundleByTitle;
+
+      // Fallback: match legacy hardcoded function messages from bundles
+      // that don't have `title` in their metafield config yet
+      const legacyType = getLegacyBundleType(appTitle);
+      if (legacyType) {
+        for (const b of catalog.bundleByDiscountId.values()) {
+          if (b.bundleType === legacyType) return b;
+        }
+      }
     }
   }
 
+  return null;
+}
+
+function getLegacyBundleType(title: string): BundleType | null {
+  if (title === "Volume Discount") return "volume";
+  if (title === "BXGY Bundle Discount") return "tiered";
+  if (/^(FBT|Combo) [\d.]+% off$/.test(title)) return "complement";
   return null;
 }
 
@@ -158,7 +174,7 @@ export function calculateBundleRevenueFromOrderPayload(
   const discountApplications = order?.discount_applications || [];
   const lineItems = order?.line_items || [];
 
-  let bundleRevenue = 0;
+  // First pass: detect if any line item has a trusted bundle discount
   let bundleType: string | null = null;
   let bundleId: number | null = null;
 
@@ -168,13 +184,24 @@ export function calculateBundleRevenueFromOrderPayload(
       discountApplications,
       catalog,
     );
-    if (!trustedBundle) continue;
-
-    bundleRevenue += getLineNetRevenueCents(lineItem);
-    if (!bundleType) {
+    if (trustedBundle) {
       bundleType = trustedBundle.bundleType;
       bundleId = trustedBundle.bundleId;
+      break;
     }
+  }
+
+  if (!bundleType) {
+    return { bundleRevenue: 0, bundleType: null, bundleId: null };
+  }
+
+  // Second pass: sum net revenue of ALL line items in the order.
+  // For BXGY/tiered, "buy" items don't have discount allocations but are
+  // part of the bundle deal. For FBT, the trigger product has no allocation
+  // either. Counting all items ensures the full bundle revenue is tracked.
+  let bundleRevenue = 0;
+  for (const lineItem of lineItems) {
+    bundleRevenue += getLineNetRevenueCents(lineItem);
   }
 
   return { bundleRevenue, bundleType, bundleId };
