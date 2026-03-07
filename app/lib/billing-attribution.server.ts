@@ -52,6 +52,8 @@ async function getKnownBundleDiscounts(shopId: string): Promise<BundleDiscountMe
   ];
 }
 
+const DISCOUNT_BATCH_SIZE = 25;
+
 export async function buildTrustedDiscountCatalog(
   admin: any,
   shopId: string,
@@ -66,33 +68,35 @@ export async function buildTrustedDiscountCatalog(
     return { bundleByDiscountId, bundleByTitle };
   }
 
+  const discountIds = [...bundleByDiscountId.keys()];
+
   try {
-    for (const knownDiscountId of bundleByDiscountId.keys()) {
-      const response = await admin.graphql(
-        `#graphql
-          query getKnownDiscount($id: ID!) {
-            discountNode(id: $id) {
-              discount {
-                ... on DiscountAutomaticApp {
-                  discountId
-                  title
-                }
-              }
-            }
-          }`,
-        { variables: { id: knownDiscountId } },
-      );
+    // Batch discount lookups using aliased queries (1 HTTP request per batch)
+    for (let i = 0; i < discountIds.length; i += DISCOUNT_BATCH_SIZE) {
+      const batch = discountIds.slice(i, i + DISCOUNT_BATCH_SIZE);
 
+      // Build a single query with aliases: d0, d1, d2, ...
+      const fields = batch
+        .map(
+          (id, idx) =>
+            `d${idx}: discountNode(id: "${id}") { discount { ... on DiscountAutomaticApp { discountId title } } }`,
+        )
+        .join("\n");
+
+      const response = await admin.graphql(`#graphql\nquery {\n${fields}\n}`);
       const data = await response.json();
-      const discount = data?.data?.discountNode?.discount;
-      const discountId = discount?.discountId;
-      const title = discount?.title;
-      if (!discountId || !title) continue;
 
-      const bundle = bundleByDiscountId.get(discountId);
-      if (!bundle) continue;
-      if (!bundleByTitle.has(title)) {
-        bundleByTitle.set(title, bundle);
+      for (let idx = 0; idx < batch.length; idx++) {
+        const discount = data?.data?.[`d${idx}`]?.discount;
+        const discountId = discount?.discountId;
+        const title = discount?.title;
+        if (!discountId || !title) continue;
+
+        const bundle = bundleByDiscountId.get(discountId);
+        if (!bundle) continue;
+        if (!bundleByTitle.has(title)) {
+          bundleByTitle.set(title, bundle);
+        }
       }
     }
   } catch (e) {

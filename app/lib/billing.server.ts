@@ -65,16 +65,34 @@ export type BillingStatus = {
   subscriptionId: string | null;
   isTrialing: boolean;
   monthlyRevenue: number;    // cents
-  revenueLimit: number;      // cents
+  revenueLimit: number;      // cents, -1 = unlimited (Infinity not JSON-safe)
   usagePercent: number;      // 0–100+
   isOverLimit: boolean;
   isNearLimit: boolean;      // ≥80%
+  isUnlimited: boolean;
 };
+
+const SYNC_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Sync billing status from Shopify GraphQL to the ShopBilling table.
+ * Uses a 5-minute TTL cache: returns the DB record without a GraphQL call
+ * if it was synced recently. Pass `force: true` to always query Shopify
+ * (e.g. from subscription webhooks where freshness matters).
  */
-export async function syncShopBilling(admin: any, shopId: string) {
+export async function syncShopBilling(
+  admin: any,
+  shopId: string,
+  { force = false }: { force?: boolean } = {},
+) {
+  // Check if we have a recent sync in DB
+  if (!force) {
+    const cached = await db.shopBilling.findUnique({ where: { shopId } });
+    if (cached && Date.now() - cached.lastSyncedAt.getTime() < SYNC_TTL_MS) {
+      return cached;
+    }
+  }
+
   let currentPlan = FREE_PLAN;
   let subscriptionId: string | null = null;
   let subscriptionStatus: string | null = null;
@@ -344,7 +362,8 @@ export async function reactivateAllBundles(admin: any, shopId: string) {
 }
 
 /**
- * Check revenue vs plan limit and deactivate all bundles if over limit.
+ * Check revenue vs plan limit: deactivate bundles if over limit,
+ * reactivate if revenue dropped back under limit.
  * Uses ShopBilling DB record for plan info.
  */
 export async function enforceRevenueLimits(admin: any, shopId: string) {
@@ -357,6 +376,17 @@ export async function enforceRevenueLimits(admin: any, shopId: string) {
   if (revenueLimit !== Infinity && monthlyRevenue >= revenueLimit) {
     console.log(`Shop ${shopId} over limit: ${monthlyRevenue} >= ${revenueLimit} (plan: ${billing.currentPlan})`);
     await deactivateAllBundles(admin, shopId);
+  } else if (revenueLimit === Infinity || monthlyRevenue < revenueLimit) {
+    // Revenue dropped back under limit (e.g. after refund/cancellation) — reactivate
+    const inactiveCounts = await Promise.all([
+      db.tieredBundle.count({ where: { shopId, active: false } }),
+      db.volumeBundle.count({ where: { shopId, active: false } }),
+      db.complementBundle.count({ where: { shopId, active: false } }),
+    ]);
+    if (inactiveCounts.some((c) => c > 0)) {
+      console.log(`Shop ${shopId} back under limit: ${monthlyRevenue} < ${revenueLimit} (plan: ${billing.currentPlan}), reactivating bundles`);
+      await reactivateAllBundles(admin, shopId);
+    }
   }
 }
 
@@ -376,8 +406,10 @@ export async function getShopBillingStatus(
   const isTrialing = billing?.isTrialing ?? false;
 
   const monthlyRevenue = await getMonthlyBundleRevenue(shopId);
-  const revenueLimit = getPlanRevenueLimit(currentPlan);
-  const usagePercent = revenueLimit === Infinity ? 0 : revenueLimit > 0
+  const rawLimit = getPlanRevenueLimit(currentPlan);
+  const isUnlimited = rawLimit === Infinity;
+  const revenueLimit = isUnlimited ? -1 : rawLimit;
+  const usagePercent = isUnlimited ? 0 : revenueLimit > 0
     ? Math.round((monthlyRevenue / revenueLimit) * 100)
     : 100;
 
@@ -388,7 +420,8 @@ export async function getShopBillingStatus(
     monthlyRevenue,
     revenueLimit,
     usagePercent,
-    isOverLimit: revenueLimit !== Infinity && monthlyRevenue >= revenueLimit,
-    isNearLimit: revenueLimit !== Infinity && usagePercent >= 80 && monthlyRevenue < revenueLimit,
+    isOverLimit: !isUnlimited && monthlyRevenue >= revenueLimit,
+    isNearLimit: !isUnlimited && usagePercent >= 80 && monthlyRevenue < revenueLimit,
+    isUnlimited,
   };
 }

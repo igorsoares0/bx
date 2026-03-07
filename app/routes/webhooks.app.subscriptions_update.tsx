@@ -39,7 +39,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     ({ admin } = await unauthenticated.admin(shop));
     // Source of truth for downgrade/upgrade decisions comes from current active subscriptions.
-    syncedBilling = await syncShopBilling(admin, shop);
+    syncedBilling = await syncShopBilling(admin, shop, { force: true });
   } catch (e) {
     console.error(`Failed to sync billing before processing subscription update for ${shop}:`, e);
     return new Response();

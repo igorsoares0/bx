@@ -48,42 +48,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  // Ensure shop has the app_url metafield for storefront analytics
-  const appUrl = process.env.SHOPIFY_APP_URL || "";
-  if (appUrl) {
-    try {
-      const shopRes = await admin.graphql(
-        `#graphql
-          query { shop { id } }`,
-      );
-      const shopData = await shopRes.json();
-      const shopGid = shopData?.data?.shop?.id;
-      if (shopGid) {
-        await admin.graphql(
-          `#graphql
-            mutation setAppUrl($metafields: [MetafieldsSetInput!]!) {
-              metafieldsSet(metafields: $metafields) {
-                userErrors { field message }
-              }
-            }`,
-          {
-            variables: {
-              metafields: [{
-                namespace: "bxgy_bundle",
-                key: "app_url",
-                type: "single_line_text_field",
-                value: appUrl,
-                ownerId: shopGid,
-              }],
-            },
-          },
-        );
-      }
-    } catch (e) {
-      console.error("Failed to set app_url metafield:", e);
-    }
-  }
-
   return json({
     apiKey: process.env.SHOPIFY_API_KEY || "",
     billingStatus,

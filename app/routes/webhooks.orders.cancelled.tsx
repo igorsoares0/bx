@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 import db from "../db.server";
+import { enforceRevenueLimits } from "../lib/billing.server";
 import { registerWebhookDelivery } from "../lib/webhook-idempotency.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -26,6 +27,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         data: { bundleRevenue: 0 },
       });
       console.log(`Zeroed bundleRevenue for cancelled order ${orderId} (was ${existing.bundleRevenue})`);
+
+      // Revenue decreased — check if bundles should be reactivated
+      try {
+        const { admin } = await unauthenticated.admin(shop);
+        await enforceRevenueLimits(admin, shop);
+      } catch (e) {
+        console.error(`Failed to enforce revenue limits after cancellation for ${shop}:`, e);
+      }
     }
   } catch (e) {
     console.error("orders/cancelled webhook error:", e);

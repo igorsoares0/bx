@@ -108,10 +108,10 @@ export default function BillingPage() {
 
   const revenueFormatted = formatCurrency(billingStatus.monthlyRevenue);
   const isOnFreePlan = billingStatus.currentPlan === FREE_PLAN;
-  const limitFormatted = billingStatus.revenueLimit === Infinity
+  const limitFormatted = billingStatus.isUnlimited
     ? "Unlimited"
     : formatCurrency(billingStatus.revenueLimit);
-  const progressValue = billingStatus.revenueLimit === Infinity
+  const progressValue = billingStatus.isUnlimited
     ? 0
     : Math.min(billingStatus.usagePercent, 100);
 
@@ -177,7 +177,7 @@ export default function BillingPage() {
                   </Text>
                 </InlineStack>
 
-                {billingStatus.revenueLimit !== Infinity && (
+                {!billingStatus.isUnlimited && (
                   <ProgressBar
                     progress={progressValue}
                     tone={
@@ -192,7 +192,7 @@ export default function BillingPage() {
                 )}
 
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {billingStatus.revenueLimit === Infinity
+                  {billingStatus.isUnlimited
                     ? "Your plan has no revenue limit."
                     : `${billingStatus.usagePercent}% of your plan limit used this billing period.`}
                 </Text>

@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate, unauthenticated } from "../shopify.server";
 import db from "../db.server";
+import { enforceRevenueLimits } from "../lib/billing.server";
 import {
   buildTrustedDiscountCatalog,
   getTrustedOrderLineItemIds,
@@ -73,6 +74,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         data: { bundleRevenue: newRevenue },
       });
       console.log(`Reduced bundleRevenue for order ${orderId} by ${refundedBundleAmount} (${bundleOrder.bundleRevenue} → ${newRevenue})`);
+
+      // Revenue decreased — check if bundles should be reactivated
+      try {
+        await enforceRevenueLimits(admin, shop);
+      } catch (e) {
+        console.error(`Failed to enforce revenue limits after refund for ${shop}:`, e);
+      }
     }
   } catch (e) {
     console.error("refunds/create webhook error:", e);
