@@ -127,7 +127,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const newActive = !bundle.active;
         await db.tieredBundle.update({
           where: { id: bundleId },
-          data: { active: newActive },
+          data: { active: newActive, deactivatedByBilling: false },
         });
 
         if (bundle.discountId) {
@@ -216,7 +216,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const newActive = !bundle.active;
         await db.volumeBundle.update({
           where: { id: bundleId },
-          data: { active: newActive },
+          data: { active: newActive, deactivatedByBilling: false },
         });
 
         if (bundle.discountId) {
@@ -304,7 +304,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const newActive = !bundle.active;
         await db.complementBundle.update({
           where: { id: bundleId },
-          data: { active: newActive },
+          data: { active: newActive, deactivatedByBilling: false },
         });
 
         if (bundle.discountId) {

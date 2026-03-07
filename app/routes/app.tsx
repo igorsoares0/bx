@@ -33,11 +33,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
   } else if (!billingStatus.isOverLimit && billingStatus.currentPlan !== "Free") {
-    // Reactivate bundles if user has a paid plan and is within limits (catches missed upgrade webhooks)
+    // Reactivate billing-deactivated bundles if user has a paid plan and is within limits
+    const billingFilter = { shopId: session.shop, active: false, deactivatedByBilling: true };
     const inactiveCounts = await Promise.all([
-      db.tieredBundle.count({ where: { shopId: session.shop, active: false } }),
-      db.volumeBundle.count({ where: { shopId: session.shop, active: false } }),
-      db.complementBundle.count({ where: { shopId: session.shop, active: false } }),
+      db.tieredBundle.count({ where: billingFilter }),
+      db.volumeBundle.count({ where: billingFilter }),
+      db.complementBundle.count({ where: billingFilter }),
     ]);
     if (inactiveCounts.some((c) => c > 0)) {
       try {

@@ -166,11 +166,11 @@ export async function deactivateAllBundles(admin: any, shopId: string) {
     db.complementBundle.findMany({ where: { shopId, active: true } }),
   ]);
 
-  // Batch-deactivate all bundles in DB (3 queries instead of N)
+  // Batch-deactivate all bundles in DB and mark as billing-deactivated
   await Promise.all([
-    db.tieredBundle.updateMany({ where: { shopId, active: true }, data: { active: false } }),
-    db.volumeBundle.updateMany({ where: { shopId, active: true }, data: { active: false } }),
-    db.complementBundle.updateMany({ where: { shopId, active: true }, data: { active: false } }),
+    db.tieredBundle.updateMany({ where: { shopId, active: true }, data: { active: false, deactivatedByBilling: true } }),
+    db.volumeBundle.updateMany({ where: { shopId, active: true }, data: { active: false, deactivatedByBilling: true } }),
+    db.complementBundle.updateMany({ where: { shopId, active: true }, data: { active: false, deactivatedByBilling: true } }),
   ]);
 
   const now = new Date().toISOString();
@@ -252,21 +252,24 @@ export async function deactivateAllBundles(admin: any, shopId: string) {
  * restore product metafields, refresh shop-level metafields.
  */
 export async function reactivateAllBundles(admin: any, shopId: string) {
+  // Only reactivate bundles that were deactivated by the billing system,
+  // not ones the user manually turned off.
+  const billingFilter = { shopId, active: false, deactivatedByBilling: true };
   const [tieredBundles, volumeBundles, complementBundles] = await Promise.all([
-    db.tieredBundle.findMany({ where: { shopId, active: false } }),
-    db.volumeBundle.findMany({ where: { shopId, active: false } }),
-    db.complementBundle.findMany({ where: { shopId, active: false } }),
+    db.tieredBundle.findMany({ where: billingFilter }),
+    db.volumeBundle.findMany({ where: billingFilter }),
+    db.complementBundle.findMany({ where: billingFilter }),
   ]);
 
   if (tieredBundles.length === 0 && volumeBundles.length === 0 && complementBundles.length === 0) {
     return;
   }
 
-  // Batch-activate all bundles in DB
+  // Batch-activate and clear the billing flag
   await Promise.all([
-    db.tieredBundle.updateMany({ where: { shopId, active: false }, data: { active: true } }),
-    db.volumeBundle.updateMany({ where: { shopId, active: false }, data: { active: true } }),
-    db.complementBundle.updateMany({ where: { shopId, active: false }, data: { active: true } }),
+    db.tieredBundle.updateMany({ where: billingFilter, data: { active: true, deactivatedByBilling: false } }),
+    db.volumeBundle.updateMany({ where: billingFilter, data: { active: true, deactivatedByBilling: false } }),
+    db.complementBundle.updateMany({ where: billingFilter, data: { active: true, deactivatedByBilling: false } }),
   ]);
 
   const resumeDiscountMutation = `#graphql
@@ -377,11 +380,12 @@ export async function enforceRevenueLimits(admin: any, shopId: string) {
     console.log(`Shop ${shopId} over limit: ${monthlyRevenue} >= ${revenueLimit} (plan: ${billing.currentPlan})`);
     await deactivateAllBundles(admin, shopId);
   } else if (revenueLimit === Infinity || monthlyRevenue < revenueLimit) {
-    // Revenue dropped back under limit (e.g. after refund/cancellation) — reactivate
+    // Revenue dropped back under limit (e.g. after refund/cancellation) — reactivate billing-deactivated bundles only
+    const billingFilter = { shopId, active: false, deactivatedByBilling: true };
     const inactiveCounts = await Promise.all([
-      db.tieredBundle.count({ where: { shopId, active: false } }),
-      db.volumeBundle.count({ where: { shopId, active: false } }),
-      db.complementBundle.count({ where: { shopId, active: false } }),
+      db.tieredBundle.count({ where: billingFilter }),
+      db.volumeBundle.count({ where: billingFilter }),
+      db.complementBundle.count({ where: billingFilter }),
     ]);
     if (inactiveCounts.some((c) => c > 0)) {
       console.log(`Shop ${shopId} back under limit: ${monthlyRevenue} < ${revenueLimit} (plan: ${billing.currentPlan}), reactivating bundles`);
