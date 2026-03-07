@@ -216,6 +216,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // classic BXGY / tiered / volume paths are guaranteed to be no-ops.
   const functionConfig: Record<string, unknown> = {
     title: name,
+    bundleType: "complement",
     buyType: triggerType === "product" ? "product" : triggerType,
     buyProductId: null,
     buyProductIds: triggerType === "collection" ? resolvedTriggerProductIds : null,

@@ -43,6 +43,7 @@ fn default_quantity() -> i32 { 1 }
 #[serde(rename_all = "camelCase")]
 struct FunctionConfig {
     title: Option<String>,
+    bundle_type: Option<String>,
     buy_type: String,
     buy_product_id: Option<String>,
     buy_product_ids: Option<Vec<String>>,
@@ -59,6 +60,28 @@ struct FunctionConfig {
     trigger_product_id: Option<String>,
     mode: Option<String>,
     trigger_discount_pct: Option<f64>,
+}
+
+/// Check if a cart line's _bxapp_bundle_type attribute matches the discount's bundle_type.
+/// Returns true if:
+/// - The cart line has no bundle_type attribute (backwards compat: items added without widget)
+/// - The cart line's bundle_type matches the config's bundle_type
+/// Returns false if:
+/// - The cart line has a different bundle_type (e.g. line is "volume" but discount is "tiered")
+fn line_matches_bundle_type(
+    line: &schema::run::run_input::cart::Lines,
+    config_bundle_type: Option<&str>,
+) -> bool {
+    let line_type = line.bundle_type().and_then(|a| {
+        a.value().and_then(|v| {
+            if v.is_empty() { None } else { Some(v.as_str()) }
+        })
+    });
+    match (line_type, config_bundle_type) {
+        (None, _) => true,                           // no attribute → allow (backwards compat)
+        (Some(_), None) => true,                     // no config type → allow (old discounts)
+        (Some(lt), Some(ct)) => lt == ct,            // both set → must match
+    }
 }
 
 #[shopify_function]
@@ -141,6 +164,9 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         // In combo mode, check if at least one complement product is in the cart
         let has_complement_in_cart = if is_combo {
             input.cart().lines().iter().any(|line| {
+                if !line_matches_bundle_type(line, config.bundle_type.as_deref()) {
+                    return false;
+                }
                 if let Merchandise::ProductVariant(variant) = line.merchandise() {
                     complement_map.contains_key(&variant.product().id().to_string())
                 } else {
@@ -155,6 +181,9 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         // Use the configured quantity as the max units to discount per complement
         let mut groups: std::collections::HashMap<i64, Vec<(String, i32)>> = std::collections::HashMap::new();
         for line in input.cart().lines() {
+            if !line_matches_bundle_type(line, config.bundle_type.as_deref()) {
+                continue;
+            }
             if let Merchandise::ProductVariant(variant) = line.merchandise() {
                 let product_id = variant.product().id().to_string();
 
@@ -236,6 +265,9 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
         let buy_all = config.buy_type.as_str() == "all";
 
         for line in input.cart().lines() {
+            if !line_matches_bundle_type(line, config.bundle_type.as_deref()) {
+                continue;
+            }
             if let Merchandise::ProductVariant(variant) = line.merchandise() {
                 let product_id = variant.product().id();
                 let matches = if buy_all {
@@ -315,6 +347,9 @@ fn run(input: schema::run::RunInput) -> Result<schema::FunctionRunResult> {
     let mut get_targets: Vec<(String, i32)> = Vec::new();
 
     for line in input.cart().lines() {
+        if !line_matches_bundle_type(line, config.bundle_type.as_deref()) {
+            continue;
+        }
         if let Merchandise::ProductVariant(variant) = line.merchandise() {
             let product_id = variant.product().id();
 

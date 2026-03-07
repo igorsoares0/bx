@@ -3,6 +3,12 @@ query RunInput {
     lines {
       id
       quantity
+      bundleType: attribute(key: "_bxapp_bundle_type") {
+        value
+      }
+      bundleId: attribute(key: "_bxapp_bundle_id") {
+        value
+      }
       merchandise {
         __typename
         ... on ProductVariant {

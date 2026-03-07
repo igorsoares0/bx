@@ -240,6 +240,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // Build function config — use buy_product_ids for volume path
   const functionConfig = {
     title: name,
+    bundleType: "volume",
     buyType: triggerType === "all" ? "all" : "product",
     buyProductId: resolvedProductIds[0] || "",
     buyProductIds: resolvedProductIds,

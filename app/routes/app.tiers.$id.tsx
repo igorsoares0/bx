@@ -242,6 +242,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // Function configuration
   const functionConfig: Record<string, unknown> = {
     title: name,
+    bundleType: "tiered",
     buyType: triggerType,
     buyProductId: productIds[0] || null,
     buyProductIds: triggerType === "product" ? productIds : resolvedProductIds,
