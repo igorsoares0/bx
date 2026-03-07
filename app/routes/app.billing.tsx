@@ -25,7 +25,8 @@ import {
   PLAN_PRICES,
   PLAN_DESCRIPTIONS,
 } from "../lib/plans";
-import { getShopBillingStatus, deactivateAllBundles } from "../lib/billing.server";
+import { getShopBillingStatus, deactivateAllBundles, getMonthlyBundleRevenue, getPlanRevenueLimit } from "../lib/billing.server";
+import { FREE_TIER_LIMIT } from "../lib/plans";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -60,11 +61,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       isTest: process.env.NODE_ENV !== "production",
       prorate: true,
     });
-    // Deactivate all bundles immediately — don't rely solely on the webhook
+    // Only deactivate bundles if revenue exceeds the Free tier limit.
+    // After cancelling, the shop falls back to the Free plan.
     try {
-      await deactivateAllBundles(admin, session.shop);
+      const monthlyRevenue = await getMonthlyBundleRevenue(session.shop);
+      if (monthlyRevenue >= FREE_TIER_LIMIT) {
+        await deactivateAllBundles(admin, session.shop);
+      }
     } catch (e) {
-      console.error("Failed to deactivate bundles after cancellation:", e);
+      console.error("Failed to check/deactivate bundles after cancellation:", e);
     }
     return json({ ok: true });
   }

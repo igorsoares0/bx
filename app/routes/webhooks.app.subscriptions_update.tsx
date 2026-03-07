@@ -1,9 +1,10 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate, unauthenticated } from "../shopify.server";
-import { PAID_PLANS, FREE_PLAN } from "../lib/plans";
+import { PAID_PLANS, FREE_PLAN, FREE_TIER_LIMIT } from "../lib/plans";
 import {
   deactivateAllBundles,
   enforceRevenueLimits,
+  getMonthlyBundleRevenue,
   syncShopBilling,
 } from "../lib/billing.server";
 import { registerWebhookDelivery } from "../lib/webhook-idempotency.server";
@@ -58,9 +59,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (hasActivePaidSubscription) {
       console.log(`Subscription ${status} for ${shop} but active paid plan exists — skipping deactivation (plan switch)`);
     } else {
+      // Only deactivate if revenue exceeds Free tier — shop falls back to Free plan
       try {
-        console.log(`Subscription ${status} for ${shop} — deactivating all bundles`);
-        await deactivateAllBundles(admin, shop);
+        const monthlyRevenue = await getMonthlyBundleRevenue(shop);
+        if (monthlyRevenue >= FREE_TIER_LIMIT) {
+          console.log(`Subscription ${status} for ${shop} — revenue ${monthlyRevenue} >= Free limit ${FREE_TIER_LIMIT}, deactivating bundles`);
+          await deactivateAllBundles(admin, shop);
+        } else {
+          console.log(`Subscription ${status} for ${shop} — revenue ${monthlyRevenue} within Free tier, keeping bundles active`);
+        }
       } catch (e) {
         console.error(`Failed to handle ${status} for ${shop}:`, e);
       }

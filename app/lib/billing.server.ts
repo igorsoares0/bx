@@ -245,79 +245,18 @@ export async function enforceRevenueLimits(admin: any, shopId: string) {
 
 /**
  * Get comprehensive billing status for a shop.
- * Uses GraphQL to query active subscriptions and syncs to ShopBilling DB.
+ * Delegates to syncShopBilling for the GraphQL query and DB sync,
+ * then computes revenue metrics on top.
  */
 export async function getShopBillingStatus(
   admin: any,
   shopId: string,
 ): Promise<BillingStatus> {
-  let currentPlan: string | null = null;
-  let subscriptionId: string | null = null;
-  let isTrialing = false;
+  const billing = await syncShopBilling(admin, shopId);
 
-  try {
-    const response = await admin.graphql(
-      `#graphql
-        query {
-          currentAppInstallation {
-            activeSubscriptions {
-              id
-              name
-              status
-              test
-              trialDays
-              createdAt
-            }
-          }
-        }`,
-    );
-    const data = await response.json();
-    const subs = data?.data?.currentAppInstallation?.activeSubscriptions || [];
-
-    if (subs.length > 0) {
-      const sub = subs[0];
-      if (PAID_PLANS.includes(sub.name as any)) {
-        currentPlan = sub.name;
-        subscriptionId = sub.id;
-        if (sub.trialDays > 0 && sub.createdAt) {
-          const trialEndsAt = new Date(sub.createdAt);
-          trialEndsAt.setDate(trialEndsAt.getDate() + sub.trialDays);
-          isTrialing = sub.status === "ACTIVE" && new Date() < trialEndsAt;
-        }
-      }
-    }
-  } catch (e) {
-    console.error("Failed to fetch billing status:", e);
-  }
-
-  // Shops without a paid plan get the Free tier
-  if (!currentPlan) {
-    currentPlan = FREE_PLAN;
-  }
-
-  // Passive sync to ShopBilling table
-  try {
-    await db.shopBilling.upsert({
-      where: { shopId },
-      create: {
-        shopId,
-        currentPlan,
-        subscriptionId,
-        subscriptionStatus: subscriptionId ? "ACTIVE" : null,
-        isTrialing,
-        lastSyncedAt: new Date(),
-      },
-      update: {
-        currentPlan,
-        subscriptionId,
-        subscriptionStatus: subscriptionId ? "ACTIVE" : null,
-        isTrialing,
-        lastSyncedAt: new Date(),
-      },
-    });
-  } catch (e) {
-    console.error("Failed to sync ShopBilling:", e);
-  }
+  const currentPlan = billing?.currentPlan ?? FREE_PLAN;
+  const subscriptionId = billing?.subscriptionId ?? null;
+  const isTrialing = billing?.isTrialing ?? false;
 
   const monthlyRevenue = await getMonthlyBundleRevenue(shopId);
   const revenueLimit = getPlanRevenueLimit(currentPlan);
