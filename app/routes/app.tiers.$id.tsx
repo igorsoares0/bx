@@ -60,6 +60,8 @@ const DEFAULT_DESIGN = {
   selectedTierBg: "",
   buttonBorderRadius: 8,
   shadowIntensity: "none",
+  // Native button
+  useNativeButton: false,
 };
 
 type TierConfig = { buyQty: number; freeQty: number; discountPct: number };
@@ -920,6 +922,13 @@ export default function TieredBundleForm() {
                     onChange={(v) => updateDesign("buttonText", v)}
                     autoComplete="off"
                     placeholder="e.g. Add Bundle to Cart"
+                    disabled={design.useNativeButton}
+                  />
+                  <Checkbox
+                    label="Use theme's native Add to Cart button"
+                    helpText="Hides the bundle button. The theme's native buttons (Add to Cart, Buy it Now) will automatically use the selected bundle quantity."
+                    checked={design.useNativeButton === true}
+                    onChange={(v) => updateDesign("useNativeButton", v)}
                   />
                 </FormLayout>
 
@@ -1198,9 +1207,11 @@ export default function TieredBundleForm() {
 
 
                 {/* Button */}
+                {!design.useNativeButton && (
                 <div style={{ width: "100%", padding: "12px 16px", fontSize: "14px", fontWeight: 700, border: "none", borderRadius: `${design.buttonBorderRadius}px`, background: design.buttonColor, color: design.buttonTextColor, textAlign: "center", cursor: "default" }}>
                   {design.buttonText}
                 </div>
+                )}
                 <div style={{ textAlign: "center", fontSize: "10px", color: "#888", marginTop: "8px" }}>
                   Discount applied automatically at checkout
                 </div>

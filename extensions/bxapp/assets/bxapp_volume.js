@@ -129,7 +129,73 @@ Object.keys(dataMap).forEach(function(widgetId){
     fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(cart){document.querySelectorAll('.cart-count-bubble span, .cart-count, [data-cart-count], .js-cart-count, #cart-icon-bubble span').forEach(function(el){el.textContent=cart.item_count;});}).catch(function(){});
   }
 
-  addBtn.addEventListener('click',function(){
+  // ── Native button mode: intercept theme's add-to-cart form ──
+  if(D.useNativeButton){
+    var nativeForm=document.querySelector('form[action*="/cart/add"]');
+    if(nativeForm){
+      var bxVolProps={'_bxapp_bundle_type':'volume','_bxapp_bundle_id':String(_t.bundleId||'')};
+
+      function getVolQty(){
+        var r=widget.querySelector('[data-bxgy-vol-tier="'+selectedTier+'"]');
+        return r?parseInt(r.getAttribute('data-vol-qty'),10)||1:1;
+      }
+
+      // Ensure quantity input exists in the form
+      function ensureQtyInput(){
+        var inp=nativeForm.querySelector('input[name="quantity"]');
+        if(!inp){inp=document.createElement('input');inp.type='hidden';inp.name='quantity';nativeForm.appendChild(inp);}
+        return inp;
+      }
+
+      function syncNativeQty(){
+        var inp=ensureQtyInput();
+        inp.value=getVolQty();
+      }
+
+      // Inject hidden property inputs into the form (picked up by FormData)
+      function injectProps(){
+        nativeForm.querySelectorAll('input[name^="properties[_bxapp_"]').forEach(function(el){el.remove();});
+        Object.keys(bxVolProps).forEach(function(k){
+          var h=document.createElement('input');h.type='hidden';h.name='properties['+k+']';h.value=bxVolProps[k];
+          nativeForm.appendChild(h);
+        });
+      }
+
+      // Patch selectTier to sync native qty on every selection change
+      var origSelectTier=selectTier;
+      selectTier=function(index){origSelectTier(index);syncNativeQty();};
+      syncNativeQty();
+      injectProps();
+
+      // Capture-phase submit handler — runs before theme JS
+      nativeForm.addEventListener('submit',function(){
+        syncNativeQty();injectProps();
+        bxTrack(_t,'add_to_cart','volume',_t.bundleId,_t.productId);
+      },true);
+
+      // Intercept fetch — handles both JSON body and FormData body (Dawn/OS2 themes)
+      var origFetch=window.fetch;
+      window.fetch=function(url,opts){
+        if(typeof url==='string'&&url.indexOf('/cart/add')!==-1&&opts&&opts.body){
+          var qty=getVolQty();
+          try{
+            if(typeof opts.body==='string'){
+              var body=JSON.parse(opts.body);
+              if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxVolProps);});}
+              else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxVolProps);}
+              opts=Object.assign({},opts,{body:JSON.stringify(body)});
+            }else if(opts.body instanceof FormData){
+              opts.body.set('quantity',String(qty));
+              Object.keys(bxVolProps).forEach(function(k){opts.body.set('properties['+k+']',bxVolProps[k]);});
+            }
+          }catch(ex){}
+        }
+        return origFetch.call(window,url,opts);
+      };
+    }
+  }
+
+  if(addBtn)addBtn.addEventListener('click',function(){
     if(addBtn.disabled)return;
     var selectedRow=widget.querySelector('[data-bxgy-vol-tier="'+selectedTier+'"]');if(!selectedRow)return;
     var qty=parseInt(selectedRow.getAttribute('data-vol-qty'),10);var items=[];

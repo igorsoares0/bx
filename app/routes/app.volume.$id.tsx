@@ -62,6 +62,8 @@ const DEFAULT_DESIGN = {
   shadowIntensity: "none",
   // Pricing
   showPriceSummary: true,
+  // Native button
+  useNativeButton: false,
 };
 
 type VolumeTier = { label: string; qty: number; discountPct: number; popular: boolean };
@@ -914,6 +916,13 @@ export default function VolumeBundleForm() {
                     onChange={(v) => updateDesign("buttonText", v)}
                     autoComplete="off"
                     placeholder="e.g. Add to Cart"
+                    disabled={design.useNativeButton}
+                  />
+                  <Checkbox
+                    label="Use theme's native Add to Cart button"
+                    helpText="Hides the bundle button. The theme's native buttons (Add to Cart, Buy it Now) will automatically use the selected bundle quantity."
+                    checked={design.useNativeButton === true}
+                    onChange={(v) => updateDesign("useNativeButton", v)}
                   />
                 </FormLayout>
 
@@ -1220,9 +1229,11 @@ export default function VolumeBundleForm() {
                 </div>
 
                 {/* Button */}
+                {!design.useNativeButton && (
                 <div style={{ width: "100%", padding: "12px 16px", fontSize: "14px", fontWeight: 700, border: "none", borderRadius: `${design.buttonBorderRadius}px`, background: design.buttonColor, color: design.buttonTextColor, textAlign: "center", cursor: "default" }}>
                   {design.buttonText}
                 </div>
+                )}
                 <div style={{ textAlign: "center", fontSize: "10px", color: "#888", marginTop: "8px" }}>
                   Discount applied automatically at checkout
                 </div>

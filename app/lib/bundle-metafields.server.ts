@@ -163,6 +163,7 @@ function buildTieredEntry(
     designSelectedTierBg: designConfig?.selectedTierBg ?? "",
     designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
+    useNativeButton: designConfig?.useNativeButton ?? false,
   };
 }
 
@@ -244,6 +245,7 @@ export async function setShopTieredBundleMetafield(
       designSelectedTierBg: designConfig?.selectedTierBg ?? "",
       designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
+      useNativeButton: designConfig?.useNativeButton ?? false,
     });
   }
 
@@ -325,6 +327,7 @@ function buildVolumeEntry(
     designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
     designShowPriceSummary: designConfig?.showPriceSummary ?? true,
+    useNativeButton: designConfig?.useNativeButton ?? false,
   };
 }
 
@@ -407,6 +410,7 @@ export async function setShopVolumeBundleMetafield(
       designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
       designShowPriceSummary: designConfig?.showPriceSummary ?? true,
+      useNativeButton: designConfig?.useNativeButton ?? false,
     });
   }
 
