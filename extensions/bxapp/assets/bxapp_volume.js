@@ -140,7 +140,6 @@ Object.keys(dataMap).forEach(function(widgetId){
         return r?parseInt(r.getAttribute('data-vol-qty'),10)||1:1;
       }
 
-      // Ensure quantity input exists in the form
       function ensureQtyInput(){
         var inp=nativeForm.querySelector('input[name="quantity"]');
         if(!inp){inp=document.createElement('input');inp.type='hidden';inp.name='quantity';nativeForm.appendChild(inp);}
@@ -152,7 +151,6 @@ Object.keys(dataMap).forEach(function(widgetId){
         inp.value=getVolQty();
       }
 
-      // Inject hidden property inputs into the form (picked up by FormData)
       function injectProps(){
         nativeForm.querySelectorAll('input[name^="properties[_bxapp_"]').forEach(function(el){el.remove();});
         Object.keys(bxVolProps).forEach(function(k){
@@ -161,32 +159,41 @@ Object.keys(dataMap).forEach(function(widgetId){
         });
       }
 
-      // Patch selectTier to sync native qty on every selection change
-      var origSelectTier=selectTier;
-      selectTier=function(index){origSelectTier(index);syncNativeQty();};
-      syncNativeQty();
-      injectProps();
+      // Use a shared flag so only the last-interacted bundle controls the native form
+      window.__bxappNativeOwner=window.__bxappNativeOwner||null;
+      function claimNative(){window.__bxappNativeOwner='volume_'+widgetId;syncNativeQty();injectProps();}
 
-      // Capture-phase submit handler — runs before theme JS
+      // Claim on any tier click
+      var origSelectTier=selectTier;
+      selectTier=function(index){origSelectTier(index);claimNative();};
+      // Initial claim (last widget to init wins by default)
+      claimNative();
+
       nativeForm.addEventListener('submit',function(){
-        syncNativeQty();injectProps();
-        bxTrack(_t,'add_to_cart','volume',_t.bundleId,_t.productId);
+        if(window.__bxappNativeOwner==='volume_'+widgetId){syncNativeQty();injectProps();bxTrack(_t,'add_to_cart','volume',_t.bundleId,_t.productId);}
       },true);
 
-      // Intercept fetch — handles both JSON body and FormData body (Dawn/OS2 themes)
+      // Intercept fetch — only if this bundle owns the native form
       var origFetch=window.fetch;
       window.fetch=function(url,opts){
-        if(typeof url==='string'&&url.indexOf('/cart/add')!==-1&&opts&&opts.body){
+        if(typeof url==='string'&&url.indexOf('/cart/add')!==-1&&opts&&opts.body&&window.__bxappNativeOwner==='volume_'+widgetId){
           var qty=getVolQty();
           try{
             if(typeof opts.body==='string'){
               var body=JSON.parse(opts.body);
-              if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxVolProps);});}
-              else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxVolProps);}
-              opts=Object.assign({},opts,{body:JSON.stringify(body)});
+              var already=false;
+              if(body.items){body.items.forEach(function(item){if(item.properties&&item.properties._bxapp_bundle_type)already=true;});}
+              else if(body.properties&&body.properties._bxapp_bundle_type)already=true;
+              if(!already){
+                if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxVolProps);});}
+                else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxVolProps);}
+                opts=Object.assign({},opts,{body:JSON.stringify(body)});
+              }
             }else if(opts.body instanceof FormData){
-              opts.body.set('quantity',String(qty));
-              Object.keys(bxVolProps).forEach(function(k){opts.body.set('properties['+k+']',bxVolProps[k]);});
+              if(!opts.body.get('properties[_bxapp_bundle_type]')){
+                opts.body.set('quantity',String(qty));
+                Object.keys(bxVolProps).forEach(function(k){opts.body.set('properties['+k+']',bxVolProps[k]);});
+              }
             }
           }catch(ex){}
         }

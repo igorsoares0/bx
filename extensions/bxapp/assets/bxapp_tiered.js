@@ -166,30 +166,39 @@ Object.keys(dataMap).forEach(function(widgetId){
         });
       }
 
+      // Use a shared flag so only the last-interacted bundle controls the native form
+      window.__bxappNativeOwner=window.__bxappNativeOwner||null;
+      function claimNative(){window.__bxappNativeOwner='tiered_'+widgetId;syncNativeQty();injectProps();}
+
       var origSelectTier=selectTier;
-      selectTier=function(index){origSelectTier(index);syncNativeQty();};
-      syncNativeQty();
-      injectProps();
+      selectTier=function(index){origSelectTier(index);claimNative();};
+      claimNative();
 
       nativeForm.addEventListener('submit',function(){
-        syncNativeQty();injectProps();
-        bxTrack(_t,'add_to_cart','tiered',_t.bundleId,_t.productId);
+        if(window.__bxappNativeOwner==='tiered_'+widgetId){syncNativeQty();injectProps();bxTrack(_t,'add_to_cart','tiered',_t.bundleId,_t.productId);}
       },true);
 
-      // Intercept fetch — handles both JSON body and FormData body (Dawn/OS2 themes)
+      // Intercept fetch — only if this bundle owns the native form
       var origFetch=window.fetch;
       window.fetch=function(url,opts){
-        if(typeof url==='string'&&url.indexOf('/cart/add')!==-1&&opts&&opts.body){
+        if(typeof url==='string'&&url.indexOf('/cart/add')!==-1&&opts&&opts.body&&window.__bxappNativeOwner==='tiered_'+widgetId){
           var qty=getTierQty();
           try{
             if(typeof opts.body==='string'){
               var body=JSON.parse(opts.body);
-              if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxTierProps);});}
-              else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxTierProps);}
-              opts=Object.assign({},opts,{body:JSON.stringify(body)});
+              var already=false;
+              if(body.items){body.items.forEach(function(item){if(item.properties&&item.properties._bxapp_bundle_type)already=true;});}
+              else if(body.properties&&body.properties._bxapp_bundle_type)already=true;
+              if(!already){
+                if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxTierProps);});}
+                else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxTierProps);}
+                opts=Object.assign({},opts,{body:JSON.stringify(body)});
+              }
             }else if(opts.body instanceof FormData){
-              opts.body.set('quantity',String(qty));
-              Object.keys(bxTierProps).forEach(function(k){opts.body.set('properties['+k+']',bxTierProps[k]);});
+              if(!opts.body.get('properties[_bxapp_bundle_type]')){
+                opts.body.set('quantity',String(qty));
+                Object.keys(bxTierProps).forEach(function(k){opts.body.set('properties['+k+']',bxTierProps[k]);});
+              }
             }
           }catch(ex){}
         }
