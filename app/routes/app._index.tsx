@@ -131,6 +131,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
 
         if (bundle.discountId) {
+          const now = new Date().toISOString();
           await admin.graphql(
             `#graphql
               mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
@@ -141,10 +142,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             {
               variables: {
                 id: bundle.discountId,
-                automaticAppDiscount: {
-                  startsAt: newActive ? new Date().toISOString() : null,
-                  endsAt: newActive ? null : new Date().toISOString(),
-                },
+                automaticAppDiscount: newActive
+                  ? { startsAt: now, endsAt: null }
+                  : { endsAt: now },
               },
             },
           );
@@ -220,6 +220,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
 
         if (bundle.discountId) {
+          const now = new Date().toISOString();
           await admin.graphql(
             `#graphql
               mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
@@ -230,10 +231,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             {
               variables: {
                 id: bundle.discountId,
-                automaticAppDiscount: {
-                  startsAt: newActive ? new Date().toISOString() : null,
-                  endsAt: newActive ? null : new Date().toISOString(),
-                },
+                automaticAppDiscount: newActive
+                  ? { startsAt: now, endsAt: null }
+                  : { endsAt: now },
               },
             },
           );
@@ -308,6 +308,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
 
         if (bundle.discountId) {
+          const now = new Date().toISOString();
           await admin.graphql(
             `#graphql
               mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
@@ -318,10 +319,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             {
               variables: {
                 id: bundle.discountId,
-                automaticAppDiscount: {
-                  startsAt: newActive ? new Date().toISOString() : null,
-                  endsAt: newActive ? null : new Date().toISOString(),
-                },
+                automaticAppDiscount: newActive
+                  ? { startsAt: now, endsAt: null }
+                  : { endsAt: now },
               },
             },
           );
