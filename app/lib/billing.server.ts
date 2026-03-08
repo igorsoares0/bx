@@ -132,7 +132,10 @@ export async function syncShopBilling(
     }
   } catch (e) {
     console.error("Failed to sync billing status:", e);
-    return null;
+    // Return stale cached record instead of null to avoid incorrectly
+    // treating a paid shop as Free when GraphQL is temporarily down.
+    const stale = await db.shopBilling.findUnique({ where: { shopId } });
+    return stale;
   }
 
   return db.shopBilling.upsert({
