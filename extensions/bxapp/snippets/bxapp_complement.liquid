@@ -635,6 +635,7 @@ window.__bxappComp['{{ bxapp_widget_id }}']={
   compProducts:{
     {% for comp in complements %}{% assign ch = comp.handle %}{% assign cp = all_products[ch] %}{% if cp != blank and cp.variants.size > 1 %}{{ ch | json }}:{options:[{% for option in cp.options_with_values %}{name:{{ option.name | json }},values:[{% for val in option.values %}{{ val | json }}{% unless forloop.last %},{% endunless %}{% endfor %}]}{% unless forloop.last %},{% endunless %}{% endfor %}],variants:[{% for v in cp.variants %}{id:'{{ v.id }}',price:{{ v.price }},available:{{ v.available | json }},options:[{{ v.option1 | json }},{{ v.option2 | json }},{{ v.option3 | json }}]}{% unless forloop.last %},{% endunless %}{% endfor %}]}{% unless forloop.last %},{% endunless %}{% endif %}{% endfor %}
   },
+  buttonAction:{{ fbt_data.buttonAction | default: "cart" | json }},
   _track:{shop:{{ shop.permanent_domain | json }},bundleId:{{ fbt_data.bundleId | json }},productId:{{ product.id | prepend: 'gid://shopify/Product/' | json }}}
 };
 </script>

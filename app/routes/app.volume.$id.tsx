@@ -64,6 +64,8 @@ const DEFAULT_DESIGN = {
   showPriceSummary: true,
   // Native button
   useNativeButton: false,
+  // Button action
+  buttonAction: "cart",
 };
 
 type VolumeTier = { label: string; qty: number; discountPct: number; popular: boolean };
@@ -924,6 +926,17 @@ export default function VolumeBundleForm() {
                     checked={design.useNativeButton === true}
                     onChange={(v) => updateDesign("useNativeButton", v)}
                   />
+                  {!design.useNativeButton && (
+                    <Select
+                      label="Button action"
+                      options={[
+                        { label: "Add to cart", value: "cart" },
+                        { label: "Go to checkout", value: "checkout" },
+                      ]}
+                      value={design.buttonAction || "cart"}
+                      onChange={(v) => updateDesign("buttonAction", v)}
+                    />
+                  )}
                 </FormLayout>
 
                 {/* Layout & Spacing */}

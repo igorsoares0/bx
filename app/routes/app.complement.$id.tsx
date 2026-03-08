@@ -61,6 +61,8 @@ const DEFAULT_DESIGN = {
   shadowIntensity: "none",
   // Pricing
   showPriceSummary: true,
+  // Button action
+  buttonAction: "cart",
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -1028,6 +1030,15 @@ export default function ComplementBundleForm() {
                     autoComplete="off"
                     placeholder={mode === "combo" ? "Complete the Combo" : "Add All to Cart"}
                     helpText="Leave empty for default"
+                  />
+                  <Select
+                    label="Button action"
+                    options={[
+                      { label: "Add to cart", value: "cart" },
+                      { label: "Go to checkout", value: "checkout" },
+                    ]}
+                    value={design.buttonAction || "cart"}
+                    onChange={(v) => updateDesign("buttonAction", v)}
                   />
                 </FormLayout>
 

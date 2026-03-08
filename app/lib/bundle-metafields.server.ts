@@ -164,6 +164,7 @@ function buildTieredEntry(
     designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
     useNativeButton: designConfig?.useNativeButton ?? false,
+    buttonAction: designConfig?.buttonAction ?? "cart",
   };
 }
 
@@ -246,6 +247,7 @@ export async function setShopTieredBundleMetafield(
       designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
       useNativeButton: designConfig?.useNativeButton ?? false,
+      buttonAction: designConfig?.buttonAction ?? "cart",
     });
   }
 
@@ -328,6 +330,7 @@ function buildVolumeEntry(
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
     designShowPriceSummary: designConfig?.showPriceSummary ?? true,
     useNativeButton: designConfig?.useNativeButton ?? false,
+    buttonAction: designConfig?.buttonAction ?? "cart",
   };
 }
 
@@ -411,6 +414,7 @@ export async function setShopVolumeBundleMetafield(
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
       designShowPriceSummary: designConfig?.showPriceSummary ?? true,
       useNativeButton: designConfig?.useNativeButton ?? false,
+      buttonAction: designConfig?.buttonAction ?? "cart",
     });
   }
 
@@ -557,6 +561,7 @@ export async function setComplementBundleMetafield(
     designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
     designShowPriceSummary: designConfig?.showPriceSummary ?? true,
+    buttonAction: designConfig?.buttonAction ?? "cart",
   };
 
   await upsertMetafieldArrayEntry(admin, productId, "bxgy_bundle", "complement_config", bundleId, entry);
@@ -620,6 +625,7 @@ export async function setShopComplementBundleMetafield(
       designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
       designShowPriceSummary: designConfig?.showPriceSummary ?? true,
+      buttonAction: designConfig?.buttonAction ?? "cart",
     });
   }
 

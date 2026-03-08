@@ -219,7 +219,7 @@ Object.keys(dataMap).forEach(function(widgetId){
     addBtn.disabled=true;addBtn.classList.add('bxgy-tiers__add-btn--loading');feedbackEl.className='bxgy-tiers__feedback';
     fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
     .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed to add to cart');});return r.json();})
-    .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('success','Bundle added to cart!');bxTrack(_t,'add_to_cart','tiered',_t.bundleId,_t.productId);refreshCart();})
+    .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');bxTrack(_t,'add_to_cart','tiered',_t.bundleId,_t.productId);if(D.buttonAction==='checkout'){window.location.href='/checkout';}else{showFeedback('success','Bundle added to cart!');refreshCart();}})
     .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('error',err.message||'Something went wrong. Please try again.');});
   });
 
