@@ -32,10 +32,16 @@ function checkRateLimit(shop: string): boolean {
   return true;
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 /**
  * Public endpoint for storefront widgets to send analytics events.
  * POST /api/analytics
- * Body: { shop, eventType, bundleType, bundleId?, productId? }
+ * Body (JSON as text/plain): { shop, eventType, bundleType, bundleId?, productId? }
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -43,18 +49,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const body = await request.json();
+    const raw = await request.text();
+    const body = JSON.parse(raw);
     const { shop, eventType, bundleType, bundleId, productId } = body;
 
     if (!shop || !eventType || !bundleType) {
-      return json({ error: "Missing required fields" }, { status: 400 });
+      return json({ error: "Missing required fields" }, {
+        status: 400,
+        headers: CORS_HEADERS,
+      });
     }
 
     const validEvents = ["view", "click", "add_to_cart"];
     const validTypes = ["tiered", "volume", "complement"];
 
     if (!validEvents.includes(eventType) || !validTypes.includes(bundleType)) {
-      return json({ error: "Invalid eventType or bundleType" }, { status: 400 });
+      return json({ error: "Invalid eventType or bundleType" }, {
+        status: 400,
+        headers: CORS_HEADERS,
+      });
     }
 
     // Validate shop exists in our DB
@@ -62,7 +75,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!session) {
       return json({ error: "Unknown shop" }, {
         status: 403,
-        headers: { "Access-Control-Allow-Origin": "*" },
+        headers: CORS_HEADERS,
       });
     }
 
@@ -70,10 +83,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!checkRateLimit(shop)) {
       return json({ error: "Too many requests" }, {
         status: 429,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Retry-After": "60",
-        },
+        headers: { ...CORS_HEADERS, "Retry-After": "60" },
       });
     }
 
@@ -87,29 +97,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    return json({ ok: true }, {
-      headers: { "Access-Control-Allow-Origin": "*" },
-    });
+    return json({ ok: true }, { headers: CORS_HEADERS });
   } catch (e) {
     console.error("Analytics event error:", e);
     return json({ error: "Internal error" }, {
       status: 500,
-      headers: { "Access-Control-Allow-Origin": "*" },
+      headers: CORS_HEADERS,
     });
   }
 };
 
-// Allow CORS from any storefront origin
-export const loader = async ({ request }: { request: Request }) => {
-  if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      },
-    });
-  }
-  return json({ error: "Use POST" }, { status: 405 });
+// GET requests return 405
+export const loader = async () => {
+  return json({ error: "Use POST" }, { status: 405, headers: CORS_HEADERS });
 };

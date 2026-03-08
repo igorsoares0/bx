@@ -496,7 +496,7 @@ window.__bxappVolume['{{ bxapp_widget_id }}']={
   allVariants:[{% for variant in product.variants %}{id:'{{ variant.id }}',price:{{ variant.price }},available:{{ variant.available | json }},title:{{ variant.title | json }},options:[{{ variant.option1 | json }},{{ variant.option2 | json }},{{ variant.option3 | json }}]}{% unless forloop.last %},{% endunless %}{% endfor %}],
   useNativeButton:{{ use_native_btn | json }},
   buttonAction:{{ bundle_data.buttonAction | default: "cart" | json }},
-  _track:{shop:{{ shop.permanent_domain | json }},bundleId:{{ bundle_data.bundleId | json }},productId:{{ product.id | prepend: 'gid://shopify/Product/' | json }}}
+  _track:{shop:{{ shop.permanent_domain | json }},bundleId:{{ bundle_data.bundleId | json }},productId:{{ product.id | prepend: 'gid://shopify/Product/' | json }},apiBase:{{ bundle_data.appUrl | default: '' | json }}}
 };
 </script>
 <script src="{{ 'bxapp_volume.js' | asset_url }}" defer></script>

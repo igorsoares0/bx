@@ -127,6 +127,8 @@ async function getShopGid(admin: any): Promise<string | null> {
   return json.data?.shop?.id || null;
 }
 
+const APP_URL = process.env.SHOPIFY_APP_URL || "";
+
 // ─── Tiered Bundle ───
 
 function buildTieredEntry(
@@ -139,6 +141,7 @@ function buildTieredEntry(
     bundleId,
     bundleName,
     tiers,
+    appUrl: APP_URL,
     designAccentColor: designConfig?.accentColor ?? null,
     designBackgroundColor: designConfig?.backgroundColor ?? null,
     designTextColor: designConfig?.textColor ?? null,
@@ -222,6 +225,7 @@ export async function setShopTieredBundleMetafield(
       triggerReference: bundle.triggerReference,
       bundleName: bundle.name,
       tiers,
+      appUrl: APP_URL,
       designAccentColor: designConfig?.accentColor ?? null,
       designBackgroundColor: designConfig?.backgroundColor ?? null,
       designTextColor: designConfig?.textColor ?? null,
@@ -304,6 +308,7 @@ function buildVolumeEntry(
     bundleId,
     bundleName,
     volumeTiers,
+    appUrl: APP_URL,
     designAccentColor: designConfig?.accentColor ?? null,
     designBackgroundColor: designConfig?.backgroundColor ?? null,
     designTextColor: designConfig?.textColor ?? null,
@@ -388,6 +393,7 @@ export async function setShopVolumeBundleMetafield(
       triggerReference: bundle.triggerReference,
       bundleName: bundle.name,
       volumeTiers,
+      appUrl: APP_URL,
       designAccentColor: designConfig?.accentColor ?? null,
       designBackgroundColor: designConfig?.backgroundColor ?? null,
       designTextColor: designConfig?.textColor ?? null,
@@ -542,6 +548,7 @@ export async function setComplementBundleMetafield(
     complements: enrichedComplements,
     mode: mode || "fbt",
     triggerDiscountPct: triggerDiscountPct || 0,
+    appUrl: APP_URL,
     designAccentColor: designConfig?.accentColor ?? null,
     designBackgroundColor: designConfig?.backgroundColor ?? null,
     designTextColor: designConfig?.textColor ?? null,
@@ -606,6 +613,7 @@ export async function setShopComplementBundleMetafield(
       complements,
       mode: bundle.mode || "fbt",
       triggerDiscountPct: bundle.triggerDiscountPct || 0,
+      appUrl: APP_URL,
       designAccentColor: designConfig?.accentColor ?? null,
       designBackgroundColor: designConfig?.backgroundColor ?? null,
       designTextColor: designConfig?.textColor ?? null,
