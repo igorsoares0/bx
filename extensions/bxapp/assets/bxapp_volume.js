@@ -109,7 +109,6 @@ Object.keys(dataMap).forEach(function(widgetId){
 
   function selectTier(index){
     selectedTier=index;rows.forEach(function(row){var idx=parseInt(row.getAttribute('data-bxgy-vol-tier'),10);row.classList.toggle('bxgy-volume__row--selected',idx===index);});
-    bxTrack(_t,'click','volume',_t.bundleId,_t.productId);
     updateTierVariantsVisibility();updateVolumePrices();
   }
   rows.forEach(function(row){row.addEventListener('click',function(){selectTier(parseInt(row.getAttribute('data-bxgy-vol-tier'),10));});});
@@ -170,7 +169,7 @@ Object.keys(dataMap).forEach(function(widgetId){
       claimNative();
 
       nativeForm.addEventListener('submit',function(){
-        if(window.__bxappNativeOwner==='volume_'+widgetId){syncNativeQty();injectProps();bxTrack(_t,'add_to_cart','volume',_t.bundleId,_t.productId);}
+        if(window.__bxappNativeOwner==='volume_'+widgetId){syncNativeQty();injectProps();}
       },true);
 
       // Intercept fetch — only if this bundle owns the native form
@@ -218,7 +217,7 @@ Object.keys(dataMap).forEach(function(widgetId){
     addBtn.disabled=true;addBtn.classList.add('bxgy-volume__add-btn--loading');feedbackEl.className='bxgy-volume__feedback';
     fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
     .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed to add to cart');});return r.json();})
-    .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');bxTrack(_t,'add_to_cart','volume',_t.bundleId,_t.productId);if(D.buttonAction==='checkout'){window.location.href='/checkout';}else{showFeedback('success','Added to cart!');refreshCart();}})
+    .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');if(D.buttonAction==='checkout'){window.location.href='/checkout';}else{showFeedback('success','Added to cart!');refreshCart();}})
     .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');showFeedback('error',err.message||'Something went wrong. Please try again.');});
   });
 

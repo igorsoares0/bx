@@ -17,8 +17,6 @@ import {
 } from "@shopify/polaris";
 import {
   ViewIcon,
-  CursorIcon,
-  CartIcon,
   OrderIcon,
   CashDollarIcon,
   ChartVerticalIcon,
@@ -33,15 +31,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
-  const [views, clicks, addToCarts, orders, revenueAgg] = await Promise.all([
+  const [views, orders, revenueAgg] = await Promise.all([
     db.bundleEvent.count({
       where: { shopId: session.shop, eventType: "view", createdAt: { gte: since } },
-    }),
-    db.bundleEvent.count({
-      where: { shopId: session.shop, eventType: "click", createdAt: { gte: since } },
-    }),
-    db.bundleEvent.count({
-      where: { shopId: session.shop, eventType: "add_to_cart", createdAt: { gte: since } },
     }),
     db.bundleOrder.count({
       where: { shopId: session.shop, createdAt: { gte: since } },
@@ -55,20 +47,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const revenue = revenueAgg._sum.bundleRevenue || 0;
 
   // Breakdown by bundle type
-  const [viewsByType, clicksByType, addsByType, ordersByType] = await Promise.all([
+  const [viewsByType, ordersByType] = await Promise.all([
     db.bundleEvent.groupBy({
       by: ["bundleType"],
       where: { shopId: session.shop, eventType: "view", createdAt: { gte: since } },
-      _count: true,
-    }),
-    db.bundleEvent.groupBy({
-      by: ["bundleType"],
-      where: { shopId: session.shop, eventType: "click", createdAt: { gte: since } },
-      _count: true,
-    }),
-    db.bundleEvent.groupBy({
-      by: ["bundleType"],
-      where: { shopId: session.shop, eventType: "add_to_cart", createdAt: { gte: since } },
       _count: true,
     }),
     db.bundleOrder.groupBy({
@@ -81,13 +63,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({
     days,
     views,
-    clicks,
-    addToCarts,
     orders,
     revenue,
     viewsByType: Object.fromEntries(viewsByType.map((v) => [v.bundleType, v._count])),
-    clicksByType: Object.fromEntries(clicksByType.map((v) => [v.bundleType, v._count])),
-    addsByType: Object.fromEntries(addsByType.map((v) => [v.bundleType, v._count])),
     ordersByType: Object.fromEntries(ordersByType.map((v) => [v.bundleType, v._count])),
   });
 };
@@ -192,10 +170,8 @@ export default function AnalyticsPage() {
     navigate(`/app/analytics?${params.toString()}`);
   };
 
-  const hasData = data.views > 0 || data.clicks > 0 || data.addToCarts > 0 || data.orders > 0;
+  const hasData = data.views > 0 || data.orders > 0;
 
-  const clickRate = calcRate(data.clicks, data.views);
-  const addToCartRate = calcRate(data.addToCarts, data.views);
   const conversionRate = calcRate(data.orders, data.views);
 
   return (
@@ -237,73 +213,42 @@ export default function AnalyticsPage() {
                   No analytics data yet
                 </Text>
                 <Text variant="bodySm" as="p" tone="subdued" alignment="center">
-                  Data will appear here once customers start viewing and interacting
-                  with your bundle widgets on the storefront.
+                  Data will appear here once customers start viewing your
+                  bundle widgets on the storefront.
                 </Text>
               </BlockStack>
             </Box>
           </Card>
         ) : (
           <>
-            {/* Engagement metrics */}
-            <BlockStack gap="200">
-              <Text variant="headingSm" as="h2" tone="subdued">
-                Engagement
-              </Text>
-              <InlineGrid columns={{ xs: 1, sm: 2, lg: 3 }} gap="400">
-                <MetricCard
-                  title="Views"
-                  value={data.views.toLocaleString()}
-                  icon={ViewIcon}
-                  breakdown={data.viewsByType}
-                />
-                <MetricCard
-                  title="Clicks"
-                  value={data.clicks.toLocaleString()}
-                  icon={CursorIcon}
-                  breakdown={data.clicksByType}
-                  rate={clickRate}
-                  rateLabel="CTR"
-                />
-                <MetricCard
-                  title="Added to Cart"
-                  value={data.addToCarts.toLocaleString()}
-                  icon={CartIcon}
-                  breakdown={data.addsByType}
-                  rate={addToCartRate}
-                  rateLabel="ATC rate"
-                />
-              </InlineGrid>
-            </BlockStack>
-
-            {/* Conversion metrics */}
-            <BlockStack gap="200">
-              <Text variant="headingSm" as="h2" tone="subdued">
-                Conversions
-              </Text>
-              <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
-                <MetricCard
-                  title="Orders"
-                  value={data.orders.toLocaleString()}
-                  icon={OrderIcon}
-                  breakdown={data.ordersByType}
-                  rate={conversionRate}
-                  rateLabel="Conv. rate"
-                />
-                <MetricCard
-                  title="Revenue"
-                  value={formatCurrency(data.revenue)}
-                  icon={CashDollarIcon}
-                />
-              </InlineGrid>
-            </BlockStack>
+            <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+              <MetricCard
+                title="Views"
+                value={data.views.toLocaleString()}
+                icon={ViewIcon}
+                breakdown={data.viewsByType}
+              />
+              <MetricCard
+                title="Orders"
+                value={data.orders.toLocaleString()}
+                icon={OrderIcon}
+                breakdown={data.ordersByType}
+                rate={conversionRate}
+                rateLabel="Conv. rate"
+              />
+              <MetricCard
+                title="Revenue"
+                value={formatCurrency(data.revenue)}
+                icon={CashDollarIcon}
+              />
+            </InlineGrid>
 
             {/* Footer note */}
             <Divider />
             <Text as="p" variant="bodySm" tone="subdued">
-              Showing data for the last {currentDays} days. Views, clicks, and
-              add-to-cart events are tracked from storefront widgets. Orders and
-              revenue are tracked via Shopify webhooks.
+              Showing data for the last {currentDays} days. Views are tracked
+              from storefront widgets. Orders and revenue are tracked via
+              Shopify webhooks.
             </Text>
           </>
         )}

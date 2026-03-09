@@ -60,7 +60,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
-    const validEvents = ["view", "click", "add_to_cart"];
+    const validEvents = ["view"];
     const validTypes = ["tiered", "volume", "complement"];
 
     if (!validEvents.includes(eventType) || !validTypes.includes(bundleType)) {
