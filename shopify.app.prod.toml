@@ -2,7 +2,7 @@
 
 client_id = "23246824b579a6f27d971eeecfd6b092"
 name = "bxapp"
-application_url = "https://YOUR_VERCEL_DOMAIN.vercel.app"
+application_url = "https://bx-two.vercel.app"
 embedded = true
 
 [build]
@@ -39,4 +39,4 @@ api_version = "2026-04"
 scopes = "read_discounts,write_discounts,write_products,read_orders"
 
 [auth]
-redirect_urls = [ "https://YOUR_VERCEL_DOMAIN.vercel.app/api/auth" ]
+redirect_urls = [ "https://bx-two.vercel.app/api/auth" ]
