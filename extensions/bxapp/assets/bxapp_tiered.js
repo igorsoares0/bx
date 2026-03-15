@@ -134,6 +134,23 @@ Object.keys(dataMap).forEach(function(widgetId){
     fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(cart){document.querySelectorAll('.cart-count-bubble span, .cart-count, [data-cart-count], .js-cart-count, #cart-icon-bubble span').forEach(function(el){el.textContent=cart.item_count;});}).catch(function(){});
   }
 
+  function submitViaThemeForm(totalQty,bxProps){
+    var form=document.querySelector('form[action*="/cart/add"]');
+    if(!form)return false;
+    // Set quantity
+    var qtyInp=form.querySelector('input[name="quantity"]');
+    if(!qtyInp){qtyInp=document.createElement('input');qtyInp.type='hidden';qtyInp.name='quantity';form.appendChild(qtyInp);}
+    qtyInp.value=String(totalQty);
+    // Set properties
+    form.querySelectorAll('input[name^="properties[_bxapp_"]').forEach(function(el){el.remove();});
+    Object.keys(bxProps).forEach(function(k){
+      var h=document.createElement('input');h.type='hidden';h.name='properties['+k+']';h.value=bxProps[k];form.appendChild(h);
+    });
+    // Submit via theme's JS (requestSubmit triggers the theme's event listeners)
+    if(form.requestSubmit){form.requestSubmit();}else{form.submit();}
+    return true;
+  }
+
   // ── Native button mode: intercept theme's add-to-cart form ──
   if(D.useNativeButton){
     var nativeForm=document.querySelector('form[action*="/cart/add"]');
@@ -249,11 +266,25 @@ Object.keys(dataMap).forEach(function(widgetId){
       var grouped={};for(var i=0;i<totalQty;i++){var s=tierSelections[selectedTier][i];var vid=s&&s.variantId?s.variantId:defaultVariantId;if(!vid){showFeedback('error','Please select a valid option for item #'+(i+1));return;}grouped[vid]=(grouped[vid]||0)+1;}
       Object.keys(grouped).forEach(function(vid){items.push({id:parseInt(vid,10),quantity:grouped[vid],properties:bxProps});});
     }else{var variantId=getSelectedVariantId();if(!variantId){showFeedback('error','Please select a product variant.');return;}items.push({id:parseInt(variantId,10),quantity:totalQty,properties:bxProps});}
-    addBtn.disabled=true;addBtn.classList.add('bxgy-tiers__add-btn--loading');feedbackEl.className='bxgy-tiers__feedback';
-    fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
-    .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed to add to cart');});return r.json();})
-    .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');if(D.buttonAction==='checkout'){window.location.href='/checkout';}else{showFeedback('success','Bundle added to cart!');refreshCart();}})
-    .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('error',err.message||'Something went wrong. Please try again.');});
+    // "Go to checkout" → fetch + redirect; "Add to cart" → submit via theme form for native notification
+    if(D.buttonAction==='checkout'){
+      addBtn.disabled=true;addBtn.classList.add('bxgy-tiers__add-btn--loading');feedbackEl.className='bxgy-tiers__feedback';
+      fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
+      .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed');});return r.json();})
+      .then(function(){window.location.href='/checkout';})
+      .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('error',err.message||'Something went wrong.');});
+    }else{
+      // Single variant: submit theme form to trigger native cart notification
+      if(!hasMultipleVariants||!tierSelections[selectedTier]){
+        if(submitViaThemeForm(totalQty,bxProps))return;
+      }
+      // Multi-variant fallback: fetch + refreshCart
+      addBtn.disabled=true;addBtn.classList.add('bxgy-tiers__add-btn--loading');feedbackEl.className='bxgy-tiers__feedback';
+      fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
+      .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed');});return r.json();})
+      .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('success','Bundle added to cart!');refreshCart();})
+      .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('error',err.message||'Something went wrong.');});
+    }
   });
 
   updateTierVariantsVisibility();

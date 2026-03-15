@@ -128,6 +128,20 @@ Object.keys(dataMap).forEach(function(widgetId){
     fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(cart){document.querySelectorAll('.cart-count-bubble span, .cart-count, [data-cart-count], .js-cart-count, #cart-icon-bubble span').forEach(function(el){el.textContent=cart.item_count;});}).catch(function(){});
   }
 
+  function submitViaThemeForm(totalQty,bxProps){
+    var form=document.querySelector('form[action*="/cart/add"]');
+    if(!form)return false;
+    var qtyInp=form.querySelector('input[name="quantity"]');
+    if(!qtyInp){qtyInp=document.createElement('input');qtyInp.type='hidden';qtyInp.name='quantity';form.appendChild(qtyInp);}
+    qtyInp.value=String(totalQty);
+    form.querySelectorAll('input[name^="properties[_bxapp_"]').forEach(function(el){el.remove();});
+    Object.keys(bxProps).forEach(function(k){
+      var h=document.createElement('input');h.type='hidden';h.name='properties['+k+']';h.value=bxProps[k];form.appendChild(h);
+    });
+    if(form.requestSubmit){form.requestSubmit();}else{form.submit();}
+    return true;
+  }
+
   // ── Native button mode: intercept theme's add-to-cart form ──
   if(D.useNativeButton){
     var nativeForm=document.querySelector('form[action*="/cart/add"]');
@@ -245,11 +259,22 @@ Object.keys(dataMap).forEach(function(widgetId){
       var input=document.querySelector('form[action*="/cart/add"] input[name="id"]');if(input&&input.value&&buyVariants[input.value])vid2=input.value;
       if(!vid2){showFeedback('error','Please select a product variant.');return;}items.push({id:parseInt(vid2,10),quantity:qty,properties:bxProps});
     }
-    addBtn.disabled=true;addBtn.classList.add('bxgy-volume__add-btn--loading');feedbackEl.className='bxgy-volume__feedback';
-    fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
-    .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed to add to cart');});return r.json();})
-    .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');if(D.buttonAction==='checkout'){window.location.href='/checkout';}else{showFeedback('success','Added to cart!');refreshCart();}})
-    .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');showFeedback('error',err.message||'Something went wrong. Please try again.');});
+    if(D.buttonAction==='checkout'){
+      addBtn.disabled=true;addBtn.classList.add('bxgy-volume__add-btn--loading');feedbackEl.className='bxgy-volume__feedback';
+      fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
+      .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed');});return r.json();})
+      .then(function(){window.location.href='/checkout';})
+      .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');showFeedback('error',err.message||'Something went wrong.');});
+    }else{
+      if(!hasMultipleVariants||!tierSelections[selectedTier]){
+        if(submitViaThemeForm(qty,bxProps))return;
+      }
+      addBtn.disabled=true;addBtn.classList.add('bxgy-volume__add-btn--loading');feedbackEl.className='bxgy-volume__feedback';
+      fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
+      .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed');});return r.json();})
+      .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');showFeedback('success','Added to cart!');refreshCart();})
+      .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');showFeedback('error',err.message||'Something went wrong.');});
+    }
   });
 
   updateTierVariantsVisibility();
