@@ -147,7 +147,12 @@ Object.keys(dataMap).forEach(function(widgetId){
 
       function syncNativeQty(){
         var inp=ensureQtyInput();
-        inp.value=getVolQty();
+        var q=String(getVolQty());
+        var nativeSetter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+        nativeSetter.call(inp,q);
+        inp.setAttribute('value',q);
+        inp.dispatchEvent(new Event('input',{bubbles:true}));
+        inp.dispatchEvent(new Event('change',{bubbles:true}));
       }
 
       function injectProps(){
@@ -172,32 +177,58 @@ Object.keys(dataMap).forEach(function(widgetId){
         if(window.__bxappNativeOwner==='volume_'+widgetId){syncNativeQty();injectProps();}
       },true);
 
-      // Intercept fetch — only if this bundle owns the native form
+      // Intercept fetch for /cart/add and cartCreate (Buy it Now)
       var origFetch=window.fetch;
       window.fetch=function(url,opts){
-        if(typeof url==='string'&&url.indexOf('/cart/add')!==-1&&opts&&opts.body&&window.__bxappNativeOwner==='volume_'+widgetId){
+        var urlStr=typeof url==='string'?url:(url&&url.url?url.url:'');
+        if(urlStr&&window.__bxappNativeOwner==='volume_'+widgetId){
           var qty=getVolQty();
-          try{
-            if(typeof opts.body==='string'){
-              var body=JSON.parse(opts.body);
-              var already=false;
-              if(body.items){body.items.forEach(function(item){if(item.properties&&item.properties._bxapp_bundle_type)already=true;});}
-              else if(body.properties&&body.properties._bxapp_bundle_type)already=true;
-              if(!already){
-                if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxVolProps);});}
-                else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxVolProps);}
-                opts=Object.assign({},opts,{body:JSON.stringify(body)});
+          // /cart/add (Add to Cart)
+          if(urlStr.indexOf('/cart/add')!==-1&&opts&&opts.body){
+            try{
+              if(typeof opts.body==='string'){
+                var body=JSON.parse(opts.body);
+                var already=false;
+                if(body.items){body.items.forEach(function(item){if(item.properties&&item.properties._bxapp_bundle_type)already=true;});}
+                else if(body.properties&&body.properties._bxapp_bundle_type)already=true;
+                if(!already){
+                  if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxVolProps);});}
+                  else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxVolProps);}
+                  opts=Object.assign({},opts,{body:JSON.stringify(body)});
+                }
+              }else if(opts.body instanceof FormData){
+                if(!opts.body.get('properties[_bxapp_bundle_type]')){
+                  opts.body.set('quantity',String(qty));
+                  Object.keys(bxVolProps).forEach(function(k){opts.body.set('properties['+k+']',bxVolProps[k]);});
+                }
               }
-            }else if(opts.body instanceof FormData){
-              if(!opts.body.get('properties[_bxapp_bundle_type]')){
-                opts.body.set('quantity',String(qty));
-                Object.keys(bxVolProps).forEach(function(k){opts.body.set('properties['+k+']',bxVolProps[k]);});
-              }
+            }catch(ex){}
+          }
+          // cartCreate (Buy it Now via Storefront API GraphQL)
+          if(urlStr.indexOf('cartCreate')!==-1){
+            var rawBody=opts&&opts.body;
+            if(typeof rawBody==='string'){
+              try{
+                var gql=JSON.parse(rawBody);
+                if(gql.variables&&gql.variables.input&&gql.variables.input.lines){
+                  if(hasMultipleVariants&&tierSelections[selectedTier]){
+                    var grouped={};
+                    for(var gi=0;gi<qty;gi++){var gs=tierSelections[selectedTier][gi];var gv=gs&&gs.variantId?gs.variantId:defaultVariantId;if(gv)grouped[gv]=(grouped[gv]||0)+1;}
+                    var newLines=[];
+                    Object.keys(grouped).forEach(function(gv){newLines.push({merchandiseId:'gid://shopify/ProductVariant/'+gv,quantity:grouped[gv]});});
+                    gql.variables.input.lines=newLines;
+                  }else{
+                    gql.variables.input.lines.forEach(function(line){line.quantity=qty;});
+                  }
+                  opts=Object.assign({},opts,{body:JSON.stringify(gql)});
+                }
+              }catch(ex2){}
             }
-          }catch(ex){}
+          }
         }
         return origFetch.call(window,url,opts);
       };
+
     }
   }
 
