@@ -148,19 +148,28 @@
     padding: 12px 14px;
   }
   .bxgy-fbt__dot {
-    width: 18px; height: 18px;
-    border-radius: 50%;
-    border: 2px solid #ccc;
-    flex-shrink: 0;
-    position: relative;
+    width: 18px !important; height: 18px !important;
+    min-width: 18px !important; min-height: 18px !important;
+    border-radius: 50% !important;
+    border: 2px solid #ccc !important;
+    flex-shrink: 0 !important;
+    position: relative !important;
     transition: border-color 0.2s;
+    display: inline-block !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    overflow: hidden !important;
+    line-height: 0 !important;
+    font-size: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
   .bxgy-fbt__radio--active .bxgy-fbt__dot {
-    border-color: {{ ds_accent }};
+    border-color: {{ ds_accent }} !important;
   }
   .bxgy-fbt__radio--active .bxgy-fbt__dot::after {
-    content: '';
-    position: absolute;
+    content: '' !important;
+    position: absolute !important;
     top: 3px; left: 3px;
     width: 8px; height: 8px;
     border-radius: 50%;
@@ -417,7 +426,7 @@
     {%- comment -%} Standard price radio {%- endcomment -%}
     <div class="bxgy-fbt__radio" data-fbt-radio="standard">
       <div class="bxgy-fbt__radio-head">
-        <div class="bxgy-fbt__dot"></div>
+        <span class="bxgy-fbt__dot" aria-hidden="true">&#8203;</span>
         <div class="bxgy-fbt__radio-info">
           <div class="bxgy-fbt__radio-title">{{ main_title }}</div>
           <div style="font-size:12px;color:#888;">Standard price</div>
@@ -434,7 +443,7 @@
       <div class="bxgy-fbt__radio{% if forloop.last %} bxgy-fbt__radio--active{% endif %}"
         data-fbt-radio="combo" data-fbt-radio-group="{{ g_idx }}">
         <div class="bxgy-fbt__radio-head">
-          <div class="bxgy-fbt__dot"></div>
+          <span class="bxgy-fbt__dot" aria-hidden="true">&#8203;</span>
           <div class="bxgy-fbt__radio-info">
             <div class="bxgy-fbt__radio-title">Complete the bundle</div>
             <div class="bxgy-fbt__radio-save" data-fbt-combo-savings-{{ g_idx }}></div>
