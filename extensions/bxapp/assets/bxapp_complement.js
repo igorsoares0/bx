@@ -167,7 +167,89 @@ Object.keys(dataMap).forEach(function(widgetId){
     }).catch(function(){});
   }
 
-  addBtn.addEventListener('click',function(){
+  function getBundleItems(){
+    var vid=detectBuyVariant();
+    var bxProps={'_bxapp_bundle_type':'complement','_bxapp_bundle_id':String(_t.bundleId||'')};
+    var items=[];
+    if(bundleMode==='combo'&&!comboSelected){if(vid)items.push({id:Number(vid),quantity:1});}
+    else{if(vid)items.push({id:Number(vid),quantity:1,properties:bxProps});var list=(bundleMode==='combo'&&selectedGroup!==null)?(byGroup[selectedGroup]||[]):allComps;for(var i=0;i<list.length;i++){if(list[i].variantId)items.push({id:Number(list[i].variantId),quantity:list[i].quantity||1,properties:bxProps});}}
+    return items;
+  }
+
+  // ── Native button mode: intercept theme's add-to-cart form ──
+  if(D.useNativeButton){
+    var nativeForm=document.querySelector('form[action*="/cart/add"]');
+    if(nativeForm){
+      var bxCompProps={'_bxapp_bundle_type':'complement','_bxapp_bundle_id':String(_t.bundleId||'')};
+
+      function injectCompProps(){
+        nativeForm.querySelectorAll('input[name^="properties[_bxapp_"]').forEach(function(el){el.remove();});
+        if(bundleMode!=='combo'||comboSelected){
+          Object.keys(bxCompProps).forEach(function(k){
+            var h=document.createElement('input');h.type='hidden';h.name='properties['+k+']';h.value=bxCompProps[k];nativeForm.appendChild(h);
+          });
+        }
+      }
+
+      window.__bxappNativeOwner=window.__bxappNativeOwner||null;
+      function claimNative(){window.__bxappNativeOwner='complement_'+widgetId;injectCompProps();}
+      claimNative();
+
+      nativeForm.addEventListener('submit',function(){
+        if(window.__bxappNativeOwner==='complement_'+widgetId){injectCompProps();}
+      },true);
+
+      // Intercept fetch for /cart/add and cartCreate (Buy it Now)
+      var origFetch=window.fetch;
+      window.fetch=function(url,opts){
+        var urlStr=typeof url==='string'?url:(url&&url.url?url.url:'');
+        if(urlStr&&window.__bxappNativeOwner==='complement_'+widgetId){
+          var isBundle=(bundleMode!=='combo'||comboSelected);
+
+          // /cart/add (Add to Cart)
+          if(isBundle&&urlStr.indexOf('/cart/add')!==-1&&opts&&opts.body){
+            try{
+              var already=false;
+              if(typeof opts.body==='string'){try{var chk=JSON.parse(opts.body);if(chk.items){chk.items.forEach(function(it){if(it.properties&&it.properties._bxapp_bundle_type)already=true;});}else if(chk.properties&&chk.properties._bxapp_bundle_type)already=true;}catch(e){}}
+              else if(opts.body instanceof FormData&&opts.body.get('properties[_bxapp_bundle_type]'))already=true;
+              if(!already){
+                var bundleItems=getBundleItems();
+                if(bundleItems.length>1){
+                  var mvSec=null,mvSecUrl=null;
+                  if(typeof opts.body==='string'){try{var ob=JSON.parse(opts.body);mvSec=ob.sections;mvSecUrl=ob.sections_url;}catch(e){}}
+                  else if(opts.body instanceof FormData){mvSec=opts.body.get('sections');mvSecUrl=opts.body.get('sections_url');}
+                  var mvBody={items:bundleItems};if(mvSec)mvBody.sections=mvSec;if(mvSecUrl)mvBody.sections_url=mvSecUrl;
+                  opts={method:opts.method||'POST',credentials:opts.credentials||'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(mvBody)};
+                }
+              }
+            }catch(ex){}
+          }
+
+          // cartCreate (Buy it Now via Storefront API GraphQL)
+          if(isBundle&&urlStr.indexOf('cartCreate')!==-1){
+            var rawBody=opts&&opts.body;
+            if(typeof rawBody==='string'){
+              try{
+                var gql=JSON.parse(rawBody);
+                if(gql.variables&&gql.variables.input&&gql.variables.input.lines){
+                  var bundleItems2=getBundleItems();
+                  if(bundleItems2.length>1){
+                    var newLines=[];
+                    for(var bi=0;bi<bundleItems2.length;bi++){newLines.push({merchandiseId:'gid://shopify/ProductVariant/'+bundleItems2[bi].id,quantity:bundleItems2[bi].quantity||1});}
+                    gql.variables.input.lines=newLines;
+                    opts=Object.assign({},opts,{body:JSON.stringify(gql)});
+                  }
+                }
+              }catch(ex2){}
+            }
+          }
+        }
+        return origFetch.call(window,url,opts);
+      };
+    }
+  }
+
+  if(addBtn)addBtn.addEventListener('click',function(){
     if(addBtn.disabled)return;
     addBtn.disabled=true;addBtn.classList.add('bxgy-fbt__add-btn--loading');feedbackEl.className='bxgy-fbt__feedback';
     var items=[];var vid=detectBuyVariant();
@@ -190,6 +272,7 @@ Object.keys(dataMap).forEach(function(widgetId){
         radio.classList.toggle('bxgy-fbt__radio--active',active);
       }
       if(addBtn)addBtn.textContent=comboSelected?'Complete the Combo':'Add to Cart';
+      if(D.useNativeButton&&window.__bxappNativeOwner==='complement_'+widgetId){var nf=document.querySelector('form[action*="/cart/add"]');if(nf){nf.querySelectorAll('input[name^="properties[_bxapp_"]').forEach(function(el){el.remove();});if(comboSelected){var bp={'_bxapp_bundle_type':'complement','_bxapp_bundle_id':String(_t.bundleId||'')};Object.keys(bp).forEach(function(k){var h=document.createElement('input');h.type='hidden';h.name='properties['+k+']';h.value=bp[k];nf.appendChild(h);});}}}
       updatePrices();
     }
     for(var r=0;r<allRadios.length;r++){(function(radio){radio.addEventListener('click',function(){var type=radio.getAttribute('data-fbt-radio');var gIdx=parseInt(radio.getAttribute('data-fbt-radio-group'),10)||0;setSelection(type,gIdx);});})(allRadios[r]);}

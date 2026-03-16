@@ -568,6 +568,7 @@ export async function setComplementBundleMetafield(
     designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
     designShadowIntensity: designConfig?.shadowIntensity ?? "none",
     designShowPriceSummary: designConfig?.showPriceSummary ?? true,
+    useNativeButton: designConfig?.useNativeButton ?? false,
     buttonAction: designConfig?.buttonAction ?? "cart",
   };
 
@@ -633,6 +634,7 @@ export async function setShopComplementBundleMetafield(
       designButtonBorderRadius: designConfig?.buttonBorderRadius ?? 8,
       designShadowIntensity: designConfig?.shadowIntensity ?? "none",
       designShowPriceSummary: designConfig?.showPriceSummary ?? true,
+      useNativeButton: designConfig?.useNativeButton ?? false,
       buttonAction: designConfig?.buttonAction ?? "cart",
     });
   }

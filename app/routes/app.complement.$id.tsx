@@ -63,6 +63,7 @@ const DEFAULT_DESIGN = {
   showPriceSummary: true,
   // Button action
   buttonAction: "cart",
+  useNativeButton: false,
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -1030,16 +1031,25 @@ export default function ComplementBundleForm() {
                     autoComplete="off"
                     placeholder={mode === "combo" ? "Complete the Combo" : "Add All to Cart"}
                     helpText="Leave empty for default"
+                    disabled={design.useNativeButton}
                   />
-                  <Select
-                    label="Button action"
-                    options={[
-                      { label: "Add to cart", value: "cart" },
-                      { label: "Go to checkout", value: "checkout" },
-                    ]}
-                    value={design.buttonAction || "cart"}
-                    onChange={(v) => updateDesign("buttonAction", v)}
+                  <Checkbox
+                    label="Use theme's native Add to Cart button"
+                    helpText="Hides the bundle button. The theme's native buttons (Add to Cart, Buy it Now) will automatically add the bundle items to cart."
+                    checked={design.useNativeButton === true}
+                    onChange={(v) => updateDesign("useNativeButton", v)}
                   />
+                  {!design.useNativeButton && (
+                    <Select
+                      label="Button action"
+                      options={[
+                        { label: "Add to cart", value: "cart" },
+                        { label: "Go to checkout", value: "checkout" },
+                      ]}
+                      value={design.buttonAction || "cart"}
+                      onChange={(v) => updateDesign("buttonAction", v)}
+                    />
+                  )}
                 </FormLayout>
 
                 {/* Layout & Spacing */}
@@ -1442,6 +1452,7 @@ export default function ComplementBundleForm() {
                 )}
 
                 {/* Button */}
+                {!design.useNativeButton && (
                 <div
                   style={{
                     width: "100%",
@@ -1458,6 +1469,7 @@ export default function ComplementBundleForm() {
                 >
                   {design.buttonText || (mode === "combo" ? "Complete the Combo" : "Add All to Cart")}
                 </div>
+                )}
                 <div style={{ textAlign: "center", fontSize: "10px", color: "#888", marginTop: "8px" }}>
                   Discount applied automatically at checkout
                 </div>
