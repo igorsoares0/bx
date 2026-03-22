@@ -160,13 +160,6 @@ Object.keys(dataMap).forEach(function(widgetId){
 
   function showFB(type,msg){feedbackEl.textContent=msg;feedbackEl.className='bxgy-fbt__feedback bxgy-fbt__feedback--'+type;if(type==='success')setTimeout(function(){feedbackEl.className='bxgy-fbt__feedback';},4000);}
 
-  function updCart(){
-    document.documentElement.dispatchEvent(new CustomEvent('cart:refresh',{bubbles:true}));
-    fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(cart){
-      document.querySelectorAll('.cart-count-bubble span, .cart-count, [data-cart-count], .js-cart-count, #cart-icon-bubble span').forEach(function(el){el.textContent=cart.item_count;});
-    }).catch(function(){});
-  }
-
   function getBundleItems(){
     var vid=detectBuyVariant();
     var bxProps={'_bxapp_bundle_type':'complement','_bxapp_bundle_id':String(_t.bundleId||'')};
@@ -199,68 +192,68 @@ Object.keys(dataMap).forEach(function(widgetId){
         if(window.__bxappNativeOwner==='complement_'+widgetId){injectCompProps();}
       },true);
 
-      // Intercept fetch for /cart/add and cartCreate (Buy it Now)
-      var origFetch=window.fetch;
-      window.fetch=function(url,opts){
-        var urlStr=typeof url==='string'?url:(url&&url.url?url.url:'');
-        if(urlStr&&window.__bxappNativeOwner==='complement_'+widgetId){
-          var isBundle=(bundleMode!=='combo'||comboSelected);
+      // Register fetch handler via shared cart module (single monkey-patch)
+      window.__bxappCart.registerFetchHandler(function(urlStr,opts){
+        if(!urlStr||window.__bxappNativeOwner!=='complement_'+widgetId)return null;
+        var isBundle=(bundleMode!=='combo'||comboSelected);
 
-          // /cart/add (Add to Cart)
-          if(isBundle&&urlStr.indexOf('/cart/add')!==-1&&opts&&opts.body){
+        // /cart/add (Add to Cart)
+        if(isBundle&&urlStr.indexOf('/cart/add')!==-1&&opts&&opts.body){
+          try{
+            var already=false;
+            if(typeof opts.body==='string'){try{var chk=JSON.parse(opts.body);if(chk.items){chk.items.forEach(function(it){if(it.properties&&it.properties._bxapp_bundle_type)already=true;});}else if(chk.properties&&chk.properties._bxapp_bundle_type)already=true;}catch(e){}}
+            else if(opts.body instanceof FormData&&opts.body.get('properties[_bxapp_bundle_type]'))already=true;
+            if(!already){
+              var bundleItems=getBundleItems();
+              if(bundleItems.length>1){
+                var mvSec=null,mvSecUrl=null;
+                if(typeof opts.body==='string'){try{var ob=JSON.parse(opts.body);mvSec=ob.sections;mvSecUrl=ob.sections_url;}catch(e){}}
+                else if(opts.body instanceof FormData){mvSec=opts.body.get('sections');mvSecUrl=opts.body.get('sections_url');}
+                var mvBody={items:bundleItems};if(mvSec)mvBody.sections=mvSec;if(mvSecUrl)mvBody.sections_url=mvSecUrl;
+                return{method:opts.method||'POST',credentials:opts.credentials||'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(mvBody)};
+              }
+            }
+          }catch(ex){}
+        }
+
+        // cartCreate (Buy it Now via Storefront API GraphQL)
+        if(isBundle&&urlStr.indexOf('cartCreate')!==-1){
+          var rawBody=opts&&opts.body;
+          if(typeof rawBody==='string'){
             try{
-              var already=false;
-              if(typeof opts.body==='string'){try{var chk=JSON.parse(opts.body);if(chk.items){chk.items.forEach(function(it){if(it.properties&&it.properties._bxapp_bundle_type)already=true;});}else if(chk.properties&&chk.properties._bxapp_bundle_type)already=true;}catch(e){}}
-              else if(opts.body instanceof FormData&&opts.body.get('properties[_bxapp_bundle_type]'))already=true;
-              if(!already){
-                var bundleItems=getBundleItems();
-                if(bundleItems.length>1){
-                  var mvSec=null,mvSecUrl=null;
-                  if(typeof opts.body==='string'){try{var ob=JSON.parse(opts.body);mvSec=ob.sections;mvSecUrl=ob.sections_url;}catch(e){}}
-                  else if(opts.body instanceof FormData){mvSec=opts.body.get('sections');mvSecUrl=opts.body.get('sections_url');}
-                  var mvBody={items:bundleItems};if(mvSec)mvBody.sections=mvSec;if(mvSecUrl)mvBody.sections_url=mvSecUrl;
-                  opts={method:opts.method||'POST',credentials:opts.credentials||'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(mvBody)};
+              var gql=JSON.parse(rawBody);
+              if(gql.variables&&gql.variables.input&&gql.variables.input.lines){
+                var bundleItems2=getBundleItems();
+                if(bundleItems2.length>1){
+                  var newLines=[];
+                  for(var bi=0;bi<bundleItems2.length;bi++){newLines.push({merchandiseId:'gid://shopify/ProductVariant/'+bundleItems2[bi].id,quantity:bundleItems2[bi].quantity||1});}
+                  gql.variables.input.lines=newLines;
+                  return Object.assign({},opts,{body:JSON.stringify(gql)});
                 }
               }
-            }catch(ex){}
-          }
-
-          // cartCreate (Buy it Now via Storefront API GraphQL)
-          if(isBundle&&urlStr.indexOf('cartCreate')!==-1){
-            var rawBody=opts&&opts.body;
-            if(typeof rawBody==='string'){
-              try{
-                var gql=JSON.parse(rawBody);
-                if(gql.variables&&gql.variables.input&&gql.variables.input.lines){
-                  var bundleItems2=getBundleItems();
-                  if(bundleItems2.length>1){
-                    var newLines=[];
-                    for(var bi=0;bi<bundleItems2.length;bi++){newLines.push({merchandiseId:'gid://shopify/ProductVariant/'+bundleItems2[bi].id,quantity:bundleItems2[bi].quantity||1});}
-                    gql.variables.input.lines=newLines;
-                    opts=Object.assign({},opts,{body:JSON.stringify(gql)});
-                  }
-                }
-              }catch(ex2){}
-            }
+            }catch(ex2){}
           }
         }
-        return origFetch.call(window,url,opts);
-      };
+
+        return null;
+      });
     }
   }
 
   if(addBtn)addBtn.addEventListener('click',function(){
     if(addBtn.disabled)return;
     addBtn.disabled=true;addBtn.classList.add('bxgy-fbt__add-btn--loading');feedbackEl.className='bxgy-fbt__feedback';
-    var items=[];var vid=detectBuyVariant();
-    var bxProps={'_bxapp_bundle_type':'complement','_bxapp_bundle_id':String(_t.bundleId||'')};
-    if(bundleMode==='combo'&&!comboSelected){if(vid)items.push({id:Number(vid),quantity:1});}
-    else{if(vid)items.push({id:Number(vid),quantity:1,properties:bxProps});var list=(bundleMode==='combo'&&selectedGroup!==null)?(byGroup[selectedGroup]||[]):allComps;for(var i=0;i<list.length;i++){if(list[i].variantId)items.push({id:Number(list[i].variantId),quantity:list[i].quantity||1,properties:bxProps});}}
+    var items=getBundleItems();
     if(!items.length){addBtn.disabled=false;addBtn.classList.remove('bxgy-fbt__add-btn--loading');showFB('error','No products to add.');return;}
-    fetch('/cart/add.js',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({items:items})})
-    .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.description||d.message||'Failed');});return r.json();})
-    .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-fbt__add-btn--loading');if(D.buttonAction==='checkout'){window.location.href='/checkout';}else{showFB('success','Bundle added to cart!');updCart();}})
-    .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-fbt__add-btn--loading');showFB('error',err.message||'Something went wrong.');});
+    if(D.buttonAction==='checkout'){
+      window.__bxappCart.addItems(items)
+      .then(function(){window.location.href='/checkout';})
+      .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-fbt__add-btn--loading');showFB('error',err.message||'Something went wrong.');});
+    }else{
+      window.__bxappCart.addItems(items)
+      .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-fbt__add-btn--loading');showFB('success','Bundle added to cart!');})
+      .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-fbt__add-btn--loading');showFB('error',err.message||'Something went wrong.');});
+    }
   });
 
   if(bundleMode==='combo'){

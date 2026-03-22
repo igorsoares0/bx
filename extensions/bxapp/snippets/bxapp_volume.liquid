@@ -499,6 +499,7 @@ window.__bxappVolume['{{ bxapp_widget_id }}']={
   _track:{shop:{{ shop.permanent_domain | json }},bundleId:{{ bundle_data.bundleId | json }},productId:{{ product.id | prepend: 'gid://shopify/Product/' | json }},apiBase:{{ bundle_data.appUrl | default: '' | json }}}
 };
 </script>
+<script src="{{ 'bxapp_cart.js' | asset_url }}" defer></script>
 <script src="{{ 'bxapp_volume.js' | asset_url }}" defer></script>
 
 

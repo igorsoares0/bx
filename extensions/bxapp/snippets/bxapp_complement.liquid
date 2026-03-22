@@ -652,6 +652,7 @@ window.__bxappComp['{{ bxapp_widget_id }}']={
   _track:{shop:{{ shop.permanent_domain | json }},bundleId:{{ fbt_data.bundleId | json }},productId:{{ product.id | prepend: 'gid://shopify/Product/' | json }},apiBase:{{ fbt_data.appUrl | default: '' | json }}}
 };
 </script>
+<script src="{{ 'bxapp_cart.js' | asset_url }}" defer></script>
 <script src="{{ 'bxapp_complement.js' | asset_url }}" defer></script>
 
 
