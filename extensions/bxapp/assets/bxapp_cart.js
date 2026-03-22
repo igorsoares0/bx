@@ -13,24 +13,29 @@ cart.getSectionIds=function(){
   return ids.slice(0,5);
 };
 
-// Robust cart UI refresh: Section Rendering API + events + selectors
+// Robust cart UI refresh: Section Rendering API + native notification + events + selectors
 cart.refresh=function(data){
+  var sectionsUpdated=false;
+
   // 1. Section Rendering: replace HTML from /cart/add.js response
   if(data&&data.sections){
     Object.keys(data.sections).forEach(function(id){
       var el=document.getElementById('shopify-section-'+id);
       if(el&&data.sections[id]){
         el.outerHTML=data.sections[id];
+        sectionsUpdated=true;
         var newEl=document.getElementById('shopify-section-'+id);
         if(newEl)newEl.dispatchEvent(new CustomEvent('shopify:section:load',{bubbles:true,detail:{sectionId:id}}));
       }
     });
   }
+
   // 2. Dispatch events that themes commonly listen to
   ['cart:refresh','cart:updated','cart:build','ajaxProduct:added','product:added','cart:item-added'].forEach(function(name){
     document.documentElement.dispatchEvent(new CustomEvent(name,{bubbles:true}));
     document.dispatchEvent(new CustomEvent(name,{bubbles:true}));
   });
+
   // 3. Fetch /cart.js and update known cart count selectors
   fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(c){
     document.querySelectorAll(
@@ -43,6 +48,36 @@ cart.refresh=function(data){
       if(c.item_count>0){el.removeAttribute('hidden');el.style.display='';}
     });
   }).catch(function(){});
+
+  // 4. Open theme's native cart notification/drawer
+  // Wait for section re-render and custom element initialization to settle
+  setTimeout(function(){
+    // Dawn: <cart-notification> popup (like the "Item added to your cart" popup)
+    var cn=document.querySelector('cart-notification');
+    if(cn){
+      cn.classList.add('active');
+      cn.setAttribute('role','alert');
+      cn.setAttribute('aria-live','polite');
+      var focusEl=cn.querySelector('a,button');
+      if(focusEl)focusEl.focus();
+      return;
+    }
+    // Dawn: <cart-drawer> sidebar
+    var cd=document.querySelector('cart-drawer');
+    if(cd){
+      if(typeof cd.open==='function'){cd.open();}
+      else{cd.classList.add('active');cd.setAttribute('open','');}
+      return;
+    }
+    // Prestige / Impact: [data-cart-notification] or [data-mini-cart]
+    var pn=document.querySelector('[data-cart-notification]');
+    if(pn){pn.classList.add('is-visible','active');return;}
+    var mc=document.querySelector('[data-mini-cart]');
+    if(mc){mc.classList.add('is-open','active');return;}
+    // Debut / Supply / older themes: .cart-popup or .ajax-cart
+    var cp=document.querySelector('.cart-popup,.ajax-cart,.mini-cart-wrap,.js-mini-cart');
+    if(cp){cp.classList.add('active','is-active','is-open');return;}
+  },200);
 };
 
 // Add items via AJAX with Section Rendering API

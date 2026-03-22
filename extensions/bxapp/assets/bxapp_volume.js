@@ -263,14 +263,6 @@ Object.keys(dataMap).forEach(function(widgetId){
       .then(function(){window.location.href='/checkout';})
       .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');showFeedback('error',err.message||'Something went wrong.');});
     }else{
-      // Single variant: submit via theme form for native cart notification
-      if(!hasMultipleVariants||!tierSelections[selectedTier]){
-        var selectedRow=widget.querySelector('[data-bxgy-vol-tier="'+selectedTier+'"]');
-        var qty=parseInt(selectedRow.getAttribute('data-vol-qty'),10);
-        var bxProps={'_bxapp_bundle_type':'volume','_bxapp_bundle_id':String(_t.bundleId||'')};
-        if(window.__bxappCart.submitViaThemeForm(qty,bxProps))return;
-      }
-      // Multi-variant or fallback: use AJAX with Section Rendering
       addBtn.disabled=true;addBtn.classList.add('bxgy-volume__add-btn--loading');feedbackEl.className='bxgy-volume__feedback';
       window.__bxappCart.addItems(items)
       .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-volume__add-btn--loading');showFeedback('success','Added to cart!');})

@@ -268,14 +268,6 @@ Object.keys(dataMap).forEach(function(widgetId){
       .then(function(){window.location.href='/checkout';})
       .catch(function(err){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('error',err.message||'Something went wrong.');});
     }else{
-      // Single variant: submit via theme form for native cart notification
-      if(!hasMultipleVariants||!tierSelections[selectedTier]){
-        var selectedRow=widget.querySelector('[data-bxgy-tier="'+selectedTier+'"]');
-        var totalQty=(parseInt(selectedRow.getAttribute('data-buy-qty'),10)||0)+(parseInt(selectedRow.getAttribute('data-free-qty'),10)||0);
-        var bxProps={'_bxapp_bundle_type':'tiered','_bxapp_bundle_id':String(_t.bundleId||'')};
-        if(window.__bxappCart.submitViaThemeForm(totalQty,bxProps))return;
-      }
-      // Multi-variant or fallback: use AJAX with Section Rendering
       addBtn.disabled=true;addBtn.classList.add('bxgy-tiers__add-btn--loading');feedbackEl.className='bxgy-tiers__feedback';
       window.__bxappCart.addItems(items)
       .then(function(){addBtn.disabled=false;addBtn.classList.remove('bxgy-tiers__add-btn--loading');showFeedback('success','Bundle added to cart!');})
