@@ -192,32 +192,27 @@ Object.keys(dataMap).forEach(function(widgetId){
         // /cart/add (Add to Cart)
         if(urlStr.indexOf('/cart/add')!==-1&&opts&&opts.body){
           try{
-            var already=false;
-            if(typeof opts.body==='string'){try{var chk=JSON.parse(opts.body);if(chk.items){chk.items.forEach(function(it){if(it.properties&&it.properties._bxapp_bundle_type)already=true;});}else if(chk.properties&&chk.properties._bxapp_bundle_type)already=true;}catch(e){}}
-            else if(opts.body instanceof FormData&&opts.body.get('properties[_bxapp_bundle_type]'))already=true;
-            if(!already){
-              if(hasMultipleVariants&&tierSelections[selectedTier]){
-                var mvRow=widget.querySelector('[data-bxgy-vol-tier="'+selectedTier+'"]');
-                var mvQty=parseInt(mvRow.getAttribute('data-vol-qty'),10);
-                var mvGrouped={};
-                for(var mvi=0;mvi<mvQty;mvi++){var mvs=tierSelections[selectedTier][mvi];var mvid=mvs&&mvs.variantId?mvs.variantId:defaultVariantId;if(mvid)mvGrouped[mvid]=(mvGrouped[mvid]||0)+1;}
-                var mvItems=[];Object.keys(mvGrouped).forEach(function(v){mvItems.push({id:parseInt(v,10),quantity:mvGrouped[v],properties:bxVolProps});});
-                var mvSec=null,mvSecUrl=null;
-                if(typeof opts.body==='string'){try{var ob=JSON.parse(opts.body);mvSec=ob.sections;mvSecUrl=ob.sections_url;}catch(e){}}
-                else if(opts.body instanceof FormData){mvSec=opts.body.get('sections');mvSecUrl=opts.body.get('sections_url');}
-                var mvBody={items:mvItems};if(mvSec)mvBody.sections=mvSec;if(mvSecUrl)mvBody.sections_url=mvSecUrl;
-                return{method:opts.method||'POST',credentials:opts.credentials||'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(mvBody)};
-              }else{
-                if(typeof opts.body==='string'){
-                  var body=JSON.parse(opts.body);
-                  if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxVolProps);});}
-                  else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxVolProps);}
-                  return Object.assign({},opts,{body:JSON.stringify(body)});
-                }else if(opts.body instanceof FormData){
-                  opts.body.set('quantity',String(qty));
-                  Object.keys(bxVolProps).forEach(function(k){opts.body.set('properties['+k+']',bxVolProps[k]);});
-                  return opts;
-                }
+            if(hasMultipleVariants&&tierSelections[selectedTier]){
+              var mvRow=widget.querySelector('[data-bxgy-vol-tier="'+selectedTier+'"]');
+              var mvQty=parseInt(mvRow.getAttribute('data-vol-qty'),10);
+              var mvGrouped={};
+              for(var mvi=0;mvi<mvQty;mvi++){var mvs=tierSelections[selectedTier][mvi];var mvid=mvs&&mvs.variantId?mvs.variantId:defaultVariantId;if(mvid)mvGrouped[mvid]=(mvGrouped[mvid]||0)+1;}
+              var mvItems=[];Object.keys(mvGrouped).forEach(function(v){mvItems.push({id:parseInt(v,10),quantity:mvGrouped[v],properties:bxVolProps});});
+              var mvSec=null,mvSecUrl=null;
+              if(typeof opts.body==='string'){try{var ob=JSON.parse(opts.body);mvSec=ob.sections;mvSecUrl=ob.sections_url;}catch(e){}}
+              else if(opts.body instanceof FormData){mvSec=opts.body.get('sections');mvSecUrl=opts.body.get('sections_url');}
+              var mvBody={items:mvItems};if(mvSec)mvBody.sections=mvSec;if(mvSecUrl)mvBody.sections_url=mvSecUrl;
+              return{method:opts.method||'POST',credentials:opts.credentials||'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(mvBody)};
+            }else{
+              if(typeof opts.body==='string'){
+                var body=JSON.parse(opts.body);
+                if(body.items){body.items.forEach(function(item){item.quantity=qty;item.properties=Object.assign({},item.properties||{},bxVolProps);});}
+                else{body.quantity=qty;body.properties=Object.assign({},body.properties||{},bxVolProps);}
+                return Object.assign({},opts,{body:JSON.stringify(body)});
+              }else if(opts.body instanceof FormData){
+                opts.body.set('quantity',String(qty));
+                Object.keys(bxVolProps).forEach(function(k){opts.body.set('properties['+k+']',bxVolProps[k]);});
+                return opts;
               }
             }
           }catch(ex){}

@@ -200,18 +200,13 @@ Object.keys(dataMap).forEach(function(widgetId){
         // /cart/add (Add to Cart)
         if(isBundle&&urlStr.indexOf('/cart/add')!==-1&&opts&&opts.body){
           try{
-            var already=false;
-            if(typeof opts.body==='string'){try{var chk=JSON.parse(opts.body);if(chk.items){chk.items.forEach(function(it){if(it.properties&&it.properties._bxapp_bundle_type)already=true;});}else if(chk.properties&&chk.properties._bxapp_bundle_type)already=true;}catch(e){}}
-            else if(opts.body instanceof FormData&&opts.body.get('properties[_bxapp_bundle_type]'))already=true;
-            if(!already){
-              var bundleItems=getBundleItems();
-              if(bundleItems.length>1){
-                var mvSec=null,mvSecUrl=null;
-                if(typeof opts.body==='string'){try{var ob=JSON.parse(opts.body);mvSec=ob.sections;mvSecUrl=ob.sections_url;}catch(e){}}
-                else if(opts.body instanceof FormData){mvSec=opts.body.get('sections');mvSecUrl=opts.body.get('sections_url');}
-                var mvBody={items:bundleItems};if(mvSec)mvBody.sections=mvSec;if(mvSecUrl)mvBody.sections_url=mvSecUrl;
-                return{method:opts.method||'POST',credentials:opts.credentials||'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(mvBody)};
-              }
+            var bundleItems=getBundleItems();
+            if(bundleItems.length>1){
+              var mvSec=null,mvSecUrl=null;
+              if(typeof opts.body==='string'){try{var ob=JSON.parse(opts.body);mvSec=ob.sections;mvSecUrl=ob.sections_url;}catch(e){}}
+              else if(opts.body instanceof FormData){mvSec=opts.body.get('sections');mvSecUrl=opts.body.get('sections_url');}
+              var mvBody={items:bundleItems};if(mvSec)mvBody.sections=mvSec;if(mvSecUrl)mvBody.sections_url=mvSecUrl;
+              return{method:opts.method||'POST',credentials:opts.credentials||'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(mvBody)};
             }
           }catch(ex){}
         }
